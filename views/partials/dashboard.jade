@@ -1,0 +1,18 @@
+#content-header
+  h1 Dashboard
+#breadcrumb
+  a(href='/', class="tip-bottom")
+    i.icon-home
+    | Home
+.container-fluid
+  .row-fluid
+    .span12
+      .widget-box.widget-plain
+        .widget-content.center
+          ul.stats-plain
+            li
+              h4(ng-bind='ledger_index') ???
+              span Ledger Index
+            li
+              h4(ng-bind='account_count') ???
+              span Total Accounts
