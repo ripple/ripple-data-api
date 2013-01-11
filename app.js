@@ -13,9 +13,6 @@ var express = require('express'),
 
 var app = module.exports = express();
 
-// Hook Socket.io into Express
-var io = require('socket.io').listen(server);
-
 // Ripple client
 var ripple = require('../ripple/src/js');
 var remote = ripple.Remote.from_config({
@@ -62,6 +59,9 @@ app.configure('production', function(){
 var server = config.ssl ?
       require('https').createServer(config.ssl, app) :
       require('http').createServer(app);
+
+// Hook Socket.io into Express
+var io = require('socket.io').listen(server);
 
 // Routes
 
