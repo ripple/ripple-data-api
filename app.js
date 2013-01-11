@@ -4,13 +4,14 @@
  */
 
 var express = require('express'),
+    extend = require('extend'),
+    fs = require('fs'),
     routes = require('./routes'),
     api = require('./routes/api'),
     model = require('./model'),
     interp = require('./interpreter');
 
 var app = module.exports = express();
-var server = require('http').createServer(app);
 
 // Hook Socket.io into Express
 var io = require('socket.io').listen(server);
@@ -28,8 +29,12 @@ var remote = ripple.Remote.from_config({
 });
 
 // Configuration
-
+var config = {};
 app.configure(function(){
+  extend(config, {
+    ssl: false,
+    port: 3000
+  });
   app.set('views', __dirname + '/views');
   app.set('view engine', 'jade');
   app.use(express.favicon(__dirname + '/public/img/icon/favicon.ico'));
@@ -44,8 +49,19 @@ app.configure('development', function(){
 });
 
 app.configure('production', function(){
+  extend(config, {
+    ssl: {
+      key: fs.readFileSync('./ssl/server.key'),
+      cert: fs.readFileSync('./ssl/server.crt')
+    },
+    port: 443
+  });
   app.use(express.errorHandler());
 });
+
+var server = config.ssl ?
+      require('https').createServer(config.ssl, app) :
+      require('http').createServer(app);
 
 // Routes
 
