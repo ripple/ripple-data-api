@@ -76,7 +76,7 @@ app.get('/api/name', api.name);
 app.get('*', routes.index);
 
 // Start server
-server.listen(3000, function(){
+server.listen(config.port, function(){
   console.log("Express server listening on port %d in %s mode",
               this.address().port, app.settings.env);
 
