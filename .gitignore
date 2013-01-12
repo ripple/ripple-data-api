@@ -2,3 +2,5 @@ node_modules
 
 ssl/*
 !ssl/README.md
+
+s3.json
