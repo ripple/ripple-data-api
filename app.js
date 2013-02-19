@@ -14,12 +14,18 @@ var express = require('express'),
 var app = module.exports = express();
 
 // Ripple client
-var ripple = require('../ripple/src/js');
+var ripple = require('ripple-lib');
 var remote = ripple.Remote.from_config({
 //  trace: true,
   "websocket_ip" : "127.0.0.1",
   "websocket_port" : 5006,
   "websocket_ssl" : false
+//  "websocket_ip" : "192.168.0.17",
+//  "websocket_port" : 5006,
+//  "websocket_ssl" : false
+//  "websocket_ip" : "ripplecharts.com",
+//  "websocket_port" : 5006,
+//  "websocket_ssl" : false
 //  "websocket_ip" : "s1.ripple.com",
 //  "websocket_port" : 51233,
 //  "websocket_ssl" : true
