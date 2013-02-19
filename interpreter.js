@@ -1,4 +1,6 @@
-var extend = require('extend');
+var extend = require('extend'),
+    Order = require('./lib/order').Order,
+    OrderBook = require('./lib/orderbook').OrderBook;
 
 /**
  * Takes a metadata affected node and returns a simpler JSON object.
@@ -54,20 +56,37 @@ function processAnode(an) {
 }
 
 var accounts = {};
+var orderbooks = {};
+var orders = {};
 exports.applyLedger = function (model, e) {
+  var pairs = [
+    'AUD/rBcYpuDT1aXNo4jnqczWJTytKGdBGufsre|XRP'
+  ];
+
   accounts = {};
+  orderbooks = {};
   e.ledger.accountState.forEach(function (node) {
     switch (node.LedgerEntryType) {
     case 'AccountRoot':
       accounts[node.Account] = {
       };
       break;
+    case 'Offer':
+      var order = new Order(node),
+          key = order.getKey();
+      if ("undefined" === typeof key) return;
+      //if (pairs.indexOf(key) === -1) return;
+      if (!orderbooks[key]) orderbooks[key] = new OrderBook();
+      orderbooks[key].add(order);
+      orders[order.id] = order;
+      break;
     }
   });
   model.apply({
-    account_count: Object.keys(accounts).length,
+    ledger_index: e.ledger.seqNum,
     ledger_hash: e.ledger.hash,
-    ledger_index: e.ledger.seqNum
+    account_count: Object.keys(accounts).length,
+    order_books: orderbooks
   });
 };
 
@@ -81,6 +100,8 @@ exports.applyTransaction = function (model, e) {
       } else if (an.diffType === 'DeletedNode') {
         delete accounts[an.fields.Account];
       }
+    } else if (an.entryType === "Offer") {
+      console.log(an);
     }
   });
 
