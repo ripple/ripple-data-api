@@ -28,3 +28,9 @@
   content: "";
   padding: 0;
 }
+
+#footer {
+  background-color: #eee;
+  margin-left: 220px;
+  padding: 12px 0;
+}

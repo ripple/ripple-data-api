@@ -6,13 +6,35 @@
     | Home
 .container-fluid
   .row-fluid
-    .span12
-      .widget-box.widget-plain
+    .span7
+      .widget-box
+        .widget-title
+          span.icon: i.icon-refresh
+          h5 Ripple News
+        .widget-content.nopadding.updates
+          .new-update.clearfix
+            i.icon-exclamation-sign
+            span.update-alert
+              a(href="#"): strong RippleCharts is still in alpha!
+              span I&#39;m sure it&#39;ll be great when it&#39;s done. :)
+            span.update-date
+              span.update-day 19
+              | feb
+    .span5
+      .widget-box
+        .widget-title
+          span.icon: i.icon-signal
+          h5 Ripple Ledger
         .widget-content.center
-          ul.stats-plain
+          ul.site-stats
             li
-              h4(ng-bind='ledger_index') ???
-              span Ledger Index
+              i.icon-arrow-right
+              strong(ng-bind='ledger_index') ???
+              small Ledger Index
             li
-              h4(ng-bind='account_count') ???
-              span Total Accounts
+              i.icon-user
+              strong(ng-bind='account_count') ???
+              small Total Accounts
+            li
+              i.icon-calendar
+              strong(ng-bind='ledger_time | rpdate') ???
