@@ -6,7 +6,7 @@
 var express = require('express'),
     extend = require('extend'),
     fs = require('fs'),
-    config = require('config'),
+    config = require('./config'),
     routes = require('./routes'),
     api = require('./routes/api'),
     model = require('./model'),
@@ -55,6 +55,7 @@ var server = config.ssl ?
 
 // Hook Socket.io into Express
 var io = require('socket.io').listen(server);
+io.set('log level', 1);
 
 // Routes
 
@@ -84,25 +85,32 @@ io.sockets.on('connection', function (socket) {
   socket.emit('apply', model.data);
 });
 
+remote.on('error', function (err) {
+  console.error(err);
+});
+
 remote.on('connected', function(connection) {
   console.log('WebSocket client connected');
 
-  remote.request_subscribe(['ledger', 'transactions']).request();
-
   remote.request_ledger("ledger_closed", "full")
+    .on('error', function (err) {
+      console.error(err);
+      process.exit(1);
+    })
     .on('success', function (e) {
       interp.applyLedger(model, e);
     })
     .request();
+});
 
-  remote.on('net_transaction', function (e) {
-    interp.applyTransaction(model, e);
-  });
-  remote.on('ledger_closed', function (e) {
-    model.apply({
-      ledger_hash: e.ledger_hash,
-      ledger_index: e.ledger_index,
-      ledger_time: e.ledger_time
-    });
+remote.on('transaction_all', function (e) {
+  interp.applyTransaction(model, e);
+});
+
+remote.on('ledger_closed', function (e) {
+  model.apply({
+    ledger_hash: e.ledger_hash,
+    ledger_index: e.ledger_index,
+    ledger_time: ripple.utils.toTimestamp(e.ledger_time)
   });
 });

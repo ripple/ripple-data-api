@@ -29,8 +29,11 @@
   padding: 0;
 }
 
-#footer {
-  background-color: #eee;
-  margin-left: 220px;
-  padding: 12px 0;
+.icon-dollar {
+  background-image: url(../img/glyphicons-halflings-usd.png);
+  background-position: 2px 0;
+}
+
+table#currency-list .cap {
+  text-align: right;
 }
