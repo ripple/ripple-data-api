@@ -105,9 +105,9 @@ remote.on('transaction_all', function (e) {
 remote.on('ledger_closed', function (e) {
   console.log('LEDGER CLOSE ' + e.ledger_index + ' ' + e.validated_ledgers);
 
-  var status_ledger = false;
+  var status_ledger = false, vrange;
   if ("string" === typeof e.validated_ledgers) {
-    var vrange = Range.from_string(e.validated_ledgers);
+    vrange = Range.from_string(e.validated_ledgers);
     status_ledger = vrange.is_member(config.net.genesis_ledger);
   }
 
@@ -118,7 +118,7 @@ remote.on('ledger_closed', function (e) {
     status_ledger: status_ledger
   });
 
-  processor.processValidated(vrange);
+  if (vrange instanceof Range) processor.processValidated(vrange);
 });
 
 remote.on('connected', function(connection) {
