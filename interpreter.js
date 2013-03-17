@@ -64,7 +64,7 @@ exports.applyLedger = function (model, e) {
   _.each(mkt.tickers, function (data) {
     // Initialize field with basic properties
     tickers[data.first + ':' + data.second] = {
-      sym: data.symbol,
+      sym: data.sym,
       first: data.first,
       second: data.second,
       bid: Amount.from_json("0/"+data.second),
