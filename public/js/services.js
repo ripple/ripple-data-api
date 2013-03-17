@@ -4,13 +4,10 @@
 var module = angular.module('myApp.services', []);
 
 module.factory('socket', function ($rootScope) {
-  // Easier access for debugging
-  window.$scope = $rootScope;
-
   var socket = io.connect();
   return {
     on: function (eventName, callback) {
-      socket.on(eventName, function () {  
+      socket.on(eventName, function () {
         var args = arguments;
         $rootScope.$apply(function () {
           callback.apply(socket, args);
