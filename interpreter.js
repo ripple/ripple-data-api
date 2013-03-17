@@ -5,13 +5,12 @@ var extend = require('extend'),
 
 var _ = require('lodash');
 
-var issuers = require('./markets').issuers;
-var markets = require('./markets').markets;
+var mkt = require('./markets');
+var issuers = mkt.issuers;
+var markets = mkt.markets;
 
 /**
- * Takes a metadata affected node and returns a simpler JSON object.
- *
- * The resulting object looks like this:
+ * Metadata format:
  *
  *   {
  *     // Type of diff, e.g. CreatedNode, ModifiedNode
@@ -39,27 +38,6 @@ var markets = require('./markets').markets;
  *     fieldsFinal: {...}
  *   }
  */
-function processAnode(an) {
-  var result = {};
-
-  ["CreatedNode", "ModifiedNode", "DeletedNode"].forEach(function (x) {
-    if (an[x]) result.diffType = x;
-  });
-
-  if (!result.diffType) return null;
-
-  an = an[result.diffType];
-
-  result.entryType = an.LedgerEntryType;
-  result.ledgerIndex = an.LedgerIndex;
-
-  result.fields = extend({}, an.PreviousFields, an.NewFields, an.FinalFields);
-  result.fieldsPrev = an.PreviousFields || {};
-  result.fieldsNew = an.NewFields || {};
-  result.fieldsFinal = an.FinalFields || {};
-
-  return result;
-}
 
 var accounts = {};
 var orderbooks = {};
@@ -83,21 +61,16 @@ exports.applyLedger = function (model, e) {
       };
     });
   });
-  _.each(markets, function (data, symbol) {
-    // Basically just resolve the issuer name into an address
-    var t = symbol.split(':'), tmp2 = t[0].split('/'), tmp3 = t[1].split('/');
-    var first = tmp2[0];
-    if (first !== 'XRP') first += '/' + issuers[tmp2[1]].currencies[first];
-    var second = tmp3[0];
-    if (second !== 'XRP') second += '/' + issuers[tmp3[1]].currencies[second];
-
+  _.each(mkt.tickers, function (data) {
     // Initialize field with basic properties
-    tickers[first + ':' + second] = {
-      sym: symbol,
-      bid: Amount.from_json("0/"+second),
-      ask: Amount.from_json("0/"+second),
-      last: Amount.from_json("0/"+second),
-      vol: Amount.from_json("0/"+first)
+    tickers[data.first + ':' + data.second] = {
+      sym: data.symbol,
+      first: data.first,
+      second: data.second,
+      bid: Amount.from_json("0/"+data.second),
+      ask: Amount.from_json("0/"+data.second),
+      last: Amount.from_json("0/"+data.second),
+      vol: Amount.from_json("0/"+data.first)
     };
   });
   e.ledger.accountState.forEach(function (node) {

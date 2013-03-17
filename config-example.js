@@ -1,3 +1,7 @@
+exports.net = {
+  genesis_ledger: 32570
+};
+
 exports.remote = {
 //  trace: true,
   "websocket_ip" : "127.0.0.1",
@@ -12,4 +16,11 @@ exports.remote = {
 //  "websocket_ip" : "s1.ripple.com",
 //  "websocket_port" : 51233,
 //  "websocket_ssl" : true
+};
+
+exports.db = {
+  "mysql_ip" : "127.0.0.1",
+  "mysql_user" : "root",
+  "mysql_pass" : "vertrigo",
+  "mysql_db" : "rpcharts"
 };

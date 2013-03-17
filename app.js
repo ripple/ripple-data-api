@@ -12,16 +12,31 @@ var express = require('express'),
     model = require('./model'),
     interp = require('./interpreter');
 
+var Range = require('./range').Range;
+
 var app = module.exports = express();
 
 // Ripple client
 var ripple = require('ripple-lib');
 var remote = ripple.Remote.from_config(config.remote);
 
+// MySQL
+var mysql = require('mysql');
+var db = mysql.createConnection({
+  host: config.db.mysql_ip,
+  user: config.db.mysql_user,
+  password: config.db.mysql_pass,
+  database: config.db.mysql_db
+});
+
+// Historic data processor
+var Processor = require('./processor').Processor;
+var processor = new Processor(db, remote);
+
 // Configuration
-var config = {};
+var http_config = {};
 app.configure(function(){
-  extend(config, {
+  extend(http_config, {
     ssl: false,
     port: 3000
   });
@@ -39,7 +54,7 @@ app.configure('development', function(){
 });
 
 app.configure('production', function(){
-  extend(config, {
+  extend(http_config, {
     ssl: {
       key: fs.readFileSync('./ssl/server.key'),
       cert: fs.readFileSync('./ssl/server.crt')
@@ -50,7 +65,7 @@ app.configure('production', function(){
 });
 
 var server = config.ssl ?
-      require('https').createServer(config.ssl, app) :
+      require('https').createServer(http_config.ssl, app) :
       require('http').createServer(app);
 
 // Hook Socket.io into Express
@@ -70,12 +85,6 @@ app.get('/api/name', api.name);
 app.get('*', routes.index);
 
 // Start server
-server.listen(config.port, function(){
-  console.log("Express server listening on port %d in %s mode",
-              this.address().port, app.settings.env);
-
-  remote.connect();
-});
 
 model.broadcast = function (method, data) {
   io.sockets.emit(method, data);
@@ -89,8 +98,35 @@ remote.on('error', function (err) {
   console.error(err);
 });
 
+remote.on('transaction_all', function (e) {
+  interp.applyTransaction(model, e);
+});
+
+remote.on('ledger_closed', function (e) {
+  console.log('LEDGER CLOSE ' + e.ledger_index + ' ' + e.validated_ledgers);
+
+  var status_ledger = false;
+  if ("string" === typeof e.validated_ledgers) {
+    var vrange = Range.from_string(e.validated_ledgers);
+    status_ledger = vrange.is_member(config.net.genesis_ledger);
+  }
+
+  model.apply({
+    ledger_hash: e.ledger_hash,
+    ledger_index: e.ledger_index,
+    ledger_time: ripple.utils.toTimestamp(e.ledger_time),
+    status_ledger: status_ledger
+  });
+
+  processor.processValidated(vrange);
+});
+
 remote.on('connected', function(connection) {
   console.log('WebSocket client connected');
+
+  model.apply({
+    status_connected: true
+  });
 
   remote.request_ledger("ledger_closed", "full")
     .on('error', function (err) {
@@ -103,14 +139,38 @@ remote.on('connected', function(connection) {
     .request();
 });
 
-remote.on('transaction_all', function (e) {
-  interp.applyTransaction(model, e);
-});
-
-remote.on('ledger_closed', function (e) {
+remote.on('disconnected', function(connection) {
   model.apply({
-    ledger_hash: e.ledger_hash,
-    ledger_index: e.ledger_index,
-    ledger_time: ripple.utils.toTimestamp(e.ledger_time)
+    status_connected: false
   });
 });
+
+startupHttp();
+
+function startupHttp()
+{
+  server.listen(http_config.port, function(){
+    console.log("Express server listening on port %d in %s mode",
+                this.address().port, app.settings.env);
+
+    startupMysql();
+  });
+}
+
+function startupMysql()
+{
+  db.connect(function (err) {
+    if (err) {
+      console.error(err);
+      process.exit(1);
+    }
+
+    console.log("Connected to MySQL server");
+    startupRipple();
+  });
+}
+
+function startupRipple()
+{
+  remote.connect();
+}
