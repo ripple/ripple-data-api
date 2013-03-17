@@ -64,7 +64,7 @@ app.configure('production', function(){
   app.use(express.errorHandler());
 });
 
-var server = config.ssl ?
+var server = http_config.ssl ?
       require('https').createServer(http_config.ssl, app) :
       require('http').createServer(app);
 
