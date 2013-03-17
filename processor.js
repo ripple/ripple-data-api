@@ -118,6 +118,11 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             var trade_gets = Amount.from_json(an.fieldsPrev.TakerGets);
             var trade_pays = Amount.from_json(an.fieldsPrev.TakerPays);
 
+            if (!trade_gets.is_valid() || !trade_pays.is_valid()) {
+              console.log("TRADE (INVALID)");
+              return;
+            }
+
             var gets = trade_gets.currency().to_json();
             if (gets !== "XRP") gets += "/" + trade_gets.issuer().to_json();
             var pays = trade_pays.currency().to_json();
