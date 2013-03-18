@@ -97,6 +97,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
   function processLedger(e) {
     try {
       var ledger = e.ledger;
+      var ledger_date = new Date(utils.toTimestamp(ledger.close_time));
       ledger.transactions.forEach(function (tx) {
         if (tx.metaData) {
           tx.meta = tx.metaData;
@@ -156,7 +157,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             self.db.query("INSERT INTO trades" +
                           "(`book`, `time`, `ledger`, `price`, `amount`)" +
                           "VALUES (?, ?, ?, ?, ?)",
-                          [ticker.id, utils.toTimestamp(ledger.close_time) / 1000,
+                          [ticker.id,
+                           ledger_date,
                            ledger_index,
                            price.to_number(), volume.to_number()],
                           function (err)
