@@ -1,0 +1,12 @@
+#content-header
+  h1 Market {{first}}/{{second}}
+#breadcrumb
+  a(href='/', class="tip-bottom")
+    i.icon-home
+    | Home
+.container-fluid
+  .row-fluid
+    .span12
+      .widget-box.widget-plain
+        .widget-content
+          stockchart(value="{{data}}", height="500")

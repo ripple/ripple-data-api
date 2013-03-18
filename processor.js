@@ -96,6 +96,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   function processLedger(e) {
     try {
+      var rows = [];
+
       var ledger = e.ledger;
       var ledger_date = new Date(utils.toTimestamp(ledger.close_time));
       ledger.transactions.forEach(function (tx) {
@@ -154,21 +156,27 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             console.log("TRADE", ticker.sym, price.to_text_full(),
                         volume.to_text_full());
 
-            self.db.query("INSERT INTO trades" +
-                          "(`book`, `time`, `ledger`, `price`, `amount`)" +
-                          "VALUES (?, ?, ?, ?, ?)",
-                          [ticker.id,
-                           ledger_date,
-                           ledger_index,
-                           price.to_number(), volume.to_number()],
-                          function (err)
-                          {
-                            if (err) console.error(err);
-                          });
+            rows.push([ticker.id, ledger_date, ledger_index,
+                       price.is_native() ? price.to_number() / 1000000 : price.to_number(),
+                       volume.is_native() ? volume.to_number() / 1000000 : volume.to_number()]);
           }
         });
       });
-      updateStatus();
+
+      if (rows.length) {
+        self.db.query("INSERT INTO trades" +
+                      "(`book`, `time`, `ledger`, `price`, `amount`)" +
+                      "VALUES ?",
+                      [rows],
+                      function (err)
+                      {
+                        if (err) console.error(err);
+
+                        updateStatus();
+                      });
+      } else {
+        updateStatus();
+      }
     } catch (e) { callback(e); }
   }
 

@@ -21,31 +21,34 @@ exports.issuers = {
 };
 
 exports.markets = {
-  "USD/Bitstamp:XRP": {},
-  "BTC/Bitstamp:XRP": {},
-  "USD/WeExchange:XRP": {},
-  "BTC/WeExchange:XRP": {},
-  "AUD/WeExchange:XRP": {},
-  "CAD/WeExchange:XRP": {}
+  "USD:Bitstamp/XRP": {},
+  "BTC:Bitstamp/XRP": {},
+  "USD:WeExchange/XRP": {},
+  "BTC:WeExchange/XRP": {},
+  "AUD:WeExchange/XRP": {},
+  "CAD:WeExchange/XRP": {}
 }
 
 exports.tickers = {};
 
-// Calculate tickers from observed markets
+// Initialize markets
 var i = 0;
 _.each(exports.markets, function (data, symbol) {
   // Basically just resolve the issuer name into an address
-  var t = symbol.split(':'), tmp2 = t[0].split('/'), tmp3 = t[1].split('/');
+  var t = symbol.split('/'), tmp2 = t[0].split(':'), tmp3 = t[1].split(':');
   var first = tmp2[0];
   if (first !== 'XRP') first += '/' + exports.issuers[tmp2[1]].currencies[first];
   var second = tmp3[0];
   if (second !== 'XRP') second += '/' + exports.issuers[tmp3[1]].currencies[second];
 
-  // Initialize field with basic properties
-  exports.tickers[first + ':' + second] = {
+  // Set basic properties
+  _.extend(data, {
     id: i++,
     sym: symbol,
     first: first,
     second: second
-  };
+  });
+
+  // Create corresponding ticker index
+  exports.tickers[first + ':' + second] = data;
 });

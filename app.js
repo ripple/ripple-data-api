@@ -80,6 +80,8 @@ app.get('/partials/:name', routes.partials);
 // JSON API
 
 app.get('/api/name', api.name);
+app.get('/api/market/:first/:second/hourly.json', api.market_hourly(db));
+app.get('/api/market/:first/:second/daily.json', api.market_daily(db));
 
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);
@@ -131,7 +133,6 @@ remote.on('connected', function(connection) {
   remote.request_ledger("ledger_closed", "full")
     .on('error', function (err) {
       console.error(err);
-      process.exit(1);
     })
     .on('success', function (e) {
       interp.applyLedger(model, e);
