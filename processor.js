@@ -1,3 +1,5 @@
+var _ = require('lodash');
+
 var config = require('./config');
 var mkt = require('./markets');
 
@@ -100,66 +102,79 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
       var ledger = e.ledger;
       var ledger_date = new Date(utils.toTimestamp(ledger.close_time));
+
+      // XXX Can be removed soon
       ledger.transactions.forEach(function (tx) {
         if (tx.metaData) {
           tx.meta = tx.metaData;
           delete tx.metaData;
         }
+      });
 
+      // Sort transaction into processed order.
+      ledger.transactions.sort(function (a, b) {
+        return a.meta.TransactionIndex - b.meta.TransactionIndex;
+      });
+
+      ledger.transactions.forEach(function (tx) {
         if (tx.meta.TransactionResult !== 'tesSUCCESS' ||
             tx.TransactionType !== "Payment" &&
             tx.TransactionType !== "OfferCreate") return;
 
         // Process metadata
         tx.mmeta = new Meta(tx.meta);
+        var nodes = tx.mmeta.nodes;
 
-        tx.mmeta.each(function (an) {
-          if (an.entryType !== 'Offer') return;
+        nodes = _.filter(nodes, function (an) {
+          return (an.entryType === 'Offer' &&
+                  (an.diffType === 'DeletedNode' ||
+                   an.diffType === 'ModifiedNode') &&
+                  an.fieldsPrev.TakerGets &&
+                  an.fieldsPrev.TakerPays);
+        });
 
-          if (an.diffType === 'DeletedNode' ||
-              an.diffType === 'ModifiedNode') {
-            var trade_gets = Amount.from_json(an.fieldsPrev.TakerGets);
-            var trade_pays = Amount.from_json(an.fieldsPrev.TakerPays);
+        nodes.forEach(function (an) {
+          var trade_gets = Amount.from_json(an.fieldsPrev.TakerGets);
+          var trade_pays = Amount.from_json(an.fieldsPrev.TakerPays);
 
-            if (!trade_gets.is_valid() || !trade_pays.is_valid()) {
-              console.log("TRADE (INVALID)");
-              return;
-            }
-
-            var gets = trade_gets.currency().to_json();
-            if (gets !== "XRP") gets += "/" + trade_gets.issuer().to_json();
-            var pays = trade_pays.currency().to_json();
-            if (pays !== "XRP") pays += "/" + trade_pays.issuer().to_json();
-
-            if (an.diffType === 'ModifiedNode') {
-              trade_gets = trade_gets.subtract(an.fieldsFinal.TakerGets);
-              trade_pays = trade_pays.subtract(an.fieldsFinal.TakerPays);
-            }
-
-            var ticker, price, volume;
-            if ((ticker = mkt.tickers[gets + ":" + pays])) {        // ASK
-              price = Amount.from_json(an.fieldsPrev.TakerPays)
-                .ratio_human(an.fieldsPrev.TakerGets);
-              volume = Amount.from_json(an.fieldsPrev.TakerGets);
-              if (an.diffType === 'ModifiedNode') {
-                volume = volume.subtract(an.fieldsFinal.TakerGets);
-              }
-            } else if ((ticker = mkt.tickers[pays + ":" + gets])) { // BID
-              price = Amount.from_json(an.fieldsPrev.TakerGets)
-                .ratio_human(an.fieldsPrev.TakerPays);
-              volume = Amount.from_json(an.fieldsPrev.TakerPays);
-              if (an.diffType === 'ModifiedNode') {
-                volume = volume.subtract(an.fieldsFinal.TakerPays);
-              }
-            } else return;
-
-            console.log("TRADE", ticker.sym, price.to_text_full(),
-                        volume.to_text_full());
-
-            rows.push([ticker.id, ledger_date, ledger_index,
-                       price.is_native() ? price.to_number() / 1000000 : price.to_number(),
-                       volume.is_native() ? volume.to_number() / 1000000 : volume.to_number()]);
+          if (!trade_gets.is_valid() || !trade_pays.is_valid()) {
+            console.log("TRADE (INVALID)");
+            return;
           }
+
+          an.gets = trade_gets.currency().to_json();
+          if (an.gets !== "XRP") an.gets += "/" + trade_gets.issuer().to_json();
+          an.pays = trade_pays.currency().to_json();
+          if (an.pays !== "XRP") an.pays += "/" + trade_pays.issuer().to_json();
+
+          an.sort = trade_gets.ratio_human(trade_pays).to_number();
+        });
+        nodes.sort(function (a, b) { return b.sort - a.sort; });
+
+        nodes.forEach(function (an) {
+          var ticker, price, volume;
+          if ((ticker = mkt.tickers[an.gets + ":" + an.pays])) {        // ASK
+            price = Amount.from_json(an.fieldsPrev.TakerPays)
+              .ratio_human(an.fieldsPrev.TakerGets);
+            volume = Amount.from_json(an.fieldsPrev.TakerGets);
+            if (an.diffType === 'ModifiedNode') {
+              volume = volume.subtract(an.fieldsFinal.TakerGets);
+            }
+          } else if ((ticker = mkt.tickers[an.pays + ":" + an.gets])) { // BID
+            price = Amount.from_json(an.fieldsPrev.TakerGets)
+              .ratio_human(an.fieldsPrev.TakerPays);
+            volume = Amount.from_json(an.fieldsPrev.TakerPays);
+            if (an.diffType === 'ModifiedNode') {
+              volume = volume.subtract(an.fieldsFinal.TakerPays);
+            }
+          } else return;
+
+          console.log("TRADE", ticker.sym, price.to_text_full(),
+                      volume.to_text_full());
+
+          rows.push([ticker.id, ledger_date, ledger_index,
+                     price.is_native() ? price.to_number() / 1000000 : price.to_number(),
+                     volume.is_native() ? volume.to_number() / 1000000 : volume.to_number()]);
         });
       });
 
