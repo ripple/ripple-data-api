@@ -144,6 +144,10 @@ exports.applyLedger = function (model, e) {
 exports.applyTransaction = function (model, e) {
   var modelDiff = {};
 
+  if (e.meta.TransactionResult !== 'tesSUCCESS' ||
+      e.transaction.TransactionType !== "Payment" &&
+      e.transaction.TransactionType !== "OfferCreate") return;
+
   e.mmeta.each(function (an) {
     if (an.entryType === "AccountRoot") {
       if (an.diffType === 'CreatedNode') {
@@ -152,51 +156,46 @@ exports.applyTransaction = function (model, e) {
         delete accounts[an.fields.Account];
       }
     } else if (an.entryType === "Offer") {
-      if (an.diffType === 'ModifiedNode' &&
+      if ((an.diffType === 'ModifiedNode' ||
+           an.diffType === 'DeletedNode') &&
           an.fieldsPrev.TakerGets &&
-          _.isEqual(an.fieldsPrev.TakerGets, an.fieldsFinal.TakerGets)) {
-        // Offer used partially
-      } else if (an.diffType === 'DeletedNode' &&
-                 e.transaction.TransactionType !== 'OfferCancel') {
-        // Offer used up
-      } else return;
-      var gets = Amount.from_json(an.fields.TakerGets);
-      var getsStr = gets.currency().to_json();
-      if (getsStr !== 'XRP') getsStr += '/' + gets.issuer().to_json();
-      var pays = Amount.from_json(an.fields.TakerPays);
-      var paysStr = pays.currency().to_json();
-      if (paysStr !== 'XRP') paysStr += '/' + pays.issuer().to_json();
+          an.fieldsPrev.TakerPays) {
 
-      console.log(e.transaction.TransactionType);
-      console.log(getsStr + ":" + paysStr);
-      console.log(an);
-      var ticker, price, volume;
-      if ((ticker = tickers[getsStr + ":" + paysStr])) {        // ASK
-        price = Amount.from_json(an.fieldsPrev.TakerPays)
-          .ratio_human(an.fieldsPrev.TakerGets);
-        volume = Amount.from_json(an.fieldsPrev.TakerGets);
-        if (an.diffType === 'ModifiedNode') {
-          volume = volume.subtract(an.fieldsFinal.TakerGets);
-        }
-      } else if ((ticker = tickers[paysStr + ":" + getsStr])) { // BID
-        price = Amount.from_json(an.fieldsPrev.TakerGets)
-          .ratio_human(an.fieldsPrev.TakerPays);
-        volume = Amount.from_json(an.fieldsPrev.TakerPays);
-        if (an.diffType === 'ModifiedNode') {
-          volume = volume.subtract(an.fieldsFinal.TakerPays);
-        }
-      } else return;
+        var gets = Amount.from_json(an.fields.TakerGets);
+        var getsStr = gets.currency().to_json();
+        if (getsStr !== 'XRP') getsStr += '/' + gets.issuer().to_json();
+        var pays = Amount.from_json(an.fields.TakerPays);
+        var paysStr = pays.currency().to_json();
+        if (paysStr !== 'XRP') paysStr += '/' + pays.issuer().to_json();
 
-      console.log("TRADE", price.to_text_full(), volume.to_text_full());
+        var ticker, price, volume;
+        if ((ticker = tickers[getsStr + ":" + paysStr])) {        // ASK
+          price = Amount.from_json(an.fieldsPrev.TakerPays)
+            .ratio_human(an.fieldsPrev.TakerGets);
+          volume = Amount.from_json(an.fieldsPrev.TakerGets);
+          if (an.diffType === 'ModifiedNode') {
+            volume = volume.subtract(an.fieldsFinal.TakerGets);
+          }
+        } else if ((ticker = tickers[paysStr + ":" + getsStr])) { // BID
+          price = Amount.from_json(an.fieldsPrev.TakerGets)
+            .ratio_human(an.fieldsPrev.TakerPays);
+          volume = Amount.from_json(an.fieldsPrev.TakerPays);
+          if (an.diffType === 'ModifiedNode') {
+            volume = volume.subtract(an.fieldsFinal.TakerPays);
+          }
+        } else return;
 
-      ticker.last = price.to_json();
-      ticker.vol = Amount.from_json(ticker.vol).add(volume).to_json();
-      if (!ticker.min || Amount.from_json(ticker.min).compareTo(price) > 0)
-        ticker.min = price.to_json();
-      if (!ticker.max || Amount.from_json(ticker.max).compareTo(price) < 0)
-        ticker.max = price.to_json();
+        console.log("TRADE (LIVE)", price.to_text_full(), volume.to_text_full());
 
-      modelDiff.tickers = tickers;
+        ticker.last = price.to_json();
+        ticker.vol = Amount.from_json(ticker.vol).add(volume).to_json();
+        if (!ticker.min || Amount.from_json(ticker.min).compareTo(price) > 0)
+          ticker.min = price.to_json();
+        if (!ticker.max || Amount.from_json(ticker.max).compareTo(price) < 0)
+          ticker.max = price.to_json();
+
+        modelDiff.tickers = tickers;
+      }
     } else if (an.entryType === "RippleState") {
 
       var cur, account, balance_new, balance_old, negate = false;
