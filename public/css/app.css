@@ -34,6 +34,16 @@
   background-position: 2px 0;
 }
 
+/*
+table#market-list tbody tr {
+  cursor: pointer;
+}
+
+table#market-list tbody tr:hover td {
+  background-color: #eee;
+}
+*/
+
 table#currency-list .cap {
   text-align: right;
 }

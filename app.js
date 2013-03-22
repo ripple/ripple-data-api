@@ -136,6 +136,7 @@ remote.on('connected', function(connection) {
     })
     .on('success', function (e) {
       interp.applyLedger(model, e);
+      processor.loadState();
     })
     .request();
 });

@@ -40,3 +40,18 @@ module.directive('stockchart', function () {
     }
   };
 });
+
+module.directive('rpchRowlink', function () {
+  return {
+    restrict: 'A',
+
+    compile: function (element, attrs) {
+      console.log(element);
+      return {
+        post: function () {
+          $(element).rowlink();
+        }
+      };
+    }
+  };
+});

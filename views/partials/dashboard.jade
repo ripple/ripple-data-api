@@ -17,8 +17,8 @@
               th Symbol
               th Latest Price
               th Volume
-            tr(ng-repeat="ticker in tickers")
-              td(ng-bind="ticker.sym")
+            tbody: tr(ng-repeat="ticker in tickers")
+              td: a(href="market/{{ticker.sym}}", ng-bind="ticker.sym")
               td(ng-bind="ticker.last | rpamount:{rel_precision: 2, min_rel_precision: 2}")
               td(ng-bind="ticker.vol | rpamount:{rel_precision: 2, min_rel_precision: 2}")
       .widget-box
@@ -53,6 +53,12 @@
             li
               i.icon-calendar
               strong(ng-bind='ledger_time | rpdate') ???
+          div.alert.alert-error(ng-hide="status_connected")
+            strong Warning:&nbsp;
+            | RippleCharts is not connected to the Ripple network. Information may be out of date!
+          div.alert.alert-error(ng-hide="status_ledger")
+            strong Warning:
+            | RippleCharts is waiting for a validated ledger, information may not be accurate yet.
       .widget-box
         .widget-title
           span.icon: i.icon-refresh

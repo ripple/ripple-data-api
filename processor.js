@@ -2,6 +2,7 @@ var _ = require('lodash');
 
 var config = require('./config');
 var mkt = require('./markets');
+var model = require('./model');
 
 var Meta = require('ripple-lib').Meta;
 var Amount = require('ripple-lib').Amount;
@@ -12,6 +13,24 @@ var Processor = function (db, remote) {
   this.remote = remote;
 
   this.processing = false;
+};
+
+Processor.prototype.loadState = function ()
+{
+  var self = this;
+  _.each(mkt.tickers, function (ticker, i) {
+    self.db.query("SELECT * FROM trades WHERE book = ? " +
+                  "ORDER BY time DESC LIMIT 0,1",
+                  [ticker.id],
+                  function (err, rows)
+    {
+      if (err) console.error(err);
+
+      if (rows[0]) {
+        model.set("tickers."+i+".last", ""+(rows[0].price*1000000));
+      }
+    });
+  });
 };
 
 /**

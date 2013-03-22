@@ -9,6 +9,24 @@ function AppCtrl($scope, socket) {
   socket.on('apply', function (data) {
     angular.extend($scope, data);
   });
+
+  socket.on('set', function (data) {
+    console.log(data);
+    var path = data[0], value = data[1];
+
+    path = path.split('.');
+
+    var segment, select = $scope;
+    while ((segment = path.shift())) {
+      if (path.length && select[segment]) {
+        select = select[segment];
+      } else if (path.length) {
+        select = select[segment] = {};
+      } else {
+        select[segment] = value;
+      }
+    }
+  });
 }
 
 function DashboardCtrl() {}

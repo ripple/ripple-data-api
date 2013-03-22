@@ -26,7 +26,7 @@ exports.markets = {
   "USD:WeExchange/XRP": {},
   "BTC:WeExchange/XRP": {},
   "AUD:WeExchange/XRP": {},
-  "CAD:WeExchange/XRP": {}
+//  "CAD:WeExchange/XRP": {}
 }
 
 exports.tickers = {};
