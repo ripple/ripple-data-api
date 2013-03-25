@@ -121,6 +121,12 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       var rows = [];
 
       var ledger = e.ledger;
+
+      if (!ledger.close_time) {
+        callback(new Error("No ledger close time"));
+        return;
+      }
+
       var ledger_date = new Date(utils.toTimestamp(ledger.close_time));
 
       // XXX Can be removed soon
