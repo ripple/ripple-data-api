@@ -57,7 +57,7 @@ Processor.prototype.processValidated = function (vrange)
     }
 
     var latest = Math.max(+(rows[0] && rows[0].value) || 0, config.net.genesis_ledger);
-    self.processNextValidated(vrange, latest);
+    self.processNextValidated(vrange, latest+1);
   });
 };
 
