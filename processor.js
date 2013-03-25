@@ -66,10 +66,11 @@ Processor.prototype.processNextValidated = function (vrange, start)
   var self = this;
 
   if (self.processing) return;
-  self.processing = true;
 
   if (!vrange.is_member(config.net.genesis_ledger)) return;
   if (!vrange.is_member(start)) return;
+
+  self.processing = true;
 
   self.processLedger(start, function (err) {
     self.processing = false;
