@@ -226,8 +226,12 @@ exports.applyTransaction = function (model, e) {
 
       if (cur.dat.hotwallets && cur.dat.hotwallets[account]) {
         cur.hot = Amount.from_json(cur.hot).add(balance_diff).to_json();
+
+        console.log("HOT", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.hot).to_text());
       } else {
         cur.cap = Amount.from_json(cur.cap).add(balance_diff).to_json();
+
+        console.log("CAP", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.cap).to_text());
       }
 
       modelDiff.currencies = currencies;
