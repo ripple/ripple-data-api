@@ -47,3 +47,7 @@ table#market-list tbody tr:hover td {
 table#currency-list .cap {
   text-align: right;
 }
+
+.widget-content {
+  clear: both;
+}
