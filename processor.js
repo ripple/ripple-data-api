@@ -232,4 +232,32 @@ Processor.prototype.processLedger = function (ledger_index, callback)
   }
 };
 
+Processor.prototype.updateAggregates = function () {
+  var self = this;
+  _.each(mkt.tickers, function (ticker, i) {
+    [1, 30].forEach(function (days) {
+      var cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+
+      self.db.query("SELECT " +
+                    "  SUM( `price` * `amount` ) / SUM( `amount` ) AS avg, " +
+                    "  SUM( `amount` ) AS vol " +
+                    "FROM trades WHERE " +
+                    "`book` = ? AND time >= ?",
+                    [ticker.id, cutoff],
+                    function (err, rows)
+      {
+        if (err) console.error(err);
+
+        if (rows[0]) {
+          model.set("tickers."+i+".d"+days, {
+            avg: ""+rows[0].avg,
+            vol: ""+rows[0].vol
+          });
+        }
+      });
+    });
+  });
+};
+
 exports.Processor = Processor;

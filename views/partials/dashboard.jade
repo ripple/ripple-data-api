@@ -16,11 +16,11 @@
             thead: tr
               th Symbol
               th Latest Price
-              th Volume
+              th Volume (30d)
             tbody: tr(ng-repeat="ticker in tickers")
               td: a(href="market/{{ticker.sym}}", ng-bind="ticker.sym")
               td(ng-bind="ticker.last | rpamount:{rel_precision: 2, min_rel_precision: 2}")
-              td(ng-bind="ticker.vol | rpamount:{rel_precision: 2, min_rel_precision: 2}")
+              td(ng-bind="ticker.d30.vol + '/' + ticker.first | rpamount:{rel_precision: 2, min_rel_precision: 2}")
       .widget-box
         .widget-title
           span.icon: i.icon-dollar

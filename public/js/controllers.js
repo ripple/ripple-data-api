@@ -11,7 +11,6 @@ function AppCtrl($scope, socket) {
   });
 
   socket.on('set', function (data) {
-    console.log(data);
     var path = data[0], value = data[1];
 
     path = path.split('.');

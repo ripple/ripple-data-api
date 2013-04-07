@@ -121,6 +121,7 @@ remote.on('ledger_closed', function (e) {
   });
 
   if (vrange instanceof Range) processor.processValidated(vrange);
+  processor.updateAggregates();
 });
 
 remote.on('connected', function(connection) {
