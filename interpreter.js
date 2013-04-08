@@ -44,6 +44,9 @@ var orderbooks = {};
 var orders = {};
 var currencies = {};
 var tickers = {};
+
+var currenciesById = {};
+
 exports.applyLedger = function (model, e) {
   accounts = {};
   orderbooks = {};
@@ -122,6 +125,10 @@ exports.applyLedger = function (model, e) {
     else data.hot = data.hot.to_json();
 
     delete data.dat;
+
+    // Index
+    currenciesById[data.cur + ":" + data.iss] = data;
+
     return data;
   });
 
@@ -197,21 +204,20 @@ exports.applyTransaction = function (model, e) {
         modelDiff.tickers = tickers;
       }
     } else if (an.entryType === "RippleState") {
-
       var cur, account, balance_new, balance_old, negate = false;
-      if (currencies[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer]) {
-        cur = currencies[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer];
+      if ((cur = currenciesById[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
         account = an.fields.HighLimit.issuer;
         negate = true;
-      } else if (currencies[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer]) {
-        cur = currencies[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer];
+      } else if ((cur = currenciesById[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
         account = an.fields.LowLimit.issuer;
       } else return;
 
-      balance_new = an.diffType === "DeletedNode"
-        ? Amount.from_json(an.fieldsFinal.Balance)
-        : Amount.from_json("0/"+cur.cur+"/"+cur.iss);
-      balance_old = an.diffType === "CreatedNode"
+      var gateway = issuers[cur.gat];
+
+      balance_new = (an.diffType === "DeletedNode")
+        ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
+        : Amount.from_json(an.fieldsFinal.Balance);
+      balance_old = (an.diffType === "CreatedNode")
         ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
         : Amount.from_json(an.fieldsPrev.Balance);
 
@@ -224,7 +230,7 @@ exports.applyTransaction = function (model, e) {
 
       // if (!balance_diff.is_zero())
 
-      if (cur.dat.hotwallets && cur.dat.hotwallets[account]) {
+      if (gateway.hotwallets && gateway.hotwallets[account]) {
         cur.hot = Amount.from_json(cur.hot).add(balance_diff).to_json();
 
         console.log("HOT", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.hot).to_text());
