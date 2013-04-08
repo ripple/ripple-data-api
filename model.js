@@ -1,4 +1,5 @@
 var extend = require('extend');
+var _ = require('lodash');
 
 var model = exports;
 
@@ -12,7 +13,6 @@ model.apply = function (obj) {
 }
 
 model.set = function (path_str, value) {
-  console.log("SET", path_str, value);
   var path = path_str.split('.');
 
   var segment, select = model.data;
@@ -22,9 +22,11 @@ model.set = function (path_str, value) {
     } else if (path.length) {
       select = select[segment] = {};
     } else {
+      if (_.isEqual(select[segment], value)) return;
       select[segment] = value;
     }
   }
 
+  console.log("SET", path_str, value);
   model.broadcast('set', [path_str, value]);
 }
