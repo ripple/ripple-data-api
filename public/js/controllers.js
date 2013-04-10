@@ -71,6 +71,21 @@ function MarketCtrl($scope, $http, $routeParams)
         alignTicks: false
       },
 
+      colors: [
+        '#DC504F',
+        "#4B80B6"
+      ],
+
+      plotOptions: {
+        candlestick: {
+          upColor: '#79AF7B'
+        },
+        series: {
+            pointPadding: 0.13,
+            groupPadding: 0
+        }
+      },
+
       rangeSelector: {
         selected: 1
       },
@@ -94,6 +109,10 @@ function MarketCtrl($scope, $http, $routeParams)
         offset: 0,
         lineWidth: 2
       }],
+
+      tooltip: {
+        borderColor: "#2F7ED8"
+      },
 
       series: [{
         type: 'candlestick',
