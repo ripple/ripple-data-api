@@ -29,6 +29,15 @@
   padding: 0;
 }
 
+#user-nav > ul > li > a {
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+.navbar-inverse .nav>li>a {
+  color: #ddd;
+}
+
 .icon-dollar {
   background-image: url(../img/glyphicons-halflings-usd.png);
   background-position: 2px 0;
