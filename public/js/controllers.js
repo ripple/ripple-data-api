@@ -6,6 +6,10 @@ function AppCtrl($scope, socket) {
   // Easier access for debugging
   window.$scope = $scope;
 
+  $scope.$watch("tickers", function (tickers) {
+    tickers && ($scope.atickers = _.values(tickers));
+  }, true);
+
   socket.on('apply', function (data) {
     angular.extend($scope, data);
   });

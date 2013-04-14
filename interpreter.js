@@ -193,15 +193,6 @@ exports.applyTransaction = function (model, e) {
         } else return;
 
         console.log("TRADE (LIVE)", price.to_text_full(), volume.to_text_full());
-
-        ticker.last = price.to_json();
-        ticker.vol = Amount.from_json(ticker.vol).add(volume).to_json();
-        if (!ticker.min || Amount.from_json(ticker.min).compareTo(price) > 0)
-          ticker.min = price.to_json();
-        if (!ticker.max || Amount.from_json(ticker.max).compareTo(price) < 0)
-          ticker.max = price.to_json();
-
-        modelDiff.tickers = tickers;
       }
     } else if (an.entryType === "RippleState") {
       var cur, account, balance_new, balance_old, negate = false;

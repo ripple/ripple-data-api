@@ -26,7 +26,7 @@
             th High
             th Volume
             th Average
-        tbody: tr(ng-repeat="ticker in tickers | orderBy:'-vol'")
+        tbody: tr(ng-repeat="ticker in atickers | orderBy:'-vol'")
           td: a(href="market/{{ticker.sym}}", ng-bind="ticker.sym.slice(0, -4)")
           td.fin(ng-bind="ticker.last | rpamount:{rel_precision: 0, min_rel_precision: 0}")
           td.fin

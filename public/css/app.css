@@ -62,25 +62,22 @@ table#currency-list .cap {
   clear: both;
 }
 
-table#market-list {
-  font-size: 10pt;
-}
-
-table#market-list th, table#market-list td {
+table.table-fin th, table#market-list td {
   padding: 5px;
 }
 
 table.table-fin td {
+  font-size: 10pt;
   font-family: "Segoe UI", Frutiger, "Frutiger Linotype", "Dejavu Sans", "Helvetica Neue", Arial, sans-serif;
 }
 
-table#market-list td.fin {
+table.table-fin td.fin {
   text-align: center;
   font-size: 10pt;
   font-weight: 700;
 }
 
-table#market-list td.fin .minor {
+table.table-fin td.fin .minor {
   font-size: 9pt;
   font-weight: normal;
 }

@@ -11,11 +11,15 @@ block body
           span.text &nbsp;Feedback &amp; Support
   #sidebar
     ul
-      li: a(href="#")
+      li: a(href="/")
         i.icon.icon-home
         span Dashboard
+      li: a(href="/markets")
+        i.icon.icon-signal
+        span Markets
   #content(ng-controller='AppCtrl', ng-view)
 
+  script(src='js/lib/lodash/lodash.compat.js')
   script(src='js/lib/jquery/jquery.js')
   script(src='js/lib/angular/angular.js')
   script(src='js/lib/moment/moment.js')

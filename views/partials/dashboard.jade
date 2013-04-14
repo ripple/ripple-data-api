@@ -10,17 +10,17 @@
       .widget-box
         .widget-title
           span.icon: i.icon-signal
-          h5 Markets
+          h5 XRP Markets
         .widget-content.nopadding
-          table#market-list.table.table-bordered.table-striped
+          table#market-list.table.table-bordered.table-striped.table-fin
             thead: tr
               th Symbol
-              th Latest Price
-              th Volume (30d)
-            tbody: tr(ng-repeat="ticker in tickers")
+              th Latest Price (XRP)
+              th Volume (30d, XRP)
+            tbody: tr(ng-repeat="ticker in atickers | orderBy:'-vol'")
               td: a(href="market/{{ticker.sym}}", ng-bind="ticker.sym")
-              td(ng-bind="ticker.last | rpamount:{rel_precision: 2, min_rel_precision: 2}")
-              td(ng-bind="ticker.d30.vol + '/' + ticker.first | rpamount:{rel_precision: 2, min_rel_precision: 2}")
+              td.fin(ng-bind="ticker.last | rpamount:{rel_precision: 2, min_rel_precision: 2}")
+              td.fin(ng-bind="ticker.d30.avg * ticker.d30.vol | rpcurr:ticker.second | rpamount:{rel_precision: 0, min_rel_precision: 0}")
       .widget-box
         .widget-title
           span.icon: i.icon-dollar
