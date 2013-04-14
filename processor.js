@@ -241,7 +241,9 @@ Processor.prototype.updateAggregates = function () {
 
       self.db.query("SELECT " +
                     "  SUM( `price` * `amount` ) / SUM( `amount` ) AS avg, " +
-                    "  SUM( `amount` ) AS vol " +
+                    "  SUM( `amount` ) AS vol, " +
+                    "  MIN( `price` ) AS lo, " +
+                    "  MAX( `price` ) AS hi " +
                     "FROM trades WHERE " +
                     "`book` = ? AND time >= ?",
                     [ticker.id, cutoff],
@@ -249,11 +251,18 @@ Processor.prototype.updateAggregates = function () {
       {
         if (err) console.error(err);
 
-        if (rows[0]) {
-          model.set("tickers."+i+".d"+days, {
-            avg: ""+rows[0].avg,
-            vol: ""+rows[0].vol
-          });
+        if (rows && rows[0]) {
+          var data = {
+            avg: ""+(rows[0].avg || 0),
+            vol: ""+(rows[0].vol || 0),
+            hi:  ""+(rows[0].hi  || 0),
+            lo:  ""+(rows[0].lo  || 0)
+          };
+          model.set("tickers."+i+".d"+days, data);
+
+          if (days === 30 && ticker.second === "XRP") {
+             model.set("tickers."+i+".vol", data.vol * data.avg);
+          }
         }
       });
     });

@@ -11,6 +11,18 @@ module.filter('interpolate', ['version', function(version) {
   };
 }]);
 
+module.filter('rpcurr', [function () {
+  return function (input, opts) {
+    if (opts === "XRP") {
+      input = Math.floor(input * 1000000) / 1000000;
+      input = ""+input;
+      if (input.indexOf('.') === -1) input += ".0";
+      return ripple.Amount.from_json(""+input);
+    } else {
+      return ripple.Amount.from_json(""+input+"/"+opts);
+    }
+  };
+}]);
 
 /**
  * Format a ripple.Amount.
@@ -33,7 +45,7 @@ module.filter('rpamount', function () {
     if (!amount.is_valid()) return "n/a";
 
     // Currency default precision
-    var currency = [0, 2];//iso4217[amount.currency().to_json()];
+    var currency = iso4217[amount.currency().to_json()];
     var cdp = ("undefined" !== typeof currency) ? currency[1] : 2;
 
     // Certain formatting options are relative to the currency default precision

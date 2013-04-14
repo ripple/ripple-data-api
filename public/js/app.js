@@ -6,6 +6,7 @@ angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
   .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider) {
     $routeProvider.when('/', {templateUrl: 'partials/dashboard', controller: DashboardCtrl});
     $routeProvider.when('/network', {templateUrl: 'partials/network'});
+    $routeProvider.when('/markets', {templateUrl: 'partials/markets'});
     $routeProvider.when('/market/:first/:second', {templateUrl: 'partials/market',
                                                    controller: MarketCtrl});
     $routeProvider.otherwise({redirectTo: '/'});
