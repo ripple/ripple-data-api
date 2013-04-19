@@ -79,7 +79,7 @@ function MarketCtrl($scope, $http, $routeParams)
             var ex = axis.getExtremes();
 
             if (ex.min < 0) {
-              axis.setExtremes(0, ex.max);
+              axis.setExtremes(0, null);
             }
           }
         }
