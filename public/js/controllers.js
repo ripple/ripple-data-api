@@ -72,7 +72,17 @@ function MarketCtrl($scope, $http, $routeParams)
 
     $scope.data = {
       chart: {
-        alignTicks: false
+        alignTicks: false,
+        events: {
+          load: function (e) {
+            var axis = this.yAxis[0];
+            var ex = axis.getExtremes();
+
+            if (ex.min < 0) {
+              axis.setExtremes(0, ex.max);
+            }
+          }
+        }
       },
 
       colors: [
