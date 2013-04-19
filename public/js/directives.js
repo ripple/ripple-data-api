@@ -13,8 +13,8 @@ module.directive('stockchart', function () {
   return {
     restrict: 'E',
     template: '<div></div>',
-    transclude: true,
     replace: true,
+    scope: { data: "=value" },
 
     link: function (scope, element, attrs) {
       var chartsDefaults = {
@@ -27,16 +27,16 @@ module.directive('stockchart', function () {
       };
 
       //Update when charts data changes
-      scope.$watch(function() { return attrs.value; }, function(value) {
-        if(!attrs.value) return;
+      scope.$watch("data", function(value) {
+        if (!value) return;
         // We need deep copy in order to NOT override original chart object.
         // This allows us to override chart data member and still the keep
         // our original renderTo will be the same
         var deepCopy = true;
         var newSettings = {};
-        $.extend(deepCopy, newSettings, chartsDefaults, JSON.parse(attrs.value));
+        $.extend(deepCopy, newSettings, chartsDefaults, value);
         var chart = new Highcharts.StockChart(newSettings);
-      });
+      }, true);
     }
   };
 });
