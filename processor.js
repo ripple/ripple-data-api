@@ -1,7 +1,7 @@
 var _ = require('lodash');
 
 var config = require('./config');
-var mkt = require('./markets');
+var index = require('./indexes');
 var model = require('./model');
 
 var Meta = require('ripple-lib').Meta;
@@ -18,18 +18,20 @@ var Processor = function (db, remote) {
 Processor.prototype.loadState = function ()
 {
   var self = this;
-  _.each(mkt.tickers, function (ticker, i) {
-    self.db.query("SELECT * FROM trades WHERE book = ? " +
+
+  _.each(index.xrp, function (ticker, i) {
+    self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
                   "ORDER BY time DESC LIMIT 0,1",
-                  [ticker.id],
+                  [ticker.cur.id, ticker.iss.id],
                   function (err, rows)
     {
       if (err) console.error(err);
 
       if (rows[0]) {
-        model.set("tickers."+i+".last", ""+(rows[0].price*1000000));
+        model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
       }
     });
+    self.updateAggregates();
   });
 };
 
@@ -76,7 +78,7 @@ Processor.prototype.processNextValidated = function (vrange, start)
     self.processing = false;
 
     if (err) {
-      console.error(err);
+      console.error(err.stack ? err.stack : err);
     } else {
       self.processNextValidated(vrange, start+1);
     }
@@ -142,7 +144,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         return a.meta.TransactionIndex - b.meta.TransactionIndex;
       });
 
-      ledger.transactions.forEach(function (tx) {
+      ledger.transactions.forEach(function (tx, i_tx) {
         if (tx.meta.TransactionResult !== 'tesSUCCESS' ||
             tx.TransactionType !== "Payment" &&
             tx.TransactionType !== "OfferCreate") return;
@@ -159,54 +161,92 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                   an.fieldsPrev.TakerPays);
         });
 
-        nodes.forEach(function (an) {
+        nodes = _.filter(nodes, function (an) {
           var trade_gets = Amount.from_json(an.fieldsPrev.TakerGets);
           var trade_pays = Amount.from_json(an.fieldsPrev.TakerPays);
 
           if (!trade_gets.is_valid() || !trade_pays.is_valid()) {
-            console.log("TRADE (INVALID)");
-            return;
+            console.log("TRADE ERR (INVALID AMNTS)");
+            return false;
           }
 
-          an.gets = trade_gets.currency().to_json();
-          if (an.gets !== "XRP") an.gets += "/" + trade_gets.issuer().to_json();
-          an.pays = trade_pays.currency().to_json();
-          if (an.pays !== "XRP") an.pays += "/" + trade_pays.issuer().to_json();
+          //console.log("TRADE PREFILTER", trade_gets.to_text_full(), trade_pays.to_text_full());
+
+          // Make sure the gets currency is one we're tracking
+          var cg = index.currenciesByCode[trade_gets.currency().to_json()];
+          if (!cg) return false;
+
+          // Make sure the pays currency is one we're tracking
+          var cp = index.currenciesByCode[trade_pays.currency().to_json()];
+          if (!cp) return false;
+
+          // Make sure the gets issuer is one we're tracking
+          var ig = (cg.id === 0) ? {id: 0} :
+                index.issuersByAddress[trade_gets.issuer().to_json()];
+          if (!ig) return false;
+
+          // Make sure the pays issuer is one we're tracking
+          var ip = (cp.id === 0) ? {id: 0} :
+                index.issuersByAddress[trade_pays.issuer().to_json()];
+          if (!ip) return false;
+
+          //console.log("TRADE POSTFILTER");
+
+          if (cg.id === cp.id && ig.id === ip.id) {
+            console.log("TRADE ERR (SAME FOR SAME)");
+            return false;
+          }
+
+          // Pair ordering determined by IDs
+          if (cg.id < cp.id || (cg.id === cp.id && ig.id < ip.id)) {
+            an.reverse = false;
+          } else {
+            an.reverse = true;
+          }
+
+          an.c1 = an.reverse ? cp.id : cg.id;
+          an.c2 = an.reverse ? cg.id : cp.id;
+          an.i1 = an.reverse ? ip.id : ig.id;
+          an.i2 = an.reverse ? ig.id : ip.id;
 
           an.sort = trade_gets.ratio_human(trade_pays).to_number();
+
+          return true;
         });
         nodes.sort(function (a, b) { return b.sort - a.sort; });
 
-        nodes.forEach(function (an) {
-          var ticker, price, volume;
-          if ((ticker = mkt.tickers[an.gets + ":" + an.pays])) {        // ASK
+        nodes.forEach(function (an, i_an) {
+          var price, volume;
+          if (an.reverse) {        // ASK
             price = Amount.from_json(an.fieldsPrev.TakerPays)
               .ratio_human(an.fieldsPrev.TakerGets);
             volume = Amount.from_json(an.fieldsPrev.TakerGets);
             if (an.diffType === 'ModifiedNode') {
               volume = volume.subtract(an.fieldsFinal.TakerGets);
             }
-          } else if ((ticker = mkt.tickers[an.pays + ":" + an.gets])) { // BID
+          } else { // BID
             price = Amount.from_json(an.fieldsPrev.TakerGets)
               .ratio_human(an.fieldsPrev.TakerPays);
             volume = Amount.from_json(an.fieldsPrev.TakerPays);
             if (an.diffType === 'ModifiedNode') {
               volume = volume.subtract(an.fieldsFinal.TakerPays);
             }
-          } else return;
+          }
 
-          console.log("TRADE", ticker.sym, price.to_text_full(),
-                      volume.to_text_full());
+          console.log("TRADE", price.to_text_full(), volume.to_text_full());
 
-          rows.push([ticker.id, ledger_date, ledger_index,
+          rows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
                      price.is_native() ? price.to_number() / 1000000 : price.to_number(),
-                     volume.is_native() ? volume.to_number() / 1000000 : volume.to_number()]);
+                     volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
+                     i_tx, i_an]);
         });
       });
 
       if (rows.length) {
         self.db.query("INSERT INTO trades" +
-                      "(`book`, `time`, `ledger`, `price`, `amount`)" +
+                      "(`c1`, `i1`, `c2`, `i2`," +
+                      " `time`, `ledger`, `price`, `amount`," +
+                      " `tx`, `order`)" +
                       "VALUES ?",
                       [rows],
                       function (err)
@@ -234,7 +274,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
 Processor.prototype.updateAggregates = function () {
   var self = this;
-  _.each(mkt.tickers, function (ticker, i) {
+  _.each(index.xrp, function (ticker, i) {
     [1, 30].forEach(function (days) {
       var cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
@@ -245,8 +285,8 @@ Processor.prototype.updateAggregates = function () {
                     "  MIN( `price` ) AS lo, " +
                     "  MAX( `price` ) AS hi " +
                     "FROM trades WHERE " +
-                    "`book` = ? AND time >= ?",
-                    [ticker.id, cutoff],
+                    "`c1` = 0 AND `c2` = ? AND `i2` = ? AND time >= ?",
+                    [ticker.cur.id, ticker.iss.id, cutoff],
                     function (err, rows)
       {
         if (err) console.error(err);
@@ -258,10 +298,9 @@ Processor.prototype.updateAggregates = function () {
             hi:  ""+(rows[0].hi  || 0),
             lo:  ""+(rows[0].lo  || 0)
           };
-          model.set("tickers."+i+".d"+days, data);
-
-          if (days === 30 && ticker.second === "XRP") {
-             model.set("tickers."+i+".vol", data.vol * data.avg);
+          model.set("tickers."+ticker.first+".d"+days, data);
+          if (days === 30) {
+            model.set("tickers."+ticker.first+".vol", data.vol * data.avg);
           }
         }
       });

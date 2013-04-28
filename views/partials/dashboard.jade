@@ -18,8 +18,8 @@
               th Latest Price (XRP)
               th Volume (30d, XRP)
             tbody: tr(ng-repeat="ticker in atickers | orderBy:'-vol'")
-              td: a(href="market/{{ticker.sym}}", ng-bind="ticker.sym")
-              td.fin(ng-bind="ticker.last | rpamount:{rel_precision: 2, min_rel_precision: 2}")
+              td: a(href="market/{{ticker.sym}}/XRP", ng-bind="ticker.sym")
+              td.fin(ng-bind="ticker.last | rpamount:{rel_precision: 0, min_rel_precision: 0}")
               td.fin(ng-bind="ticker.d30.avg * ticker.d30.vol | rpcurr:ticker.second | rpamount:{rel_precision: 0, min_rel_precision: 0}")
       .widget-box
         .widget-title
@@ -33,8 +33,8 @@
               th Capitalization
             tr(ng-repeat="currency in currencies")
               td(ng-bind="currency.cur")
-              td(ng-bind="currency.gat")
-              td.cap(ng-bind="currency.cap | rpamount:{rel_precision: 2, min_rel_precision: 2}")
+              td(ng-bind="issuers[currency.gat].name")
+              td.cap(ng-bind="currency.cap | rpamount:{rel_precision: 0, min_rel_precision: 0}")
     .span5
       .widget-box
         .widget-title

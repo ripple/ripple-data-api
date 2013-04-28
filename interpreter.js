@@ -5,9 +5,7 @@ var extend = require('extend'),
 
 var _ = require('lodash');
 
-var mkt = require('./markets');
-var issuers = mkt.issuers;
-var markets = mkt.markets;
+var index = require('./indexes');
 
 /**
  * Metadata format:
@@ -48,34 +46,41 @@ var tickers = {};
 var currenciesById = {};
 
 exports.applyLedger = function (model, e) {
+  if (!e.ledger || !e.ledger.accountState) {
+    console.error('Incomplete response to ledger download');
+    console.log(new Error().stack);
+    return;
+  }
+
   accounts = {};
   orderbooks = {};
   currencies = {};
   tickers = {};
-  _.each(issuers, function (data, gateway) {
+  _.each(index.issuers, function (data) {
     _.each(data.currencies, function (issuer, currency) {
       currencies[currency + ":" + issuer] = {
         cur: currency,
         iss: issuer,
-        gat: gateway,
+        gat: data.id,
         dat: data,
         cap: Amount.from_json("0/"+currency+"/"+issuer),
         hot: Amount.from_json("0/"+currency+"/"+issuer)
       };
     });
   });
-  _.each(mkt.tickers, function (data) {
+  _.each(index.xrp, function (data) {
     // Initialize field with basic properties
-    tickers[data.first + ':' + data.second] = {
+    tickers[data.first] = {
       sym: data.sym,
       first: data.first,
-      second: data.second,
-      bid: Amount.from_json("0/"+data.second),
-      ask: Amount.from_json("0/"+data.second),
-      last: Amount.from_json("0/"+data.second),
+      second: "XRP",
+      bid: Amount.from_json("0"),
+      ask: Amount.from_json("0"),
+      last: Amount.from_json("0"),
       vol: Amount.from_json("0/"+data.first)
     };
   });
+
   e.ledger.accountState.forEach(function (node) {
     //console.log(node.LedgerEntryType);
     switch (node.LedgerEntryType) {
@@ -116,8 +121,9 @@ exports.applyLedger = function (model, e) {
   currencies = _.sortBy(currencies, function (a) {
     return -a.cap.to_text();
   });
+  var currencyOrder = _.pluck(index.currencies.slice(1), 'cur');
   currencies = _.sortBy(currencies, function (v, k) {
-    return ['BTC', 'USD', 'CAD', 'AUD'].indexOf(v.cur);
+    return currencyOrder.indexOf(v.cur);
   });
   currencies = _.map(currencies, function (data, currency) {
     data.cap = data.cap.to_json();
@@ -144,7 +150,8 @@ exports.applyLedger = function (model, e) {
     ledger_hash: e.ledger.hash,
     account_count: Object.keys(accounts).length,
     currencies: currencies,
-    tickers: tickers
+    tickers: tickers,
+    issuers: index.issuers
   });
 };
 
@@ -203,7 +210,7 @@ exports.applyTransaction = function (model, e) {
         account = an.fields.LowLimit.issuer;
       } else return;
 
-      var gateway = issuers[cur.gat];
+      var gateway = index.issuers[cur.gat];
 
       balance_new = (an.diffType === "DeletedNode")
         ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
