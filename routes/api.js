@@ -41,7 +41,7 @@ function marketProcessParam(q) {
   } else i2 = 0;
 
   // Flip it if necessary
-  var flipped = true;
+  var flip = true;
   if (c1 > c2 || (c1 === c2 && i1 > i2)) {
     var tmp;
     tmp = c1;
@@ -52,21 +52,21 @@ function marketProcessParam(q) {
     i1 = i2;
     i2 = tmp;
 
-    flipped = false;
+    flip = false;
   }
 
-  return [flipped, c1, i1, c2, i2];
+  return [flip, c1, i1, c2, i2];
 }
 
-function marketProcessRows(rows) {
+function marketProcessRows(rows, flip) {
   return _.map(rows, function (row) {
     return [
-        +new Date(row.date).getTime(),
-        +row.open,
-      row.high,
-      row.low,
-        +row.close,
-      row.vol
+      new Date(row.date).getTime(),
+      flip ? (1/row.open)  : +row.open,
+      flip ? (1/row.low)   : +row.high,
+      flip ? (1/row.high)  : +row.low,
+      flip ? (1/row.close) : +row.close,
+      flip ? +row.fvol     : +row.vol
     ];
   });
 }
@@ -85,7 +85,8 @@ exports.market_hourly = function (db) {
         "  MIN(price) AS low, " +
         "  SUBSTRING_INDEX( GROUP_CONCAT(CAST(price AS CHAR) ORDER BY time DESC), ',', 1 ) AS close, " +
         "  COUNT(*) AS num, " +
-        "  SUM(amount) AS vol " +
+        "  SUM(amount) AS vol, " +
+        "  SUM(amount*price) AS fvol " +
         "FROM `trades` " +
         "WHERE `c1` = ? AND `i1` = ? AND `c2` = ? AND `i2` = ? " +
         "GROUP BY TO_DAYS(time), HOUR(time)",
@@ -97,9 +98,7 @@ exports.market_hourly = function (db) {
             return;
           }
 
-          // XXX: Flip if needed
-
-          res.json(marketProcessRows(rows));
+          res.json(marketProcessRows(rows, book[0]));
         }
       );
     } else {
@@ -122,7 +121,8 @@ exports.market_daily = function (db) {
         "  MIN(price) AS low, " +
         "  SUBSTRING_INDEX( GROUP_CONCAT(CAST(price AS CHAR) ORDER BY time DESC), ',', 1 ) AS close, " +
         "  COUNT(*) AS num, " +
-        "  SUM(amount) AS vol " +
+        "  SUM(amount) AS vol, " +
+        "  SUM(amount*price) AS fvol " +
         "FROM `trades` " +
         "WHERE `c1` = ? AND `i1` = ? AND `c2` = ? AND `i2` = ? " +
         "GROUP BY TO_DAYS(time)",
@@ -134,9 +134,7 @@ exports.market_daily = function (db) {
             return;
           }
 
-          // XXX: Flip if needed
-
-          res.json(marketProcessRows(rows));
+          res.json(marketProcessRows(rows, book[0]));
         }
       );
     } else {
