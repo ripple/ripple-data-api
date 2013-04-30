@@ -108,6 +108,10 @@ function MarketCtrl($scope, $http, $routeParams)
         text: symbol
       },
 
+      xAxis: {
+        ordinal: false
+      },
+
       yAxis: [{
         title: {
           text: 'OHLC'
