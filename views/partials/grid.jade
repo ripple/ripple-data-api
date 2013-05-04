@@ -1,0 +1,32 @@
+#content-header
+  h1 Grid
+#breadcrumb
+  a(href='/', class="tip-bottom")
+    i.icon-home
+    | Home
+  a.current Grid
+.container-fluid
+  .row-fluid
+    .alert.alert-info This is the grid view. It will soon show live prices for all markets. For now, you can use it to get to charts for some of the more obscure markets.
+    .widget-box
+      .widget-title
+        span.icon: i.icon-signal
+        h5 Grid
+      .widget-content.nopadding
+        table#market-grid.table.table-bordered.table-striped.table-fin
+          thead
+            tr
+              th Symbol
+              th XRP
+              th(ng-repeat="currency in currencies") {{currency.cur}} {{issuers[currency.gat].name}}
+          tbody
+            tr
+              th XRP
+              td -
+              td(ng-repeat="c2 in currencies"): a(href="market/{{c2.cur}}:{{issuers[c2.gat].name}}/XRP") Chart
+            tr(ng-repeat="c1 in currencies")
+              th {{c1.cur}}<br>{{issuers[c1.gat].name}}
+              td: a(href="market/XRP/{{c1.cur}}:{{issuers[c1.gat].name}}") Chart
+              td(ng-repeat="c2 in currencies")
+                a(ng-hide="c1 == c2", href="market/{{c2.cur}}:{{issuers[c2.gat].name}}/{{c1.cur}}:{{issuers[c1.gat].name}}") Chart
+                span(ng-show="c1 == c2") -

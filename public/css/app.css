@@ -81,3 +81,7 @@ table.table-fin td.fin .minor {
   font-size: 9pt;
   font-weight: normal;
 }
+
+#market-grid td {
+  text-align: center;
+}
