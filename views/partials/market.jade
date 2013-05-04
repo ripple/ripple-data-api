@@ -8,7 +8,10 @@
   a.current {{first}}/{{second}}
 .container-fluid
   .row-fluid
+    .alert.alert-info Chart upside down? Some pairs make more sense the other way around.&nbsp;
+      a(href="/market/{{second}}/{{first}}") Flip it!
+  .row-fluid
     .span12
       .widget-box.widget-plain
-        .widget-content
+        #market-chart.widget-content
           stockchart(value="data", height="500")
