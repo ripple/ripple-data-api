@@ -24,10 +24,15 @@
 /******/({c:"",
 /******/0: function(module, exports, require) {
 
-exports.Remote = require(21).Remote;
-exports.Amount = require(2).Amount;
-exports.UInt160 = require(2).UInt160;
-exports.Seed = require(2).Seed;
+exports.Remote      = require(25).Remote;
+exports.Amount      = require(3).Amount;
+exports.Currency    = require(13).Currency;
+exports.UInt160     = require(3).UInt160;
+exports.Seed        = require(3).Seed;
+exports.Transaction = require(20).Transaction;
+exports.Meta        = require(17).Meta;
+
+exports.utils       = require(4);
 
 // Important: We do not guarantee any specific version of SJCL or for any
 // specific features to be included. The version and configuration may change at
@@ -36,9 +41,11 @@ exports.Seed = require(2).Seed;
 // However, for programs that are tied to a specific version of ripple.js like
 // the official client, it makes sense to expose the SJCL instance so we don't
 // have to include it twice.
-exports.sjcl = require(3);
+exports.sjcl      = require(2);
 
-exports.config = require(6);
+exports.config    = require(8);
+
+// vim:sw=2:sts=2:ts=8:et
 
 
 /******/},
@@ -64,971 +71,6 @@ console.timeEnd = function() {
 /******/},
 /******/
 /******/2: function(module, exports, require) {
-
-// Represent Ripple amounts and currencies.
-// - Numbers in hex are big-endian.
-
-var sjcl    = require(3);
-var bn	    = sjcl.bn;
-var utils   = require(5);
-var jsbn    = require(7);
-
-var BigInteger = jsbn.BigInteger;
-
-var UInt160  = require(10).UInt160,
-    Seed     = require(15).Seed,
-    Currency = require(14).Currency;
-
-var consts = exports.consts = {
-  'currency_xns'          : 0,
-  'currency_one'          : 1,
-  'xns_precision'         : 6,
-
-  // BigInteger values prefixed with bi_.
-  'bi_5'	          : new BigInteger('5'),
-  'bi_7'	          : new BigInteger('7'),
-  'bi_10'	          : new BigInteger('10'),
-  'bi_1e14'               : new BigInteger(String(1e14)),
-  'bi_1e16'               : new BigInteger(String(1e16)),
-  'bi_1e17'               : new BigInteger(String(1e17)),
-  'bi_1e32'               : new BigInteger('100000000000000000000000000000000'),
-  'bi_man_max_value'      : new BigInteger('9999999999999999'),
-  'bi_man_min_value'      : new BigInteger('1000000000000000'),
-  'bi_xns_max'	          : new BigInteger("9000000000000000000"),	  // Json wire limit.
-  'bi_xns_min'	          : new BigInteger("-9000000000000000000"),	  // Json wire limit.
-  'bi_xns_unit'	          : new BigInteger('1000000'),
-
-  'cMinOffset'            : -96,
-  'cMaxOffset'            : 80,
-};
-
-
-//
-// Amount class in the style of Java's BigInteger class
-// http://docs.oracle.com/javase/1.3/docs/api/java/math/BigInteger.html
-//
-
-var Amount = function () {
-  // Json format:
-  //  integer : XRP
-  //  { 'value' : ..., 'currency' : ..., 'issuer' : ...}
-
-  this._value	    = new BigInteger();	// NaN for bad value. Always positive for non-XRP.
-  this._offset	    = 0;	        // Always 0 for XRP.
-  this._is_native   = true;		// Default to XRP. Only valid if value is not NaN.
-  this._is_negative = false;
-
-  this._currency    = new Currency();
-  this._issuer	    = new UInt160();
-};
-
-// Given "100/USD/mtgox" return the a string with mtgox remapped.
-Amount.text_full_rewrite = function (j) {
-  return Amount.from_json(j).to_text_full();
-}
-
-// Given "100/USD/mtgox" return the json.
-Amount.json_rewrite = function (j) {
-  return Amount.from_json(j).to_json();
-};
-
-Amount.from_json = function (j) {
-  return (new Amount()).parse_json(j);
-};
-
-Amount.from_human = function (j) {
-  return (new Amount()).parse_human(j);
-};
-
-Amount.is_valid = function (j) {
-  return Amount.from_json(j).is_valid();
-};
-
-Amount.is_valid_full = function (j) {
-  return Amount.from_json(j).is_valid_full();
-};
-
-Amount.NaN = function () {
-  var result = new Amount();
-
-  result._value = NaN;
-
-  return result;
-};
-
-// Returns a new value which is the absolute value of this.
-Amount.prototype.abs = function () {
-  return this.clone(this.is_negative());
-};
-
-// Result in terms of this' currency and issuer.
-Amount.prototype.add = function (v) {
-  var result;
-
-  if (!this.is_comparable(v)) {
-    result              = Amount.NaN();
-  }
-  else if (this._is_native) {
-    result              = new Amount();
-
-    var v1  = this._is_negative ? this._value.negate() : this._value;
-    var v2  = v._is_negative ? v._value.negate() : v._value;
-    var s   = v1.add(v2);
-
-    result._is_negative = s.compareTo(BigInteger.ZERO) < 0;
-    result._value       = result._is_negative ? s.negate() : s;
-  }
-  else if (v.is_zero()) {
-    result              = this; 
-  }
-  else if (this.is_zero()) {
-    result              = v.clone();
-    // YYY Why are these cloned? We never modify them.
-    result._currency    = this._currency.clone();
-    result._issuer      = this._issuer.clone();
-  }
-  else
-  {
-    var v1  = this._is_negative ? this._value.negate() : this._value;
-    var o1  = this._offset;
-    var v2  = v._is_negative ? v._value.negate() : v._value;
-    var o2  = v._offset;
-
-    while (o1 < o2) {
-      v1  = v1.divide(consts.bi_10);
-      o1  += 1;
-    }
-
-    while (o2 < o1) {
-      v2  = v2.divide(consts.bi_10);
-      o2  += 1;
-    }
-
-    result              = new Amount();
-    result._is_native   = false;
-    result._offset      = o1;
-    result._value       = v1.add(v2);
-    result._is_negative = result._value.compareTo(BigInteger.ZERO) < 0;
-
-    if (result._is_negative) {
-      result._value       = result._value.negate();
-    }
-
-    result._currency    = this._currency.clone();
-    result._issuer      = this._issuer.clone();
-
-    result.canonicalize();
-  }
-
-  return result;
-};
-
-Amount.prototype.canonicalize = function () {
-  if (!(this._value instanceof BigInteger))
-  {
-    // NaN.
-    // nothing
-  }
-  else if (this._is_native) {
-    // Native.
-
-    if (this._value.equals(BigInteger.ZERO)) {
-      this._offset      = 0;
-      this._is_negative = false;
-    }
-    else {
-      // Normalize _offset to 0.
-
-      while (this._offset < 0) {
-        this._value  = this._value.divide(consts.bi_10);
-        this._offset += 1;
-      }
-
-      while (this._offset > 0) {
-        this._value  = this._value.multiply(consts.bi_10);
-        this._offset -= 1;
-      }
-    }
-
-    // XXX Make sure not bigger than supported. Throw if so.
-  }
-  else if (this.is_zero()) {
-    this._offset      = -100;
-    this._is_negative = false;
-  }
-  else
-  {
-    // Normalize mantissa to valid range.
-
-    while (this._value.compareTo(consts.bi_man_min_value) < 0) {
-      this._value  = this._value.multiply(consts.bi_10);
-      this._offset -= 1;
-    }
-
-    while (this._value.compareTo(consts.bi_man_max_value) > 0) {
-      this._value  = this._value.divide(consts.bi_10);
-      this._offset += 1;
-    }
-  }
-
-  return this;
-};
-
-Amount.prototype.clone = function (negate) {
-  return this.copyTo(new Amount(), negate);
-};
-
-Amount.prototype.compareTo = function (v) {
-  var result;
-
-  if (!this.is_comparable(v)) {
-    result  = Amount.NaN();
-  }
-  else if (this._is_native) {
-    result  = this._value.compareTo(v._value);
-
-    if (result > 1)
-      result  = 1;
-    else if (result < -1)
-      result  = -1;
-  }
-  else if (this._is_negative !== v._is_negative) {
-    result  = this._is_negative ? -1 : 1;
-  }
-  else if (this._value.equals(BigInteger.ZERO)) {
-    result  = v._is_negative
-                ? 1
-                : v._value.equals(BigInteger.ZERO)
-                  ? 0
-                  : 1;
-  }
-  else if (v._value.equals(BigInteger.ZERO)) {
-    result  = 1;
-  }
-  else if (this._offset > v._offset) {
-    result  = this._is_negative ? -1 : 1;
-  }
-  else if (this._offset < v._offset) {
-    result  = this._is_negative ? 1 : -1;
-  }
-  else {
-    result  = this._value.compareTo(v._value);
-
-    if (result > 1)
-      result  = 1;
-    else if (result < -1)
-      result  = -1;
-  }
-
-  return result;
-};
-
-// Returns copy.
-Amount.prototype.copyTo = function (d, negate) {
-  if ('object' === typeof this._value)
-  {
-    this._value.copyTo(d._value);
-  }
-  else
-  {
-    d._value   = this._value;
-  }
-
-  d._offset	  = this._offset;
-  d._is_native	  = this._is_native;
-  d._is_negative  = negate
-			? !this._is_negative    // Negating.
-			: this._is_negative;    // Just copying.
-
-  this._currency.copyTo(d._currency);
-  this._issuer.copyTo(d._issuer);
-
-  // Prevent negative zero
-  if (d.is_zero()) d._is_negative = false;
-
-  return d;
-};
-
-Amount.prototype.currency = function () {
-  return this._currency;
-};
-
-Amount.prototype.equals = function (d, ignore_issuer) {
-  if ("string" === typeof d) {
-    return this.equals(Amount.from_json(d));
-  }
-
-  if (this === d) return true;
-
-  if (d instanceof Amount) {
-    if (!this.is_valid() || !d.is_valid()) return false;
-    if (this._is_native !== d._is_native) return false;
-
-    if (!this._value.equals(d._value) || this._offset !== d._offset) {
-      return false;
-    }
-
-    if (this._is_negative !== d._is_negative) return false;
-
-    if (!this._is_native) {
-      if (!this._currency.equals(d._currency)) return false;
-      if (!ignore_issuer && !this._issuer.equals(d._issuer)) return false;
-    }
-    return true;
-  } else return false;
-};
-
-// Result in terms of this' currency and issuer.
-Amount.prototype.divide = function (d) {
-  var result;
-
-  if (d.is_zero()) {
-    throw "divide by zero";
-  }
-  else if (this.is_zero()) {
-    result = this.clone();
-  }
-  else if (!this.is_valid()) {
-    throw new Error("Invalid dividend");
-  }
-  else if (!d.is_valid()) {
-    throw new Error("Invalid divisor");
-  }
-  else {
-    result              = new Amount();
-    result._offset      = this._offset - d._offset - 17;
-    result._value       = this._value.multiply(consts.bi_1e17).divide(d._value).add(consts.bi_5);
-    result._is_native   = this._is_native;
-    result._is_negative = this._is_negative !== d._is_negative;
-    result._currency    = this._currency.clone();
-    result._issuer      = this._issuer.clone();
-
-    result.canonicalize();
-  }
-
-  return result;
-};
-
-/**
- * Calculate a ratio between two amounts.
- *
- * This function calculates a ratio - such as a price - between two Amount
- * objects.
- *
- * The return value will have the same type (currency) as the numerator. This is
- * a simplification, which should be sane in most cases. For example, a USD/XRP
- * price would be rendered as USD.
- *
- * @example
- *   var price = buy_amount.ratio_human(sell_amount);
- *
- * @this {Amount} The numerator (top half) of the fraction.
- * @param {Amount} denominator The denominator (bottom half) of the fraction.
- * @return {Amount} The resulting ratio. Unit will be the same as numerator.
- */
-Amount.prototype.ratio_human = function (denominator) {
-  if ("number" === typeof denominator && parseInt(denominator) === denominator) {
-    // Special handling of integer arguments
-    denominator = Amount.from_json("" + denominator + ".0");
-  } else {
-    denominator = Amount.from_json(denominator);
-  }
-
-  var numerator = this;
-  denominator = Amount.from_json(denominator);
-
-  // Special case: The denominator is a native (XRP) amount.
-  //
-  // In that case, it's going to be expressed as base units (1 XRP =
-  // 10^xns_precision base units).
-  //
-  // However, the unit of the denominator is lost, so when the resulting ratio
-  // is printed, the ratio is going to be too small by a factor of
-  // 10^xns_precision.
-  //
-  // To compensate, we multiply the numerator by 10^xns_precision.
-  if (denominator._is_native) {
-    numerator = numerator.clone();
-    numerator._value = numerator._value.multiply(consts.bi_xns_unit);
-    numerator.canonicalize();
-  }
-
-  return numerator.divide(denominator);
-};
-
-/**
- * Calculate a product of two amounts.
- *
- * This function allows you to calculate a product between two amounts which
- * retains XRPs human/external interpretation (i.e. 1 XRP = 1,000,000 base
- * units).
- *
- * Intended use is to calculate something like: 10 USD * 10 XRP/USD = 100 XRP
- *
- * @example
- *   var sell_amount = buy_amount.product_human(price);
- *
- * @see Amount#ratio_human
- *
- * @this {Amount} The first factor of the product.
- * @param {Amount} factor The second factor of the product.
- * @return {Amount} The product. Unit will be the same as the first factor.
- */
-Amount.prototype.product_human = function (factor) {
-  if ("number" === typeof factor && parseInt(factor) === factor) {
-    // Special handling of integer arguments
-    factor = Amount.from_json("" + factor + ".0");
-  } else {
-    factor = Amount.from_json(factor);
-  }
-
-  var product = this.multiply(factor);
-
-  // Special case: The second factor is a native (XRP) amount expressed as base
-  // units (1 XRP = 10^xns_precision base units).
-  //
-  // See also Amount#ratio_human.
-  if (factor._is_native) {
-    product._value = product._value.divide(consts.bi_xns_unit);
-    product.canonicalize();
-  }
-
-  return product;
-}
-
-// True if Amounts are valid and both native or non-native.
-Amount.prototype.is_comparable = function (v) {
-  return this._value instanceof BigInteger
-    && v._value instanceof BigInteger
-    && this._is_native === v._is_native;
-};
-
-Amount.prototype.is_native = function () {
-  return this._is_native;
-};
-
-Amount.prototype.is_negative = function () {
-  return this._value instanceof BigInteger
-          ? this._is_negative
-          : false;                          // NaN is not negative
-};
-
-Amount.prototype.is_positive = function () {
-  return !this.is_zero() && !this.is_negative();
-};
-
-// Only checks the value. Not the currency and issuer.
-Amount.prototype.is_valid = function () {
-  return this._value instanceof BigInteger;
-};
-
-Amount.prototype.is_valid_full = function () {
-  return this.is_valid() && this._currency.is_valid() && this._issuer.is_valid();
-};
-
-Amount.prototype.is_zero = function () {
-  return this._value instanceof BigInteger
-          ? this._value.equals(BigInteger.ZERO)
-          : false;
-};
-
-Amount.prototype.issuer = function () {
-  return this._issuer;
-};
-
-// Result in terms of this' currency and issuer.
-Amount.prototype.multiply = function (v) {
-  var result;
-
-  if (this.is_zero()) {
-    result = this.clone();
-  }
-  else if (v.is_zero()) {
-    result = this.clone();
-    result._value = BigInteger.ZERO.clone();
-  }
-  else {
-    var v1 = this._value;
-    var o1 = this._offset;
-    var v2 = v._value;
-    var o2 = v._offset;
-
-    while (v1.compareTo(consts.bi_man_min_value) < 0 ) {
-      v1 = v1.multiply(consts.bi_10);
-      o1 -= 1;
-    }
-
-    while (v2.compareTo(consts.bi_man_min_value) < 0 ) {
-      v2 = v2.multiply(consts.bi_10);
-      o2 -= 1;
-    }
-
-    result              = new Amount();
-    result._offset      = o1 + o2 + 14;
-    result._value       = v1.multiply(v2).divide(consts.bi_1e14).add(consts.bi_7);
-    result._is_native   = this._is_native;
-    result._is_negative = this._is_negative !== v._is_negative;
-    result._currency    = this._currency.clone();
-    result._issuer      = this._issuer.clone();
-
-    result.canonicalize();
-  }
-
-  return result;
-};
-
-// Return a new value.
-Amount.prototype.negate = function () {
-  return this.clone('NEGATE');
-};
-
-/**
- * Tries to correctly interpret an amount as entered by a user.
- *
- * Examples:
- *
- *   XRP 250     => 250000000/XRP
- *   25.2 XRP    => 25200000/XRP
- *   USD 100.40  => 100.4/USD/?
- *   100         => 100000000/XRP
- */
-Amount.prototype.parse_human = function (j) {
-  // Cast to string
-  j = ""+j;
-
-  // Parse
-  var m = j.match(/^\s*([a-z]{3})?\s*(-)?(\d+)(?:\.(\d*))?\s*([a-z]{3})?\s*$/i);
-
-  if (m) {
-    var currency   = m[1] || m[5] || "XRP",
-        integer    = m[3] || "0",
-        fraction   = m[4] || "",
-        precision  = null;
-
-    currency = currency.toUpperCase();
-
-    this._value = new BigInteger(integer);
-    this.set_currency(currency);
-
-    // XRP have exactly six digits of precision
-    if (currency === 'XRP') {
-      fraction = fraction.slice(0, 6);
-      while (fraction.length < 6) {
-        fraction += "0";
-      }
-      this._is_native   = true;
-      this._value       = this._value.multiply(consts.bi_xns_unit).add(new BigInteger(fraction));
-    }
-    // Other currencies have arbitrary precision
-    else {
-      while (fraction[fraction.length - 1] === "0") {
-        fraction = fraction.slice(0, fraction.length - 1);
-      }
-
-      precision = fraction.length;
-
-      this._is_native   = false;
-      var multiplier    = consts.bi_10.clone().pow(precision);
-      this._value      	= this._value.multiply(multiplier).add(new BigInteger(fraction));
-      this._offset     	= -precision;
-
-      this.canonicalize();
-    }
-
-    this._is_negative = !!m[2];
-  } else {
-    this._value	      = NaN;
-  }
-
-  return this;
-};
-
-Amount.prototype.parse_issuer = function (issuer) {
-  this._issuer.parse_json(issuer);
-
-  return this;
-};
-
-// <-> j
-Amount.prototype.parse_json = function (j) {
-  if ('string' === typeof j) {
-    // .../.../... notation is not a wire format.  But allowed for easier testing.
-    var	m = j.match(/^(.+)\/(...)\/(.+)$/);
-
-    if (m) {
-      this._currency  = Currency.from_json(m[2]);
-      this._issuer    = UInt160.from_json(m[3]);
-      this.parse_value(m[1]);
-    }
-    else {
-      this.parse_native(j);
-      this._currency  = new Currency();
-      this._issuer    = new UInt160();
-    }
-  }
-  else if ('number' === typeof j) {
-    this.parse_json(""+j);
-  }
-  else if ('object' === typeof j && j instanceof Amount) {
-    j.copyTo(this);
-  }
-  else if ('object' === typeof j && 'value' in j) {
-    // Parse the passed value to sanitize and copy it.
-
-    this._currency.parse_json(j.currency);     // Never XRP.
-    if ("string" === typeof j.issuer) this._issuer.parse_json(j.issuer);
-    this.parse_value(j.value);
-  }
-  else {
-    this._value	    = NaN;
-  }
-
-  return this;
-};
-
-// Parse a XRP value from untrusted input.
-// - integer = raw units
-// - float = with precision 6
-// XXX Improvements: disallow leading zeros.
-Amount.prototype.parse_native = function (j) {
-  var m;
-
-  if ('string' === typeof j)
-    m = j.match(/^(-?)(\d*)(\.\d{0,6})?$/);
-
-  if (m) {
-    if (undefined === m[3]) {
-      // Integer notation
-
-      this._value	  = new BigInteger(m[2]);
-    }
-    else {
-      // Float notation : values multiplied by 1,000,000.
-
-      var   int_part	  = (new BigInteger(m[2])).multiply(consts.bi_xns_unit);
-      var   fraction_part = (new BigInteger(m[3])).multiply(new BigInteger(String(Math.pow(10, 1+consts.xns_precision-m[3].length))));
-
-      this._value	  = int_part.add(fraction_part);
-    }
-
-    this._is_native   = true;
-    this._offset      = 0;
-    this._is_negative = !!m[1] && this._value.compareTo(BigInteger.ZERO) !== 0;
-
-    if (this._value.compareTo(consts.bi_xns_max) > 0)
-    {
-      this._value	  = NaN;
-    }
-  }
-  else {
-    this._value	      = NaN;
-  }
-
-  return this;
-};
-
-// Parse a non-native value for the json wire format.
-// Requires _currency to be set!
-Amount.prototype.parse_value = function (j) {
-  this._is_native    = false;
-
-  if ('number' === typeof j) {
-    this._is_negative = j < 0;
-    this._value	      = new BigInteger(this._is_negative ? -j : j);
-    this._offset      = 0;
-
-    this.canonicalize();
-  }
-  else if ('string' === typeof j) {
-    var	i = j.match(/^(-?)(\d+)$/);
-    var	d = !i && j.match(/^(-?)(\d*)\.(\d*)$/);
-    var	e = !e && j.match(/^(-?)(\d*)e(-?\d+)$/);
-
-    if (e) {
-      // e notation
-
-      this._value	= new BigInteger(e[2]);
-      this._offset 	= parseInt(e[3]);
-      this._is_negative	= !!e[1];
-
-      this.canonicalize();
-    }
-    else if (d) {
-      // float notation
-
-      var integer	= new BigInteger(d[2]);
-      var fraction    	= new BigInteger(d[3]);
-      var precision	= d[3].length;
-
-      this._value      	= integer.multiply(consts.bi_10.clone().pow(precision)).add(fraction);
-      this._offset     	= -precision;
-      this._is_negative = !!d[1];
-
-      this.canonicalize();
-    }
-    else if (i) {
-      // integer notation
-
-      this._value	= new BigInteger(i[2]);
-      this._offset 	= 0;
-      this._is_negative  = !!i[1];
-
-      this.canonicalize();
-    }
-    else {
-      this._value	= NaN;
-    }
-  }
-  else if (j instanceof BigInteger) {
-    this._value	      = j.clone();
-  }
-  else {
-    this._value	      = NaN;
-  }
-
-  return this;
-};
-
-Amount.prototype.set_currency = function (c) {
-  if ('string' === typeof c) {
-    this._currency.parse_json(c);  
-  }
-  else
-  {
-    c.copyTo(this._currency);
-  }
-  this._is_native = this._currency.is_native();
-
-  return this;
-};
-
-Amount.prototype.set_issuer = function (issuer) {
-  if (issuer instanceof UInt160) {
-    issuer.copyTo(this._issuer);
-  } else {
-    this._issuer.parse_json(issuer);
-  }
-
-  return this;
-};
-
-// Result in terms of this' currency and issuer.
-Amount.prototype.subtract = function (v) {
-  // Correctness over speed, less code has less bugs, reuse add code.
-  return this.add(v.negate());
-};
-
-Amount.prototype.to_number = function (allow_nan) {
-  var s = this.to_text(allow_nan);
-
-  return ('string' === typeof s) ? Number(s) : s;
-}
-
-// Convert only value to JSON wire format.
-Amount.prototype.to_text = function (allow_nan) {
-  if (!(this._value instanceof BigInteger)) {
-    // Never should happen.
-    return allow_nan ? NaN : "0";
-  }
-  else if (this._is_native) {
-    if (this._value.compareTo(consts.bi_xns_max) > 0)
-    {
-      // Never should happen.
-      return allow_nan ? NaN : "0";
-    }
-    else
-    {
-      return (this._is_negative ? "-" : "") + this._value.toString();
-    }
-  }
-  else if (this.is_zero())
-  {
-    return "0";
-  }
-  else if (this._offset && (this._offset < -25 || this._offset > -4))
-  {
-    // Use e notation.
-    // XXX Clamp output.
-
-    return (this._is_negative ? "-" : "") + this._value.toString() + "e" + this._offset;
-  }
-  else
-  {
-    var val = "000000000000000000000000000" + this._value.toString() + "00000000000000000000000";
-    var	pre = val.substring(0, this._offset + 43);
-    var	post = val.substring(this._offset + 43);
-    var	s_pre = pre.match(/[1-9].*$/);	  // Everything but leading zeros.
-    var	s_post = post.match(/[1-9]0*$/);  // Last non-zero plus trailing zeros.
-
-    return (this._is_negative ? "-" : "")
-      + (s_pre ? s_pre[0] : "0")
-      + (s_post ? "." + post.substring(0, 1+post.length-s_post[0].length) : "");
-  }
-};
-
-/**
- * Format only value in a human-readable format.
- *
- * @example
- *   var pretty = amount.to_human({precision: 2});
- *
- * @param opts Options for formatter.
- * @param opts.precision {Number} Max. number of digits after decimal point.
- * @param opts.min_precision {Number} Min. number of digits after dec. point.
- * @param opts.skip_empty_fraction {Boolean} Don't show fraction if it is zero,
- *   even if min_precision is set.
- * @param opts.group_sep {Boolean|String} Whether to show a separator every n
- *   digits, if a string, that value will be used as the separator. Default: ","
- * @param opts.group_width {Number} How many numbers will be grouped together,
- *   default: 3.
- * @param opts.signed {Boolean|String} Whether negative numbers will have a
- *   prefix. If String, that string will be used as the prefix. Default: "-"
- */
-Amount.prototype.to_human = function (opts)
-{
-  opts = opts || {};
-
-  if (!this.is_valid()) return "";
-
-  // Default options
-  if ("undefined" === typeof opts.signed) opts.signed = true;
-  if ("undefined" === typeof opts.group_sep) opts.group_sep = true;
-  opts.group_width = opts.group_width || 3;
-
-  var order = this._is_native ? consts.xns_precision : -this._offset;
-  var denominator = consts.bi_10.clone().pow(order);
-  var int_part = this._value.divide(denominator).toString(10);
-  var fraction_part = this._value.mod(denominator).toString(10);
-
-  // Add leading zeros to fraction
-  while (fraction_part.length < order) {
-    fraction_part = "0" + fraction_part;
-  }
-
-  int_part = int_part.replace(/^0*/, '');
-  fraction_part = fraction_part.replace(/0*$/, '');
-
-  if (fraction_part.length || !opts.skip_empty_fraction) {
-    if ("number" === typeof opts.precision) {
-      fraction_part = fraction_part.slice(0, opts.precision);
-    }
-
-    if ("number" === typeof opts.min_precision) {
-      while (fraction_part.length < opts.min_precision) {
-        fraction_part += "0";
-      }
-    }
-  }
-
-  if (opts.group_sep) {
-    if ("string" !== typeof opts.group_sep) {
-      opts.group_sep = ',';
-    }
-    int_part = utils.chunkString(int_part, opts.group_width, true).join(opts.group_sep);
-  }
-
-  var formatted = '';
-  if (opts.signed && this._is_negative) {
-    if ("string" !== typeof opts.signed) {
-      opts.signed = '-';
-    }
-    formatted += opts.signed;
-  }
-  formatted += int_part.length ? int_part : '0';
-  formatted += fraction_part.length ? '.'+fraction_part : '';
-
-  return formatted;
-};
-
-Amount.prototype.to_human_full = function (opts) {
-  opts = opts || {};
-
-  var a = this.to_human(opts);
-  var c = this._currency.to_human();
-  var i = this._issuer.to_json(opts);
-
-  var o;
-
-  if (this._is_native)
-  {
-    o = a + "/" + c;
-  }
-  else
-  {
-    o = a + "/" + c + "/" + i;
-  }
-
-  return o;
-};
-
-Amount.prototype.to_json = function () {
-  if (this._is_native) {
-    return this.to_text();
-  }
-  else
-  {
-    var amount_json = {
-      'value' : this.to_text(),
-      'currency' : this._currency.to_json()
-    };
-    if (this._issuer.is_valid()) {
-      amount_json.issuer = this._issuer.to_json();
-    }
-    return amount_json;
-  }
-};
-
-Amount.prototype.to_text_full = function (opts) {
-  return this._value instanceof BigInteger
-    ? this._is_native
-      ? this.to_text() + "/XRP"
-      : this.to_text() + "/" + this._currency.to_json() + "/" + this._issuer.to_json(opts)
-    : NaN;
-};
-
-// For debugging.
-Amount.prototype.not_equals_why = function (d, ignore_issuer) {
-  if ("string" === typeof d) {
-    return this.not_equals_why(Amount.from_json(d));
-  }
-
-  if (this === d) return false;
-
-  if (d instanceof Amount) {
-    if (!this.is_valid() || !d.is_valid()) return "Invalid amount.";
-    if (this._is_native !== d._is_native) return "Native mismatch.";
-
-    var type = this._is_native ? "XRP" : "Non-XRP";
-
-    if (!this._value.equals(d._value) || this._offset !== d._offset) {
-      return type+" value differs.";
-    }
-
-    if (this._is_negative !== d._is_negative) return type+" sign differs.";
-
-    if (!this._is_native) {
-      if (!this._currency.equals(d._currency)) return "Non-XRP currency differs.";
-      if (!ignore_issuer && !this._issuer.equals(d._issuer)) {
-        return "Non-XRP issuer differs.";
-      }
-    }
-    return false;
-  } else return "Wrong constructor.";
-};
-
-exports.Amount	      = Amount;
-
-// DEPRECATED: Include the corresponding files instead.
-exports.Currency      = Currency;
-exports.Seed          = Seed;
-exports.UInt160	      = UInt160;
-
-// vim:sw=2:sts=2:ts=8:et
-
-
-/******/},
-/******/
-/******/3: function(module, exports, require) {
 
 /** @fileOverview Javascript cryptography implementation.
  *
@@ -4810,7 +3852,1037 @@ sjcl.ecc.ecdsa.secretKey.prototype.encodeDER = function(rs) {
 
 /******/},
 /******/
+/******/3: function(module, exports, require) {
+
+// Represent Ripple amounts and currencies.
+// - Numbers in hex are big-endian.
+
+var sjcl    = require(2);
+var bn	    = sjcl.bn;
+var utils   = require(4);
+var jsbn    = require(9);
+
+var BigInteger = jsbn.BigInteger;
+
+var UInt160  = require(11).UInt160,
+    Seed     = require(18).Seed,
+    Currency = require(13).Currency;
+
+var consts = exports.consts = {
+  'currency_xns'          : 0,
+  'currency_one'          : 1,
+  'xns_precision'         : 6,
+
+  // BigInteger values prefixed with bi_.
+  'bi_5'	          : new BigInteger('5'),
+  'bi_7'	          : new BigInteger('7'),
+  'bi_10'	          : new BigInteger('10'),
+  'bi_1e14'               : new BigInteger(String(1e14)),
+  'bi_1e16'               : new BigInteger(String(1e16)),
+  'bi_1e17'               : new BigInteger(String(1e17)),
+  'bi_1e32'               : new BigInteger('100000000000000000000000000000000'),
+  'bi_man_max_value'      : new BigInteger('9999999999999999'),
+  'bi_man_min_value'      : new BigInteger('1000000000000000'),
+  'bi_xns_max'	          : new BigInteger("9000000000000000000"),	  // Json wire limit.
+  'bi_xns_min'	          : new BigInteger("-9000000000000000000"),	  // Json wire limit.
+  'bi_xns_unit'	          : new BigInteger('1000000'),
+
+  'cMinOffset'            : -96,
+  'cMaxOffset'            : 80,
+};
+
+
+//
+// Amount class in the style of Java's BigInteger class
+// http://docs.oracle.com/javase/1.3/docs/api/java/math/BigInteger.html
+//
+
+var Amount = function () {
+  // Json format:
+  //  integer : XRP
+  //  { 'value' : ..., 'currency' : ..., 'issuer' : ...}
+
+  this._value	    = new BigInteger();	// NaN for bad value. Always positive.
+  this._offset	    = 0;	        // Always 0 for XRP.
+  this._is_native   = true;		// Default to XRP. Only valid if value is not NaN.
+  this._is_negative = false;
+
+  this._currency    = new Currency();
+  this._issuer	    = new UInt160();
+};
+
+// Given "100/USD/mtgox" return the a string with mtgox remapped.
+Amount.text_full_rewrite = function (j) {
+  return Amount.from_json(j).to_text_full();
+}
+
+// Given "100/USD/mtgox" return the json.
+Amount.json_rewrite = function (j) {
+  return Amount.from_json(j).to_json();
+};
+
+Amount.from_json = function (j) {
+  return (new Amount()).parse_json(j);
+};
+
+Amount.from_quality = function (q, c, i) {
+  return (new Amount()).parse_quality(q, c, i);
+};
+
+Amount.from_human = function (j) {
+  return (new Amount()).parse_human(j);
+};
+
+Amount.is_valid = function (j) {
+  return Amount.from_json(j).is_valid();
+};
+
+Amount.is_valid_full = function (j) {
+  return Amount.from_json(j).is_valid_full();
+};
+
+Amount.NaN = function () {
+  var result = new Amount();
+
+  result._value = NaN;
+
+  return result;
+};
+
+// Returns a new value which is the absolute value of this.
+Amount.prototype.abs = function () {
+  return this.clone(this.is_negative());
+};
+
+// Result in terms of this' currency and issuer.
+Amount.prototype.add = function (v) {
+  var result;
+
+  v = Amount.from_json(v);
+
+  if (!this.is_comparable(v)) {
+    result              = Amount.NaN();
+  }
+  else if (v.is_zero()) {
+    result              = this; 
+  }
+  else if (this.is_zero()) {
+    result              = v.clone();
+    result._is_negative = false;
+    result._is_native   = this._is_native;
+    result._currency    = this._currency;
+    result._issuer      = this._issuer;
+  }
+  else if (this._is_native) {
+    result              = new Amount();
+
+    var v1  = this._is_negative ? this._value.negate() : this._value;
+    var v2  = v._is_negative ? v._value.negate() : v._value;
+    var s   = v1.add(v2);
+
+    result._is_negative = s.compareTo(BigInteger.ZERO) < 0;
+    result._value       = result._is_negative ? s.negate() : s;
+    result._currency    = this._currency;
+    result._issuer      = this._issuer;
+  }
+  else
+  {
+    var v1  = this._is_negative ? this._value.negate() : this._value;
+    var o1  = this._offset;
+    var v2  = v._is_negative ? v._value.negate() : v._value;
+    var o2  = v._offset;
+
+    while (o1 < o2) {
+      v1  = v1.divide(consts.bi_10);
+      o1  += 1;
+    }
+
+    while (o2 < o1) {
+      v2  = v2.divide(consts.bi_10);
+      o2  += 1;
+    }
+
+    result              = new Amount();
+    result._is_native   = false;
+    result._offset      = o1;
+    result._value       = v1.add(v2);
+    result._is_negative = result._value.compareTo(BigInteger.ZERO) < 0;
+
+    if (result._is_negative) {
+      result._value       = result._value.negate();
+    }
+
+    result._currency    = this._currency;
+    result._issuer      = this._issuer;
+
+    result.canonicalize();
+  }
+
+  return result;
+};
+
+Amount.prototype.canonicalize = function () {
+  if (!(this._value instanceof BigInteger))
+  {
+    // NaN.
+    // nothing
+  }
+  else if (this._is_native) {
+    // Native.
+
+    if (this._value.equals(BigInteger.ZERO)) {
+      this._offset      = 0;
+      this._is_negative = false;
+    }
+    else {
+      // Normalize _offset to 0.
+
+      while (this._offset < 0) {
+        this._value  = this._value.divide(consts.bi_10);
+        this._offset += 1;
+      }
+
+      while (this._offset > 0) {
+        this._value  = this._value.multiply(consts.bi_10);
+        this._offset -= 1;
+      }
+    }
+
+    // XXX Make sure not bigger than supported. Throw if so.
+  }
+  else if (this.is_zero()) {
+    this._offset      = -100;
+    this._is_negative = false;
+  }
+  else
+  {
+    // Normalize mantissa to valid range.
+
+    while (this._value.compareTo(consts.bi_man_min_value) < 0) {
+      this._value  = this._value.multiply(consts.bi_10);
+      this._offset -= 1;
+    }
+
+    while (this._value.compareTo(consts.bi_man_max_value) > 0) {
+      this._value  = this._value.divide(consts.bi_10);
+      this._offset += 1;
+    }
+  }
+
+  return this;
+};
+
+Amount.prototype.clone = function (negate) {
+  return this.copyTo(new Amount(), negate);
+};
+
+Amount.prototype.compareTo = function (v) {
+  var result;
+
+  if (!this.is_comparable(v)) {
+    result  = Amount.NaN();
+  }
+  else if (this._is_negative !== v._is_negative) {
+    // Different sign.
+    result  = this._is_negative ? -1 : 1;
+  }
+  else if (this._value.equals(BigInteger.ZERO)) {
+    // Same sign: positive.
+    result  = v._value.equals(BigInteger.ZERO) ? 0 : -1;
+  }
+  else if (v._value.equals(BigInteger.ZERO)) {
+    // Same sign: positive.
+    result  = 1;
+  }
+  else if (!this._is_native && this._offset > v._offset) {
+    result  = this._is_negative ? -1 : 1;
+  }
+  else if (!this._is_native && this._offset < v._offset) {
+    result  = this._is_negative ? 1 : -1;
+  }
+  else {
+    result  = this._value.compareTo(v._value);
+
+    if (result > 0)
+      result  = this._is_negative ? -1 : 1;
+    else if (result < 0)
+      result  = this._is_negative ? 1 : -1;
+  }
+
+  return result;
+};
+
+// Make d a copy of this. Returns d.
+// Modification of objects internally refered to is not allowed.
+Amount.prototype.copyTo = function (d, negate) {
+  if ('object' === typeof this._value)
+  {
+    this._value.copyTo(d._value);
+  }
+  else
+  {
+    d._value   = this._value;
+  }
+
+  d._offset	  = this._offset;
+  d._is_native	  = this._is_native;
+  d._is_negative  = negate
+			? !this._is_negative    // Negating.
+			: this._is_negative;    // Just copying.
+
+  d._currency     = this._currency;
+  d._issuer       = this._issuer;
+
+  // Prevent negative zero
+  if (d.is_zero()) d._is_negative = false;
+
+  return d;
+};
+
+Amount.prototype.currency = function () {
+  return this._currency;
+};
+
+Amount.prototype.equals = function (d, ignore_issuer) {
+  if ("string" === typeof d) {
+    return this.equals(Amount.from_json(d));
+  }
+
+  if (this === d) return true;
+
+  if (d instanceof Amount) {
+    if (!this.is_valid() || !d.is_valid()) return false;
+    if (this._is_native !== d._is_native) return false;
+
+    if (!this._value.equals(d._value) || this._offset !== d._offset) {
+      return false;
+    }
+
+    if (this._is_negative !== d._is_negative) return false;
+
+    if (!this._is_native) {
+      if (!this._currency.equals(d._currency)) return false;
+      if (!ignore_issuer && !this._issuer.equals(d._issuer)) return false;
+    }
+    return true;
+  } else return false;
+};
+
+// Result in terms of this' currency and issuer.
+Amount.prototype.divide = function (d) {
+  var result;
+
+  if (d.is_zero()) {
+    throw "divide by zero";
+  }
+  else if (this.is_zero()) {
+    result = this;
+  }
+  else if (!this.is_valid()) {
+    throw new Error("Invalid dividend");
+  }
+  else if (!d.is_valid()) {
+    throw new Error("Invalid divisor");
+  }
+  else {
+    var _n = this;
+
+    if (_n.is_native()) {
+      _n  = _n.clone();
+
+      while (_n._value.compareTo(consts.bi_man_min_value) < 0) {
+        _n._value  = _n._value.multiply(consts.bi_10);
+        _n._offset -= 1;
+      }
+    }
+
+    var _d = d;
+
+    if (_d.is_native()) {
+      _d = _d.clone();
+
+      while (_d._value.compareTo(consts.bi_man_min_value) < 0) {
+        _d._value  = _d._value.multiply(consts.bi_10);
+        _d._offset -= 1;
+      }
+    }
+
+    result              = new Amount();
+    result._offset      = _n._offset - _d._offset - 17;
+    result._value       = _n._value.multiply(consts.bi_1e17).divide(_d._value).add(consts.bi_5);
+    result._is_native   = _n._is_native;
+    result._is_negative = _n._is_negative !== _d._is_negative;
+    result._currency    = _n._currency;
+    result._issuer      = _n._issuer;
+
+    result.canonicalize();
+  }
+
+  return result;
+};
+
+/**
+ * Calculate a ratio between two amounts.
+ *
+ * This function calculates a ratio - such as a price - between two Amount
+ * objects.
+ *
+ * The return value will have the same type (currency) as the numerator. This is
+ * a simplification, which should be sane in most cases. For example, a USD/XRP
+ * price would be rendered as USD.
+ *
+ * @example
+ *   var price = buy_amount.ratio_human(sell_amount);
+ *
+ * @this {Amount} The numerator (top half) of the fraction.
+ * @param {Amount} denominator The denominator (bottom half) of the fraction.
+ * @return {Amount} The resulting ratio. Unit will be the same as numerator.
+ */
+Amount.prototype.ratio_human = function (denominator) {
+  if ("number" === typeof denominator && parseInt(denominator) === denominator) {
+    // Special handling of integer arguments
+    denominator = Amount.from_json("" + denominator + ".0");
+  } else {
+    denominator = Amount.from_json(denominator);
+  }
+
+  var numerator = this;
+  denominator = Amount.from_json(denominator);
+
+  // Special case: The denominator is a native (XRP) amount.
+  //
+  // In that case, it's going to be expressed as base units (1 XRP =
+  // 10^xns_precision base units).
+  //
+  // However, the unit of the denominator is lost, so when the resulting ratio
+  // is printed, the ratio is going to be too small by a factor of
+  // 10^xns_precision.
+  //
+  // To compensate, we multiply the numerator by 10^xns_precision.
+  if (denominator._is_native) {
+    numerator = numerator.clone();
+    numerator._value = numerator._value.multiply(consts.bi_xns_unit);
+    numerator.canonicalize();
+  }
+
+  return numerator.divide(denominator);
+};
+
+/**
+ * Calculate a product of two amounts.
+ *
+ * This function allows you to calculate a product between two amounts which
+ * retains XRPs human/external interpretation (i.e. 1 XRP = 1,000,000 base
+ * units).
+ *
+ * Intended use is to calculate something like: 10 USD * 10 XRP/USD = 100 XRP
+ *
+ * @example
+ *   var sell_amount = buy_amount.product_human(price);
+ *
+ * @see Amount#ratio_human
+ *
+ * @this {Amount} The first factor of the product.
+ * @param {Amount} factor The second factor of the product.
+ * @return {Amount} The product. Unit will be the same as the first factor.
+ */
+Amount.prototype.product_human = function (factor) {
+  if ("number" === typeof factor && parseInt(factor) === factor) {
+    // Special handling of integer arguments
+    factor = Amount.from_json("" + factor + ".0");
+  } else {
+    factor = Amount.from_json(factor);
+  }
+
+  var product = this.multiply(factor);
+
+  // Special case: The second factor is a native (XRP) amount expressed as base
+  // units (1 XRP = 10^xns_precision base units).
+  //
+  // See also Amount#ratio_human.
+  if (factor._is_native) {
+    product._value = product._value.divide(consts.bi_xns_unit);
+    product.canonicalize();
+  }
+
+  return product;
+}
+
+// True if Amounts are valid and both native or non-native.
+Amount.prototype.is_comparable = function (v) {
+  return this._value instanceof BigInteger
+    && v._value instanceof BigInteger
+    && this._is_native === v._is_native;
+};
+
+Amount.prototype.is_native = function () {
+  return this._is_native;
+};
+
+Amount.prototype.is_negative = function () {
+  return this._value instanceof BigInteger
+          ? this._is_negative
+          : false;                          // NaN is not negative
+};
+
+Amount.prototype.is_positive = function () {
+  return !this.is_zero() && !this.is_negative();
+};
+
+// Only checks the value. Not the currency and issuer.
+Amount.prototype.is_valid = function () {
+  return this._value instanceof BigInteger;
+};
+
+Amount.prototype.is_valid_full = function () {
+  return this.is_valid() && this._currency.is_valid() && this._issuer.is_valid();
+};
+
+Amount.prototype.is_zero = function () {
+  return this._value instanceof BigInteger
+          ? this._value.equals(BigInteger.ZERO)
+          : false;
+};
+
+Amount.prototype.issuer = function () {
+  return this._issuer;
+};
+
+// Result in terms of this' currency and issuer.
+// XXX Diverges from cpp.
+Amount.prototype.multiply = function (v) {
+  var result;
+
+  if (this.is_zero()) {
+    result = this;
+  }
+  else if (v.is_zero()) {
+    result = this.clone();
+    result._value = BigInteger.ZERO;
+  }
+  else {
+    var v1 = this._value;
+    var o1 = this._offset;
+    var v2 = v._value;
+    var o2 = v._offset;
+
+    if (this.is_native()) {
+      while (v1.compareTo(consts.bi_man_min_value) < 0) {
+        v1 = v1.multiply(consts.bi_10);
+        o1 -= 1;
+      }
+    }
+
+    if (v.is_native()) {
+      while (v2.compareTo(consts.bi_man_min_value) < 0) {
+        v2 = v2.multiply(consts.bi_10);
+        o2 -= 1;
+      }
+    }
+
+    result              = new Amount();
+    result._offset      = o1 + o2 + 14;
+    result._value       = v1.multiply(v2).divide(consts.bi_1e14).add(consts.bi_7);
+    result._is_native   = this._is_native;
+    result._is_negative = this._is_negative !== v._is_negative;
+    result._currency    = this._currency;
+    result._issuer      = this._issuer;
+
+    result.canonicalize();
+  }
+
+  return result;
+};
+
+// Return a new value.
+Amount.prototype.negate = function () {
+  return this.clone('NEGATE');
+};
+
+/**
+ * Tries to correctly interpret an amount as entered by a user.
+ *
+ * Examples:
+ *
+ *   XRP 250     => 250000000/XRP
+ *   25.2 XRP    => 25200000/XRP
+ *   USD 100.40  => 100.4/USD/?
+ *   100         => 100000000/XRP
+ */
+Amount.prototype.parse_human = function (j) {
+  // Cast to string
+  j = ""+j;
+
+  // Parse
+  var m = j.match(/^\s*([a-z]{3})?\s*(-)?(\d+)(?:\.(\d*))?\s*([a-z]{3})?\s*$/i);
+
+  if (m) {
+    var currency   = m[1] || m[5] || "XRP",
+        integer    = m[3] || "0",
+        fraction   = m[4] || "",
+        precision  = null;
+
+    currency = currency.toUpperCase();
+
+    this._value = new BigInteger(integer);
+    this.set_currency(currency);
+
+    // XRP have exactly six digits of precision
+    if (currency === 'XRP') {
+      fraction = fraction.slice(0, 6);
+      while (fraction.length < 6) {
+        fraction += "0";
+      }
+      this._is_native   = true;
+      this._value       = this._value.multiply(consts.bi_xns_unit).add(new BigInteger(fraction));
+    }
+    // Other currencies have arbitrary precision
+    else {
+      while (fraction[fraction.length - 1] === "0") {
+        fraction = fraction.slice(0, fraction.length - 1);
+      }
+
+      precision = fraction.length;
+
+      this._is_native   = false;
+      var multiplier    = consts.bi_10.clone().pow(precision);
+      this._value      	= this._value.multiply(multiplier).add(new BigInteger(fraction));
+      this._offset     	= -precision;
+
+      this.canonicalize();
+    }
+
+    this._is_negative = !!m[2];
+  } else {
+    this._value	      = NaN;
+  }
+
+  return this;
+};
+
+Amount.prototype.parse_issuer = function (issuer) {
+  this._issuer  = UInt160.from_json(issuer);
+
+  return this;
+};
+
+// --> h: 8 hex bytes quality or 32 hex bytes directory index.
+Amount.prototype.parse_quality = function (q, c, i) {
+  this._is_negative = false;
+  this._value       = new BigInteger(q.substring(q.length-14), 16);
+  this._offset      = parseInt(q.substring(q.length-16, q.length-14), 16)-100;
+  this._currency    = Currency.from_json(c);
+  this._issuer      = UInt160.from_json(i);
+  this._is_native   = this._currency.is_native();
+
+  this.canonicalize();
+
+  return this;
+}
+
+// <-> j
+Amount.prototype.parse_json = function (j) {
+  if ('string' === typeof j) {
+    // .../.../... notation is not a wire format.  But allowed for easier testing.
+    var m = j.match(/^([^/]+)\/(...)(?:\/(.+))?$/);
+
+    if (m) {
+      this._currency  = Currency.from_json(m[2]);
+      if (m[3]) {
+        this._issuer  = UInt160.from_json(m[3]);
+      } else {
+        this._issuer  = UInt160.from_json('1');
+      }
+      this.parse_value(m[1]);
+    }
+    else {
+      this.parse_native(j);
+      this._currency  = Currency.from_json("0");
+      this._issuer    = UInt160.from_json("0");
+    }
+  }
+  else if ('number' === typeof j) {
+    this.parse_json(""+j);
+  }
+  else if ('object' === typeof j && j instanceof Amount) {
+    j.copyTo(this);
+  }
+  else if ('object' === typeof j && 'value' in j) {
+    // Parse the passed value to sanitize and copy it.
+
+    this._currency.parse_json(j.currency);     // Never XRP.
+    if ("string" === typeof j.issuer) this._issuer.parse_json(j.issuer);
+    this.parse_value(j.value);
+  }
+  else {
+    this._value	    = NaN;
+  }
+
+  return this;
+};
+
+// Parse a XRP value from untrusted input.
+// - integer = raw units
+// - float = with precision 6
+// XXX Improvements: disallow leading zeros.
+Amount.prototype.parse_native = function (j) {
+  var m;
+
+  if ('string' === typeof j)
+    m = j.match(/^(-?)(\d*)(\.\d{0,6})?$/);
+
+  if (m) {
+    if (undefined === m[3]) {
+      // Integer notation
+
+      this._value	  = new BigInteger(m[2]);
+    }
+    else {
+      // Float notation : values multiplied by 1,000,000.
+
+      var   int_part	  = (new BigInteger(m[2])).multiply(consts.bi_xns_unit);
+      var   fraction_part = (new BigInteger(m[3])).multiply(new BigInteger(String(Math.pow(10, 1+consts.xns_precision-m[3].length))));
+
+      this._value	  = int_part.add(fraction_part);
+    }
+
+    this._is_native   = true;
+    this._offset      = 0;
+    this._is_negative = !!m[1] && this._value.compareTo(BigInteger.ZERO) !== 0;
+
+    if (this._value.compareTo(consts.bi_xns_max) > 0)
+    {
+      this._value	  = NaN;
+    }
+  }
+  else {
+    this._value	      = NaN;
+  }
+
+  return this;
+};
+
+// Parse a non-native value for the json wire format.
+// Requires _currency to be set!
+Amount.prototype.parse_value = function (j) {
+  this._is_native    = false;
+
+  if ('number' === typeof j) {
+    this._is_negative = j < 0;
+    this._value	      = new BigInteger(this._is_negative ? -j : j);
+    this._offset      = 0;
+
+    this.canonicalize();
+  }
+  else if ('string' === typeof j) {
+    var	i = j.match(/^(-?)(\d+)$/);
+    var	d = !i && j.match(/^(-?)(\d*)\.(\d*)$/);
+    var	e = !e && j.match(/^(-?)(\d*)e(-?\d+)$/);
+
+    if (e) {
+      // e notation
+
+      this._value	= new BigInteger(e[2]);
+      this._offset 	= parseInt(e[3]);
+      this._is_negative	= !!e[1];
+
+      this.canonicalize();
+    }
+    else if (d) {
+      // float notation
+
+      var integer	= new BigInteger(d[2]);
+      var fraction    	= new BigInteger(d[3]);
+      var precision	= d[3].length;
+
+      this._value      	= integer.multiply(consts.bi_10.clone().pow(precision)).add(fraction);
+      this._offset     	= -precision;
+      this._is_negative = !!d[1];
+
+      this.canonicalize();
+    }
+    else if (i) {
+      // integer notation
+
+      this._value	= new BigInteger(i[2]);
+      this._offset 	= 0;
+      this._is_negative  = !!i[1];
+
+      this.canonicalize();
+    }
+    else {
+      this._value	= NaN;
+    }
+  }
+  else if (j instanceof BigInteger) {
+    this._value	      = j;
+  }
+  else {
+    this._value	      = NaN;
+  }
+
+  return this;
+};
+
+Amount.prototype.set_currency = function (c) {
+  if ('string' === typeof c) {
+    this._currency  = Currency.from_json(c);  
+  }
+  else
+  {
+    this._currency  = c;
+  }
+  this._is_native = this._currency.is_native();
+
+  return this;
+};
+
+Amount.prototype.set_issuer = function (issuer) {
+  if (issuer instanceof UInt160) {
+    this._issuer  = issuer;
+  } else {
+    this._issuer  = UInt160.from_json(issuer);
+  }
+
+  return this;
+};
+
+// Result in terms of this' currency and issuer.
+Amount.prototype.subtract = function (v) {
+  // Correctness over speed, less code has less bugs, reuse add code.
+  return this.add(Amount.from_json(v).negate());
+};
+
+Amount.prototype.to_number = function (allow_nan) {
+  var s = this.to_text(allow_nan);
+
+  return ('string' === typeof s) ? Number(s) : s;
+}
+
+// Convert only value to JSON wire format.
+Amount.prototype.to_text = function (allow_nan) {
+  if (!(this._value instanceof BigInteger)) {
+    // Never should happen.
+    return allow_nan ? NaN : "0";
+  }
+  else if (this._is_native) {
+    if (this._value.compareTo(consts.bi_xns_max) > 0)
+    {
+      // Never should happen.
+      return allow_nan ? NaN : "0";
+    }
+    else
+    {
+      return (this._is_negative ? "-" : "") + this._value.toString();
+    }
+  }
+  else if (this.is_zero())
+  {
+    return "0";
+  }
+  else if (this._offset && (this._offset < -25 || this._offset > -4))
+  {
+    // Use e notation.
+    // XXX Clamp output.
+
+    return (this._is_negative ? "-" : "") + this._value.toString() + "e" + this._offset;
+  }
+  else
+  {
+    var val = "000000000000000000000000000" + this._value.toString() + "00000000000000000000000";
+    var	pre = val.substring(0, this._offset + 43);
+    var	post = val.substring(this._offset + 43);
+    var	s_pre = pre.match(/[1-9].*$/);	  // Everything but leading zeros.
+    var	s_post = post.match(/[1-9]0*$/);  // Last non-zero plus trailing zeros.
+
+    return (this._is_negative ? "-" : "")
+      + (s_pre ? s_pre[0] : "0")
+      + (s_post ? "." + post.substring(0, 1+post.length-s_post[0].length) : "");
+  }
+};
+
+/**
+ * Format only value in a human-readable format.
+ *
+ * @example
+ *   var pretty = amount.to_human({precision: 2});
+ *
+ * @param opts Options for formatter.
+ * @param opts.precision {Number} Max. number of digits after decimal point.
+ * @param opts.min_precision {Number} Min. number of digits after dec. point.
+ * @param opts.skip_empty_fraction {Boolean} Don't show fraction if it is zero,
+ *   even if min_precision is set.
+ * @param opts.group_sep {Boolean|String} Whether to show a separator every n
+ *   digits, if a string, that value will be used as the separator. Default: ","
+ * @param opts.group_width {Number} How many numbers will be grouped together,
+ *   default: 3.
+ * @param opts.signed {Boolean|String} Whether negative numbers will have a
+ *   prefix. If String, that string will be used as the prefix. Default: "-"
+ */
+Amount.prototype.to_human = function (opts)
+{
+  opts = opts || {};
+
+  if (!this.is_valid()) return "";
+
+  // Default options
+  if ("undefined" === typeof opts.signed) opts.signed = true;
+  if ("undefined" === typeof opts.group_sep) opts.group_sep = true;
+  opts.group_width = opts.group_width || 3;
+
+  var order = this._is_native ? consts.xns_precision : -this._offset;
+  var denominator = consts.bi_10.clone().pow(order);
+  var int_part = this._value.divide(denominator).toString(10);
+  var fraction_part = this._value.mod(denominator).toString(10);
+
+  // Add leading zeros to fraction
+  while (fraction_part.length < order) {
+    fraction_part = "0" + fraction_part;
+  }
+
+  int_part = int_part.replace(/^0*/, '');
+  fraction_part = fraction_part.replace(/0*$/, '');
+
+  if (fraction_part.length || !opts.skip_empty_fraction) {
+    if ("number" === typeof opts.precision) {
+      fraction_part = fraction_part.slice(0, opts.precision);
+    }
+
+    if ("number" === typeof opts.min_precision) {
+      while (fraction_part.length < opts.min_precision) {
+        fraction_part += "0";
+      }
+    }
+  }
+
+  if (opts.group_sep) {
+    if ("string" !== typeof opts.group_sep) {
+      opts.group_sep = ',';
+    }
+    int_part = utils.chunkString(int_part, opts.group_width, true).join(opts.group_sep);
+  }
+
+  var formatted = '';
+  if (opts.signed && this._is_negative) {
+    if ("string" !== typeof opts.signed) {
+      opts.signed = '-';
+    }
+    formatted += opts.signed;
+  }
+  formatted += int_part.length ? int_part : '0';
+  formatted += fraction_part.length ? '.'+fraction_part : '';
+
+  return formatted;
+};
+
+Amount.prototype.to_human_full = function (opts) {
+  opts = opts || {};
+
+  var a = this.to_human(opts);
+  var c = this._currency.to_human();
+  var i = this._issuer.to_json(opts);
+
+  var o;
+
+  if (this._is_native)
+  {
+    o = a + "/" + c;
+  }
+  else
+  {
+    o = a + "/" + c + "/" + i;
+  }
+
+  return o;
+};
+
+Amount.prototype.to_json = function () {
+  if (this._is_native) {
+    return this.to_text();
+  }
+  else
+  {
+    var amount_json = {
+      'value' : this.to_text(),
+      'currency' : this._currency.to_json()
+    };
+    if (this._issuer.is_valid()) {
+      amount_json.issuer = this._issuer.to_json();
+    }
+    return amount_json;
+  }
+};
+
+Amount.prototype.to_text_full = function (opts) {
+  return this._value instanceof BigInteger
+    ? this._is_native
+      ? this.to_text() + "/XRP"
+      : this.to_text() + "/" + this._currency.to_json() + "/" + this._issuer.to_json(opts)
+    : NaN;
+};
+
+// For debugging.
+Amount.prototype.not_equals_why = function (d, ignore_issuer) {
+  if ("string" === typeof d) {
+    return this.not_equals_why(Amount.from_json(d));
+  }
+
+  if (this === d) return false;
+
+  if (d instanceof Amount) {
+    if (!this.is_valid() || !d.is_valid()) return "Invalid amount.";
+    if (this._is_native !== d._is_native) return "Native mismatch.";
+
+    var type = this._is_native ? "XRP" : "Non-XRP";
+
+    if (!this._value.equals(d._value) || this._offset !== d._offset) {
+      return type+" value differs.";
+    }
+
+    if (this._is_negative !== d._is_negative) return type+" sign differs.";
+
+    if (!this._is_native) {
+      if (!this._currency.equals(d._currency)) return "Non-XRP currency differs.";
+      if (!ignore_issuer && !this._issuer.equals(d._issuer)) {
+        return "Non-XRP issuer differs: " + d._issuer.to_json() + "/" + this._issuer.to_json();
+      }
+    }
+    return false;
+  } else return "Wrong constructor.";
+};
+
+exports.Amount	      = Amount;
+
+// DEPRECATED: Include the corresponding files instead.
+exports.Currency      = Currency;
+exports.Seed          = Seed;
+exports.UInt160	      = UInt160;
+
+// vim:sw=2:sts=2:ts=8:et
+
+
+/******/},
+/******/
 /******/4: function(module, exports, require) {
+
+/******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
+var exports = module.exports = require(28);
+
+// We override this function for browsers, because they print objects nicer
+// natively than JSON.stringify can.
+exports.logObject = function (msg, obj) {
+  if (/MSIE/.test(navigator.userAgent)) {
+    console.log(msg, JSON.stringify(obj));
+  } else {
+    console.log(msg, "", obj);
+  }
+};
+
+/******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_console */1)))
+
+/******/},
+/******/
+/******/5: function(module, exports, require) {
 
 var hasOwn = Object.prototype.hasOwnProperty;
 
@@ -4893,30 +4965,294 @@ module.exports = function extend() {
 
 /******/},
 /******/
-/******/5: function(module, exports, require) {
+/******/6: function(module, exports, require) {
+
+exports = module.exports = new (require(7).EventEmitter);
+if(Object.prototype.__defineGetter__) {
+	exports.__defineGetter__("title", function() { return window.title; });
+	exports.__defineSetter__("title", function(t) { window.title = t; });
+} else {
+	exports.title = window.title;
+}
+exports.version = exports.arch = 
+exports.execPath = "webpack";
+exports.platform = "browser";
+// TODO stdin, stdout, stderr
+exports.argv = ["webpack", "browser"];
+exports.pid = 1;
+exports.nextTick = (function(func) {
+	// from https://github.com/substack/node-browserify/blob/master/wrappers/process.js
+	var queue = [];
+	var canPost = typeof window !== 'undefined'
+		&& window.postMessage && window.addEventListener
+	;
+
+	if (canPost) {
+		window.addEventListener('message', function (ev) {
+			if (ev.source === window && ev.data === 'webpack-tick') {
+				ev.stopPropagation();
+				if (queue.length > 0) {
+					var fn = queue.shift();
+					fn();
+				}
+			}
+		}, true);
+	}
+
+	return function (fn) {
+		if (canPost) {
+			queue.push(fn);
+			window.postMessage('webpack-tick', '*');
+		}
+		else setTimeout(fn, 0);
+	};
+}());
+exports.cwd = function() {
+	var pathname = (window.location.pathname+"").split("/");
+	pathname.pop();
+	return pathname.join("/");
+}
+exports.exit = exports.kill = 
+exports.chdir = 
+exports.umask = exports.dlopen = 
+exports.uptime = exports.memoryUsage = 
+exports.uvCounters = function() {};
+exports.features = {};
+exports.binding = function(str) {
+	return {};
+}
+
+/******/},
+/******/
+/******/7: function(module, exports, require) {
 
 /******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
-var exports = module.exports = require(24);
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// We override this function for browsers, because they print objects nicer
-// natively than JSON.stringify can.
-exports.logObject = function (msg, obj) {
-  if (/MSIE/.test(navigator.userAgent)) {
-    console.log(msg, JSON.stringify(obj));
-  } else {
-    console.log(msg, "", obj);
+var isArray = Array.isArray;
+
+function EventEmitter() { }
+exports.EventEmitter = EventEmitter;
+
+// By default EventEmitters will print a warning if more than
+// 10 listeners are added to it. This is a useful default which
+// helps finding memory leaks.
+//
+// Obviously not all Emitters should be limited to 10. This function allows
+// that to be increased. Set to zero for unlimited.
+var defaultMaxListeners = 10;
+EventEmitter.prototype.setMaxListeners = function(n) {
+  if (!this._events) this._events = {};
+  this._maxListeners = n;
+};
+
+
+EventEmitter.prototype.emit = function() {
+  var type = arguments[0];
+  // If there is no 'error' event listener then throw.
+  if (type === 'error') {
+    if (!this._events || !this._events.error ||
+        (isArray(this._events.error) && !this._events.error.length))
+    {
+      if (arguments[1] instanceof Error) {
+        throw arguments[1]; // Unhandled 'error' event
+      } else {
+        throw new Error("Uncaught, unspecified 'error' event.");
+      }
+      return false;
+    }
   }
+
+  if (!this._events) return false;
+  var handler = this._events[type];
+  if (!handler) return false;
+
+  if (typeof handler == 'function') {
+    switch (arguments.length) {
+      // fast cases
+      case 1:
+        handler.call(this);
+        break;
+      case 2:
+        handler.call(this, arguments[1]);
+        break;
+      case 3:
+        handler.call(this, arguments[1], arguments[2]);
+        break;
+      // slower
+      default:
+        var l = arguments.length;
+        var args = new Array(l - 1);
+        for (var i = 1; i < l; i++) args[i - 1] = arguments[i];
+        handler.apply(this, args);
+    }
+    return true;
+
+  } else if (isArray(handler)) {
+    var l = arguments.length;
+    var args = new Array(l - 1);
+    for (var i = 1; i < l; i++) args[i - 1] = arguments[i];
+
+    var listeners = handler.slice();
+    for (var i = 0, l = listeners.length; i < l; i++) {
+      listeners[i].apply(this, args);
+    }
+    return true;
+
+  } else {
+    return false;
+  }
+};
+
+EventEmitter.prototype.addListener = function(type, listener) {
+  if ('function' !== typeof listener) {
+    throw new Error('addListener only takes instances of Function');
+  }
+
+  if (!this._events) this._events = {};
+
+  // To avoid recursion in the case that type == "newListeners"! Before
+  // adding it to the listeners, first emit "newListeners".
+  this.emit('newListener', type, typeof listener.listener === 'function' ?
+            listener.listener : listener);
+
+  if (!this._events[type]) {
+    // Optimize the case of one listener. Don't need the extra array object.
+    this._events[type] = listener;
+  } else if (isArray(this._events[type])) {
+
+    // If we've already got an array, just append.
+    this._events[type].push(listener);
+
+  } else {
+    // Adding the second element, need to change to array.
+    this._events[type] = [this._events[type], listener];
+
+  }
+
+  // Check for listener leak
+  if (isArray(this._events[type]) && !this._events[type].warned) {
+    var m;
+    if (this._maxListeners !== undefined) {
+      m = this._maxListeners;
+    } else {
+      m = defaultMaxListeners;
+    }
+
+    if (m && m > 0 && this._events[type].length > m) {
+      this._events[type].warned = true;
+      console.error('(node) warning: possible EventEmitter memory ' +
+                    'leak detected. %d listeners added. ' +
+                    'Use emitter.setMaxListeners() to increase limit.',
+                    this._events[type].length);
+      console.trace();
+    }
+  }
+
+  return this;
+};
+
+EventEmitter.prototype.on = EventEmitter.prototype.addListener;
+
+EventEmitter.prototype.once = function(type, listener) {
+  if ('function' !== typeof listener) {
+    throw new Error('.once only takes instances of Function');
+  }
+
+  var self = this;
+  function g() {
+    self.removeListener(type, g);
+    listener.apply(this, arguments);
+  };
+
+  g.listener = listener;
+  self.on(type, g);
+
+  return this;
+};
+
+EventEmitter.prototype.removeListener = function(type, listener) {
+  if ('function' !== typeof listener) {
+    throw new Error('removeListener only takes instances of Function');
+  }
+
+  // does not use listeners(), so no side effect of creating _events[type]
+  if (!this._events || !this._events[type]) return this;
+
+  var list = this._events[type];
+
+  if (isArray(list)) {
+    var position = -1;
+    for (var i = 0, length = list.length; i < length; i++) {
+      if (list[i] === listener ||
+          (list[i].listener && list[i].listener === listener))
+      {
+        position = i;
+        break;
+      }
+    }
+
+    if (position < 0) return this;
+    list.splice(position, 1);
+    if (list.length == 0)
+      delete this._events[type];
+  } else if (list === listener ||
+             (list.listener && list.listener === listener))
+  {
+    delete this._events[type];
+  }
+
+  return this;
+};
+
+EventEmitter.prototype.removeAllListeners = function(type) {
+  if (arguments.length === 0) {
+    this._events = {};
+    return this;
+  }
+
+  // does not use listeners(), so no side effect of creating _events[type]
+  if (type && this._events && this._events[type]) this._events[type] = null;
+  return this;
+};
+
+EventEmitter.prototype.listeners = function(type) {
+  if (!this._events) this._events = {};
+  if (!this._events[type]) this._events[type] = [];
+  if (!isArray(this._events[type])) {
+    this._events[type] = [this._events[type]];
+  }
+  return this._events[type];
 };
 
 /******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_console */1)))
 
 /******/},
 /******/
-/******/6: function(module, exports, require) {
+/******/8: function(module, exports, require) {
 
 // This object serves as a singleton to store config options
 
-var extend = require(4);
+var extend = require(5);
 
 var config = module.exports = {
   load: function (newOpts) {
@@ -4928,7 +5264,7 @@ var config = module.exports = {
 
 /******/},
 /******/
-/******/7: function(module, exports, require) {
+/******/9: function(module, exports, require) {
 
 // Derived from Tom Wu's jsbn code.
 //
@@ -6153,9 +6489,9 @@ exports.BigInteger  = BigInteger;
 
 /******/},
 /******/
-/******/8: function(module, exports, require) {
+/******/10: function(module, exports, require) {
 
-/******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
+/******/ /* WEBPACK FREE VAR INJECTION */ (function(process,console) {
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6177,213 +6513,631 @@ exports.BigInteger  = BigInteger;
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-var isArray = Array.isArray;
-
-function EventEmitter() { }
-exports.EventEmitter = EventEmitter;
-
-// By default EventEmitters will print a warning if more than
-// 10 listeners are added to it. This is a useful default which
-// helps finding memory leaks.
-//
-// Obviously not all Emitters should be limited to 10. This function allows
-// that to be increased. Set to zero for unlimited.
-var defaultMaxListeners = 10;
-EventEmitter.prototype.setMaxListeners = function(n) {
-  if (!this._events) this._events = {};
-  this._maxListeners = n;
-};
-
-
-EventEmitter.prototype.emit = function() {
-  var type = arguments[0];
-  // If there is no 'error' event listener then throw.
-  if (type === 'error') {
-    if (!this._events || !this._events.error ||
-        (isArray(this._events.error) && !this._events.error.length))
-    {
-      if (arguments[1] instanceof Error) {
-        throw arguments[1]; // Unhandled 'error' event
-      } else {
-        throw new Error("Uncaught, unspecified 'error' event.");
-      }
-      return false;
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (typeof f !== 'string') {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
     }
+    return objects.join(' ');
   }
 
-  if (!this._events) return false;
-  var handler = this._events[type];
-  if (!handler) return false;
-
-  if (typeof handler == 'function') {
-    switch (arguments.length) {
-      // fast cases
-      case 1:
-        handler.call(this);
-        break;
-      case 2:
-        handler.call(this, arguments[1]);
-        break;
-      case 3:
-        handler.call(this, arguments[1], arguments[2]);
-        break;
-      // slower
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j': return JSON.stringify(args[i++]);
       default:
-        var l = arguments.length;
-        var args = new Array(l - 1);
-        for (var i = 1; i < l; i++) args[i - 1] = arguments[i];
-        handler.apply(this, args);
+        return x;
     }
-    return true;
-
-  } else if (isArray(handler)) {
-    var l = arguments.length;
-    var args = new Array(l - 1);
-    for (var i = 1; i < l; i++) args[i - 1] = arguments[i];
-
-    var listeners = handler.slice();
-    for (var i = 0, l = listeners.length; i < l; i++) {
-      listeners[i].apply(this, args);
-    }
-    return true;
-
-  } else {
-    return false;
-  }
-};
-
-EventEmitter.prototype.addListener = function(type, listener) {
-  if ('function' !== typeof listener) {
-    throw new Error('addListener only takes instances of Function');
-  }
-
-  if (!this._events) this._events = {};
-
-  // To avoid recursion in the case that type == "newListeners"! Before
-  // adding it to the listeners, first emit "newListeners".
-  this.emit('newListener', type, typeof listener.listener === 'function' ?
-            listener.listener : listener);
-
-  if (!this._events[type]) {
-    // Optimize the case of one listener. Don't need the extra array object.
-    this._events[type] = listener;
-  } else if (isArray(this._events[type])) {
-
-    // If we've already got an array, just append.
-    this._events[type].push(listener);
-
-  } else {
-    // Adding the second element, need to change to array.
-    this._events[type] = [this._events[type], listener];
-
-  }
-
-  // Check for listener leak
-  if (isArray(this._events[type]) && !this._events[type].warned) {
-    var m;
-    if (this._maxListeners !== undefined) {
-      m = this._maxListeners;
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (x === null || typeof x !== 'object') {
+      str += ' ' + x;
     } else {
-      m = defaultMaxListeners;
-    }
-
-    if (m && m > 0 && this._events[type].length > m) {
-      this._events[type].warned = true;
-      console.error('(node) warning: possible EventEmitter memory ' +
-                    'leak detected. %d listeners added. ' +
-                    'Use emitter.setMaxListeners() to increase limit.',
-                    this._events[type].length);
-      console.trace();
+      str += ' ' + inspect(x);
     }
   }
-
-  return this;
+  return str;
 };
 
-EventEmitter.prototype.on = EventEmitter.prototype.addListener;
 
-EventEmitter.prototype.once = function(type, listener) {
-  if ('function' !== typeof listener) {
-    throw new Error('.once only takes instances of Function');
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  if (process.noDeprecation === true) {
+    return fn;
   }
 
-  var self = this;
-  function g() {
-    self.removeListener(type, g);
-    listener.apply(this, arguments);
-  };
-
-  g.listener = listener;
-  self.on(type, g);
-
-  return this;
-};
-
-EventEmitter.prototype.removeListener = function(type, listener) {
-  if ('function' !== typeof listener) {
-    throw new Error('removeListener only takes instances of Function');
-  }
-
-  // does not use listeners(), so no side effect of creating _events[type]
-  if (!this._events || !this._events[type]) return this;
-
-  var list = this._events[type];
-
-  if (isArray(list)) {
-    var position = -1;
-    for (var i = 0, length = list.length; i < length; i++) {
-      if (list[i] === listener ||
-          (list[i].listener && list[i].listener === listener))
-      {
-        position = i;
-        break;
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
       }
+      warned = true;
     }
-
-    if (position < 0) return this;
-    list.splice(position, 1);
-    if (list.length == 0)
-      delete this._events[type];
-  } else if (list === listener ||
-             (list.listener && list.listener === listener))
-  {
-    delete this._events[type];
+    return fn.apply(this, arguments);
   }
 
-  return this;
+  return deprecated;
 };
 
-EventEmitter.prototype.removeAllListeners = function(type) {
-  if (arguments.length === 0) {
-    this._events = {};
-    return this;
+
+exports.print = function() {
+  for (var i = 0, len = arguments.length; i < len; ++i) {
+    process.stdout.write(String(arguments[i]));
+  }
+};
+
+
+exports.puts = function() {
+  for (var i = 0, len = arguments.length; i < len; ++i) {
+    process.stdout.write(arguments[i] + '\n');
+  }
+};
+
+
+exports.debug = function(x) {
+  process.stderr.write('DEBUG: ' + x + '\n');
+};
+
+
+var error = exports.error = function(x) {
+  for (var i = 0, len = arguments.length; i < len; ++i) {
+    process.stderr.write(arguments[i] + '\n');
+  }
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Boolean} showHidden Flag that shows hidden (not enumerable)
+ *    properties of objects.
+ * @param {Number} depth Depth in which to descend in object. Default is 2.
+ * @param {Boolean} colors Flag to turn on ANSI escape codes to color the
+ *    output. Default is false (no coloring).
+ */
+function inspect(obj, showHidden, depth, colors) {
+  var ctx = {
+    showHidden: showHidden,
+    seen: [],
+    stylize: colors ? stylizeWithColor : stylizeNoColor
+  };
+  return formatValue(ctx, obj, (typeof depth === 'undefined' ? 2 : depth));
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+var colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+var styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = styles[styleType];
+
+  if (style) {
+    return '\u001b[' + colors[style][0] + 'm' + str +
+           '\u001b[' + colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (value && typeof value.inspect === 'function' &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    return String(value.inspect(recurseTimes));
   }
 
-  // does not use listeners(), so no side effect of creating _events[type]
-  if (type && this._events && this._events[type]) this._events[type] = null;
-  return this;
-};
-
-EventEmitter.prototype.listeners = function(type) {
-  if (!this._events) this._events = {};
-  if (!this._events[type]) this._events[type] = [];
-  if (!isArray(this._events[type])) {
-    this._events[type] = [this._events[type]];
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
   }
-  return this._events[type];
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (typeof value === 'function') {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (typeof value === 'function') {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  switch (typeof value) {
+    case 'undefined':
+      return ctx.stylize('undefined', 'undefined');
+
+    case 'string':
+      var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                               .replace(/'/g, "\\'")
+                                               .replace(/\\"/g, '"') + '\'';
+      return ctx.stylize(simple, 'string');
+
+    case 'number':
+      return ctx.stylize('' + value, 'number');
+
+    case 'boolean':
+      return ctx.stylize('' + value, 'boolean');
+  }
+  // For some reason typeof null is "object", so special case here.
+  if (value === null) {
+    return ctx.stylize('null', 'null');
+  }
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (Object.prototype.hasOwnProperty.call(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!visibleKeys.hasOwnProperty(key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (recurseTimes === null) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (typeof name === 'undefined') {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar) ||
+         (typeof ar === 'object' && objectToString(ar) === '[object Array]');
+}
+exports.isArray = isArray;
+
+
+function isRegExp(re) {
+  return typeof re === 'object' && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+
+function isDate(d) {
+  return typeof d === 'object' && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+
+function isError(e) {
+  return typeof e === 'object' && objectToString(e) === '[object Error]';
+}
+exports.isError = isError;
+
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+exports.p = exports.deprecate(function() {
+  for (var i = 0, len = arguments.length; i < len; ++i) {
+    error(exports.inspect(arguments[i]));
+  }
+}, 'util.p: Use console.error() instead.');
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+exports.log = function(msg) {
+  exports.puts(timestamp() + ' - ' + msg.toString());
 };
 
-/******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_console */1)))
+
+exports.exec = exports.deprecate(function() {
+  return require(21).exec.apply(this, arguments);
+}, 'util.exec is now called `child_process.exec`.');
+
+
+exports.pump = function(readStream, writeStream, callback) {
+  var callbackCalled = false;
+
+  function call(a, b, c) {
+    if (callback && !callbackCalled) {
+      callback(a, b, c);
+      callbackCalled = true;
+    }
+  }
+
+  readStream.addListener('data', function(chunk) {
+    if (writeStream.write(chunk) === false) readStream.pause();
+  });
+
+  writeStream.addListener('drain', function() {
+    readStream.resume();
+  });
+
+  readStream.addListener('end', function() {
+    writeStream.end();
+  });
+
+  readStream.addListener('close', function() {
+    call();
+  });
+
+  readStream.addListener('error', function(err) {
+    writeStream.end();
+    call(err);
+  });
+
+  writeStream.addListener('error', function(err) {
+    readStream.destroy();
+    call(err);
+  });
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = function(ctor, superCtor) {
+  ctor.super_ = superCtor;
+  ctor.prototype = Object.create(superCtor.prototype, {
+    constructor: {
+      value: ctor,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    }
+  });
+};
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || typeof add !== 'object') return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+/******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_process */6),require(/* __webpack_console */1)))
 
 /******/},
 /******/
-/******/9: function(module, exports, require) {
+/******/11: function(module, exports, require) {
 
 
-var sjcl    = require(3);
-var utils   = require(5);
-var jsbn    = require(7);
-var extend  = require(4);
+var sjcl    = require(2);
+var utils   = require(4);
+var config  = require(8);
+var jsbn    = require(9);
+var extend  = require(5);
+
+var BigInteger = jsbn.BigInteger;
+var nbi        = jsbn.nbi;
+
+var UInt = require(14).UInt,
+    Base = require(12).Base;
+
+//
+// UInt160 support
+//
+
+var UInt160 = extend(function () {
+  // Internal form: NaN or BigInteger
+  this._value  = NaN;
+}, UInt);
+
+UInt160.width = 20;
+UInt160.prototype = extend({}, UInt.prototype);
+UInt160.prototype.constructor = UInt160;
+
+var ACCOUNT_ZERO = UInt160.ACCOUNT_ZERO = "rrrrrrrrrrrrrrrrrrrrrhoLvTp";
+var ACCOUNT_ONE  = UInt160.ACCOUNT_ONE = "rrrrrrrrrrrrrrrrrrrrBZbvji";
+var HEX_ZERO     = UInt160.HEX_ZERO = "0000000000000000000000000000000000000000";
+var HEX_ONE      = UInt160.HEX_ONE = "0000000000000000000000000000000000000001";
+var STR_ZERO     = UInt160.STR_ZERO = utils.hexToString(HEX_ZERO);
+var STR_ONE      = UInt160.STR_ONE = utils.hexToString(HEX_ONE);
+
+// value = NaN on error.
+UInt160.prototype.parse_json = function (j) {
+  // Canonicalize and validate
+  if (config.accounts && j in config.accounts)
+    j = config.accounts[j].account;
+
+  if ('string' !== typeof j) {
+    this._value  = NaN;
+  }
+  else if (j[0] === "r") {
+    this._value  = Base.decode_check(Base.VER_ACCOUNT_ID, j);
+  }
+  else {
+    this._value  = NaN;
+  }
+
+  return this;
+};
+
+// XXX Json form should allow 0 and 1, C++ doesn't currently allow it.
+UInt160.prototype.to_json = function (opts) {
+  opts  = opts || {};
+
+  if (!(this._value instanceof BigInteger))
+    return NaN;
+
+  var output = Base.encode_check(Base.VER_ACCOUNT_ID, this.to_bytes());
+
+  if (opts.gateways && output in opts.gateways)
+    output = opts.gateways[output];
+   
+  return output;
+};
+
+exports.UInt160 = UInt160;
+
+// vim:sw=2:sts=2:ts=8:et
+
+
+/******/},
+/******/
+/******/12: function(module, exports, require) {
+
+
+var sjcl    = require(2);
+var utils   = require(4);
+var jsbn    = require(9);
+var extend  = require(5);
 
 var BigInteger = jsbn.BigInteger;
 var nbi        = jsbn.nbi;
@@ -6523,94 +7277,107 @@ exports.Base = Base;
 
 /******/},
 /******/
-/******/10: function(module, exports, require) {
+/******/13: function(module, exports, require) {
 
-
-var sjcl    = require(3);
-var utils   = require(5);
-var config  = require(6);
-var jsbn    = require(7);
-var extend  = require(4);
-
-var BigInteger = jsbn.BigInteger;
-var nbi        = jsbn.nbi;
-
-var UInt = require(11).UInt,
-    Base = require(9).Base;
 
 //
-// UInt160 support
+// Currency support
 //
 
-var UInt160 = extend(function () {
-  // Internal form: NaN or BigInteger
+// XXX Internal form should be UInt160.
+var Currency = function () {
+  // Internal form: 0 = XRP. 3 letter-code.
+  // XXX Internal should be 0 or hex with three letter annotation when valid.
+
+  // Json form:
+  //  '', 'XRP', '0': 0
+  //  3-letter code: ...
+  // XXX Should support hex, C++ doesn't currently allow it.
+
   this._value  = NaN;
-}, UInt);
+}
 
-UInt160.width = 20;
-UInt160.prototype = extend({}, UInt.prototype);
-UInt160.prototype.constructor = UInt160;
+// Given "USD" return the json.
+Currency.json_rewrite = function (j) {
+  return Currency.from_json(j).to_json();
+};
 
-var ADDRESS_ZERO = UInt160.ADDRESS_ZERO = "rrrrrrrrrrrrrrrrrrrrrhoLvTp";
-var ADDRESS_ONE  = UInt160.ADDRESS_ONE = "rrrrrrrrrrrrrrrrrrrrBZbvji";
-var HEX_ZERO     = UInt160.HEX_ZERO = "0000000000000000000000000000000000000000";
-var HEX_ONE      = UInt160.HEX_ONE = "0000000000000000000000000000000000000001";
-var STR_ZERO     = UInt160.STR_ZERO = utils.hexToString(HEX_ZERO);
-var STR_ONE      = UInt160.STR_ONE = utils.hexToString(HEX_ONE);
+Currency.from_json = function (j) {
+  if (j instanceof Currency) return j.clone();
+  else if ('string' === typeof j) return (new Currency()).parse_json(j);
+  else return new Currency(); // NaN
+};
 
-// value = NaN on error.
-UInt160.prototype.parse_json = function (j) {
-  // Canonicalize and validate
-  if (config.accounts && j in config.accounts)
-    j = config.accounts[j].account;
+Currency.is_valid = function (j) {
+  return Currency.from_json(j).is_valid();
+};
 
-  if ('string' !== typeof j) {
-    this._value  = NaN;
+Currency.prototype.clone = function() {
+  return this.copyTo(new Currency());
+};
+
+// Returns copy.
+Currency.prototype.copyTo = function (d) {
+  d._value = this._value;
+
+  return d;
+};
+
+Currency.prototype.equals = function (d) {
+  return ('string' !== typeof this._value && isNaN(this._value))
+    || ('string' !== typeof d._value && isNaN(d._value)) ? false : this._value === d._value;
+};
+
+// this._value = NaN on error.
+Currency.prototype.parse_json = function (j) {
+  if ("" === j || "0" === j || "XRP" === j) {
+    this._value	= 0;
   }
-  else if (j[0] === "r") {
-    this._value  = Base.decode_check(Base.VER_ACCOUNT_ID, j);
+  else if ('string' != typeof j || 3 !== j.length) {
+    this._value	= NaN;
   }
   else {
-    this._value  = NaN;
+    this._value	= j;
   }
 
   return this;
 };
 
-// XXX Json form should allow 0 and 1, C++ doesn't currently allow it.
-UInt160.prototype.to_json = function (opts) {
-  opts  = opts || {};
-
-  if (!(this._value instanceof BigInteger))
-    return NaN;
-
-  var output = Base.encode_check(Base.VER_ACCOUNT_ID, this.to_bytes());
-
-  if (opts.gateways && output in opts.gateways)
-    output = opts.gateways[output];
-   
-  return output;
+Currency.prototype.is_native = function () {
+  return !isNaN(this._value) && !this._value;
 };
 
-exports.UInt160 = UInt160;
+Currency.prototype.is_valid = function () {
+  return 'string' === typeof this._value || !isNaN(this._value);
+};
+
+Currency.prototype.to_json = function () {
+  return this._value ? this._value : "XRP";
+};
+
+Currency.prototype.to_human = function () {
+  return this._value ? this._value : "XRP";
+};
+
+exports.Currency = Currency;
 
 // vim:sw=2:sts=2:ts=8:et
 
 
 /******/},
 /******/
-/******/11: function(module, exports, require) {
+/******/14: function(module, exports, require) {
 
 
-var sjcl    = require(3);
-var utils   = require(5);
-var config  = require(6);
-var jsbn    = require(7);
+var sjcl    = require(2);
+var utils   = require(4);
+var config  = require(8);
+var jsbn    = require(9);
 
 var BigInteger = jsbn.BigInteger;
 var nbi        = jsbn.nbi;
 
-var Base = require(9).Base;
+var Base = require(12).Base;
 
 //
 // Abstract UInt class
@@ -6709,14 +7476,14 @@ UInt.prototype.parse_generic = function (j) {
   case undefined:
   case "0":
   case this.constructor.STR_ZERO:
-  case this.constructor.ADDRESS_ZERO:
+  case this.constructor.ACCOUNT_ZERO:
   case this.constructor.HEX_ZERO:
     this._value  = nbi();
     break;
 
   case "1":
   case this.constructor.STR_ONE:
-  case this.constructor.ADDRESS_ONE:
+  case this.constructor.ACCOUNT_ONE:
   case this.constructor.HEX_ONE:
     this._value  = new BigInteger([1]);
 
@@ -6832,20 +7599,20 @@ exports.UInt = UInt;
 
 /******/},
 /******/
-/******/12: function(module, exports, require) {
+/******/15: function(module, exports, require) {
 
 
-var sjcl    = require(3);
-var utils   = require(5);
-var config  = require(6);
-var jsbn    = require(7);
-var extend  = require(4);
+var sjcl    = require(2);
+var utils   = require(4);
+var config  = require(8);
+var jsbn    = require(9);
+var extend  = require(5);
 
 var BigInteger = jsbn.BigInteger;
 var nbi        = jsbn.nbi;
 
-var UInt = require(11).UInt,
-    Base = require(9).Base;
+var UInt = require(14).UInt,
+    Base = require(12).Base;
 
 //
 // UInt256 support
@@ -6860,9 +7627,6 @@ UInt256.width = 32;
 UInt256.prototype = extend({}, UInt.prototype);
 UInt256.prototype.constructor = UInt256;
 
-// XXX Generate these constants (or remove them)
-var ADDRESS_ZERO = UInt256.ADDRESS_ZERO = "XXX";
-var ADDRESS_ONE  = UInt256.ADDRESS_ONE = "XXX";
 var HEX_ZERO     = UInt256.HEX_ZERO = "00000000000000000000000000000000" +
                                       "00000000000000000000000000000000";
 var HEX_ONE      = UInt256.HEX_ONE  = "00000000000000000000000000000000" +
@@ -6875,9 +7639,9 @@ exports.UInt256 = UInt256;
 
 /******/},
 /******/
-/******/13: function(module, exports, require) {
+/******/16: function(module, exports, require) {
 
-var ST = require(16);
+var ST = require(19);
 
 var REQUIRED = exports.REQUIRED = 0,
     OPTIONAL = exports.OPTIONAL = 1,
@@ -6971,112 +7735,166 @@ exports.tx = {
 
 /******/},
 /******/
-/******/14: function(module, exports, require) {
+/******/17: function(module, exports, require) {
 
+var extend = require(5);
+var utils = require(4);
+var UInt160 = require(11).UInt160;
+var Amount = require(3).Amount;
 
-//
-// Currency support
-//
+/**
+ * Meta data processing facility.
+ */
+var Meta = function (raw_data)
+{
+  this.nodes = [];
 
-// XXX Internal form should be UInt160.
-var Currency = function () {
-  // Internal form: 0 = XRP. 3 letter-code.
-  // XXX Internal should be 0 or hex with three letter annotation when valid.
+  for (var i = 0, l = raw_data.AffectedNodes.length; i < l; i++) {
+    var an = raw_data.AffectedNodes[i],
+        result = {};
 
-  // Json form:
-  //  '', 'XRP', '0': 0
-  //  3-letter code: ...
-  // XXX Should support hex, C++ doesn't currently allow it.
+    ["CreatedNode", "ModifiedNode", "DeletedNode"].forEach(function (x) {
+      if (an[x]) result.diffType = x;
+    });
 
-  this._value  = NaN;
-}
+    if (!result.diffType) return null;
 
-// Given "USD" return the json.
-Currency.json_rewrite = function (j) {
-  return Currency.from_json(j).to_json();
-};
+    an = an[result.diffType];
 
-Currency.from_json = function (j) {
-  return 'string' === typeof j
-      ? (new Currency()).parse_json(j)
-      : j.clone();
-};
+    result.entryType = an.LedgerEntryType;
+    result.ledgerIndex = an.LedgerIndex;
 
-Currency.is_valid = function (j) {
-  return Currency.from_json(j).is_valid();
-};
+    result.fields = extend({}, an.PreviousFields, an.NewFields, an.FinalFields);
+    result.fieldsPrev = an.PreviousFields || {};
+    result.fieldsNew = an.NewFields || {};
+    result.fieldsFinal = an.FinalFields || {};
 
-Currency.prototype.clone = function() {
-  return this.copyTo(new Currency());
-};
-
-// Returns copy.
-Currency.prototype.copyTo = function (d) {
-  d._value = this._value;
-
-  return d;
-};
-
-Currency.prototype.equals = function (d) {
-  return ('string' !== typeof this._value && isNaN(this._value))
-    || ('string' !== typeof d._value && isNaN(d._value)) ? false : this._value === d._value;
-};
-
-// this._value = NaN on error.
-Currency.prototype.parse_json = function (j) {
-  if ("" === j || "0" === j || "XRP" === j) {
-    this._value	= 0;
+    this.nodes.push(result);
   }
-  else if ('string' != typeof j || 3 !== j.length) {
-    this._value	= NaN;
+};
+
+/**
+ * Execute a function on each affected node.
+ *
+ * The callback is passed two parameters. The first is a node object which looks
+ * like this:
+ *
+ *   {
+ *     // Type of diff, e.g. CreatedNode, ModifiedNode
+ *     diffType: 'CreatedNode'
+ *
+ *     // Type of node affected, e.g. RippleState, AccountRoot
+ *     entryType: 'RippleState',
+ *
+ *     // Index of the ledger this change occurred in
+ *     ledgerIndex: '01AB01AB...',
+ *
+ *     // Contains all fields with later versions taking precedence
+ *     //
+ *     // This is a shorthand for doing things like checking which account
+ *     // this affected without having to check the diffType.
+ *     fields: {...},
+ *
+ *     // Old fields (before the change)
+ *     fieldsPrev: {...},
+ *
+ *     // New fields (that have been added)
+ *     fieldsNew: {...},
+ *
+ *     // Changed fields
+ *     fieldsFinal: {...}
+ *   }
+ *
+ * The second parameter to the callback is the index of the node in the metadata
+ * (first entry is index 0).
+ */
+Meta.prototype.each = function (fn)
+{
+  for (var i = 0, l = this.nodes.length; i < l; i++) {
+    fn(this.nodes[i], i);
   }
-  else {
-    this._value	= j;
-  }
-
-  return this;
 };
 
-Currency.prototype.is_native = function () {
-  return !isNaN(this._value) && !this._value;
+var amountFieldsAffectingIssuer = [
+  "LowLimit", "HighLimit", "TakerPays", "TakerGets"
+];
+Meta.prototype.getAffectedAccounts = function ()
+{
+  var accounts = [];
+
+  // This code should match the behavior of the C++ method:
+  // TransactionMetaSet::getAffectedAccounts
+  this.each(function (an) {
+    var fields = (an.diffType === "CreatedNode") ? an.fieldsNew : an.fieldsFinal;
+
+    for (var i in fields) {
+      var field = fields[i];
+
+      if ("string" === typeof field && UInt160.is_valid(field)) {
+        accounts.push(field);
+      } else if (amountFieldsAffectingIssuer.indexOf(i) !== -1) {
+        var amount = Amount.from_json(field);
+        var issuer = amount.issuer();
+        if (issuer.is_valid() && !issuer.is_zero()) {
+          accounts.push(issuer.to_json());
+        }
+      }
+    }
+  });
+
+  accounts = utils.arrayUnique(accounts);
+
+  return accounts;
 };
 
-Currency.prototype.is_valid = function () {
-  return !isNaN(this._value);
+Meta.prototype.getAffectedBooks = function ()
+{
+  var books = [];
+
+  this.each(function (an) {
+    if (an.entryType !== 'Offer') return;
+
+    var gets = Amount.from_json(an.fields.TakerGets);
+    var pays = Amount.from_json(an.fields.TakerPays);
+
+    var getsKey = gets.currency().to_json();
+    if (getsKey !== 'XRP') getsKey += '/' + gets.issuer().to_json();
+
+    var paysKey = pays.currency().to_json();
+    if (paysKey !== 'XRP') paysKey += '/' + pays.issuer().to_json();
+
+    var key = getsKey + ":" + paysKey;
+
+    books.push(key);
+  });
+
+  books = utils.arrayUnique(books);
+
+  return books;
 };
 
-Currency.prototype.to_json = function () {
-  return this._value ? this._value : "XRP";
-};
-
-Currency.prototype.to_human = function () {
-  return this._value ? this._value : "XRP";
-};
-
-exports.Currency = Currency;
-
-// vim:sw=2:sts=2:ts=8:et
+exports.Meta = Meta;
 
 
 /******/},
 /******/
-/******/15: function(module, exports, require) {
+/******/18: function(module, exports, require) {
 
 //
 // Seed support
 //
 
-var sjcl    = require(3);
-var utils   = require(5);
-var jsbn    = require(7);
-var extend  = require(4);
+var sjcl    = require(2);
+var utils   = require(4);
+var jsbn    = require(9);
+var extend  = require(5);
 
 var BigInteger = jsbn.BigInteger;
 
-var Base = require(9).Base,
-    UInt = require(11).UInt,
-    UInt256 = require(12).UInt256,
-    KeyPair = require(18).KeyPair;
+var Base = require(12).Base,
+    UInt = require(14).UInt,
+    UInt256 = require(15).UInt256,
+    KeyPair = require(23).KeyPair;
 
 var Seed = extend(function () {
   // Internal form: NaN or BigInteger
@@ -7182,7 +8000,7 @@ exports.Seed = Seed;
 
 /******/},
 /******/
-/******/16: function(module, exports, require) {
+/******/19: function(module, exports, require) {
 
 /**
  * Type definitions for binary format.
@@ -7192,11 +8010,11 @@ exports.Seed = Seed;
  * SerializedObject.parse() or SerializedObject.serialize().
  */
 
-var extend  = require(4),
-    utils   = require(5),
-    sjcl    = require(3);
+var extend  = require(5),
+    utils   = require(4),
+    sjcl    = require(2);
 
-var amount  = require(2),
+var amount  = require(3),
     UInt160 = amount.UInt160,
     Amount  = amount.Amount,
     Currency= amount.Currency;
@@ -7429,17 +8247,25 @@ var STAccount = exports.Account = new SerializedType({
 });
 
 var STPathSet = exports.PathSet = new SerializedType({
+  typeBoundary: 0xff,
+  typeEnd: 0x00,
+  typeAccount: 0x01,
+  typeCurrency: 0x10,
+  typeIssuer: 0x20,
   serialize: function (so, val) {
     // XXX
     for (var i = 0, l = val.length; i < l; i++) {
+      // Boundary
+      if (i) STInt8.serialize(so, this.typeBoundary);
+
       for (var j = 0, l2 = val[i].length; j < l2; j++) {
         var entry = val[i][j];
 
         var type = 0;
 
-        if (entry.account) type |= 0x01;
-        if (entry.currency) type |= 0x10;
-        if (entry.issuer) type |= 0x20;
+        if (entry.account) type |= this.typeAccount;
+        if (entry.currency) type |= this.typeCurrency;
+        if (entry.issuer) type |= this.typeIssuer;
 
         STInt8.serialize(so, type);
 
@@ -7454,10 +8280,8 @@ var STPathSet = exports.PathSet = new SerializedType({
           so.append(UInt160.from_json(entry.issuer).to_bytes());
         }
       }
-
-      if (j < l2) STInt8.serialize(so, 0xff);
     }
-    STInt8.serialize(so, 0x00);
+    STInt8.serialize(so, this.typeEnd);
   },
   parse: function (so) {
     // XXX
@@ -7501,1865 +8325,7 @@ var STArray = exports.Array = new SerializedType({
 
 /******/},
 /******/
-/******/17: function(module, exports, require) {
-
-// Routines for working with an account.
-//
-// Events:
-//   wallet_clean	: True, iff the wallet has been updated.
-//   wallet_dirty	: True, iff the wallet needs to be updated.
-//   balance		: The current stamp balance.
-//   balance_proposed
-//
-
-// var network = require("./network.js");
-
-var EventEmitter = require(8).EventEmitter;
-var Amount = require(2).Amount;
-var UInt160 = require(10).UInt160;
-
-var extend = require(4);
-
-var Account = function (remote, account) {
-  var self = this;
-
-  this._remote = remote;
-  this._account = UInt160.from_json(account);
-  this._account_id = this._account.to_json();
-  this._subs = 0;
-
-  // Ledger entry object
-  // Important: This must never be overwritten, only extend()-ed
-  this._entry = {};
-
-  this.on('newListener', function (type, listener) {
-    if (Account.subscribe_events.indexOf(type) !== -1) {
-      if (!self._subs && 'open' === self._remote._online_state) {
-        self._remote.request_subscribe()
-          .accounts(self._account_id)
-          .request();
-      }
-      self._subs  += 1;
-    }
-  });
-
-  this.on('removeListener', function (type, listener) {
-    if (Account.subscribe_events.indexOf(type) !== -1) {
-      self._subs  -= 1;
-
-      if (!self._subs && 'open' === self._remote._online_state) {
-        self._remote.request_unsubscribe()
-          .accounts(self._account_id)
-          .request();
-      }
-    }
-  });
-
-  this._remote.on('connect', function () {
-    if (self._subs) {
-      self._remote.request_subscribe()
-        .accounts(self._account_id)
-        .request();
-    }
-  });
-
-  this.on('transaction', function (msg) {
-    var changed = false;
-    msg.mmeta.each(function (an) {
-      if (an.entryType === 'AccountRoot' &&
-          an.fields.Account === self._account_id) {
-        extend(self._entry, an.fieldsNew, an.fieldsFinal);
-        changed = true;
-      }
-    });
-    if (changed) {
-      self.emit('entry', self._entry);
-    }
-  });
-
-  return this;
-};
-
-Account.prototype = new EventEmitter;
-
-/**
- * List of events that require a remote subscription to the account.
- */
-Account.subscribe_events = ['transaction', 'entry'];
-
-Account.prototype.to_json = function ()
-{
-  return this._account.to_json();
-};
-
-/**
- * Whether the AccountId is valid.
- *
- * Note: This does not tell you whether the account exists in the ledger.
- */
-Account.prototype.is_valid = function ()
-{
-  return this._account.is_valid();
-};
-
-/**
- * Retrieve the current AccountRoot entry.
- *
- * To keep up-to-date with changes to the AccountRoot entry, subscribe to the
- * "entry" event.
- *
- * @param {function (err, entry)} callback Called with the result
- */
-Account.prototype.entry = function (callback)
-{
-  var self = this;
-
-  self._remote.request_account_info(this._account_id)
-    .on('success', function (e) {
-      extend(self._entry, e.account_data);
-      self.emit('entry', self._entry);
-
-      if ("function" === typeof callback) {
-        callback(null, e);
-      }
-    })
-    .on('error', function (e) {
-      callback(e);
-    })
-    .request();
-
-  return this;
-};
-
-exports.Account	    = Account;
-
-// vim:sw=2:sts=2:ts=8:et
-
-
-/******/},
-/******/
-/******/18: function(module, exports, require) {
-
-var sjcl    = require(3);
-
-var UInt256 = require(12).UInt256;
-
-var KeyPair = function ()
-{
-  this._curve = sjcl.ecc.curves['c256'];
-  this._secret = null;
-  this._pubkey = null;
-};
-
-KeyPair.from_bn_secret = function (j)
-{
-  if (j instanceof this) {
-    return j.clone();
-  } else {
-    return (new this()).parse_bn_secret(j);
-  }
-};
-
-KeyPair.prototype.parse_bn_secret = function (j)
-{
-  this._secret = new sjcl.ecc.ecdsa.secretKey(sjcl.ecc.curves['c256'], j);
-  return this;
-};
-
-/**
- * Returns public key as sjcl public key.
- *
- * @private
- */
-KeyPair.prototype._pub = function ()
-{
-  var curve = this._curve;
-
-  if (!this._pubkey && this._secret) {
-    var exponent = this._secret._exponent;
-    this._pubkey = new sjcl.ecc.ecdsa.publicKey(curve, curve.G.mult(exponent));
-  }
-
-  return this._pubkey;
-};
-
-/**
- * Returns public key as hex.
- *
- * Key will be returned as a compressed pubkey - 33 bytes converted to hex.
- */
-KeyPair.prototype.to_hex_pub = function ()
-{
-  var pub = this._pub();
-  if (!pub) return null;
-
-  var point = pub._point, y_even = point.y.mod(2).equals(0);
-  return sjcl.codec.hex.fromBits(sjcl.bitArray.concat(
-    [sjcl.bitArray.partial(8, y_even ? 0x02 : 0x03)],
-    point.x.toBits(this._curve.r.bitLength())
-  )).toUpperCase();
-};
-
-KeyPair.prototype.sign = function (hash)
-{
-  hash = UInt256.from_json(hash);
-  return this._secret.signDER(hash.to_bits(), 0);
-};
-
-exports.KeyPair = KeyPair;
-
-
-/******/},
-/******/
-/******/19: function(module, exports, require) {
-
-var extend = require(4);
-var UInt160 = require(10).UInt160;
-var Amount = require(2).Amount;
-
-/**
- * Meta data processing facility.
- */
-var Meta = function (raw_data)
-{
-  this.nodes = [];
-
-  for (var i = 0, l = raw_data.AffectedNodes.length; i < l; i++) {
-    var an = raw_data.AffectedNodes[i],
-        result = {};
-
-    ["CreatedNode", "ModifiedNode", "DeletedNode"].forEach(function (x) {
-      if (an[x]) result.diffType = x;
-    });
-
-    if (!result.diffType) return null;
-
-    an = an[result.diffType];
-
-    result.entryType = an.LedgerEntryType;
-    result.ledgerIndex = an.LedgerIndex;
-
-    result.fields = extend({}, an.PreviousFields, an.NewFields, an.FinalFields);
-    result.fieldsPrev = an.PreviousFields || {};
-    result.fieldsNew = an.NewFields || {};
-    result.fieldsFinal = an.FinalFields || {};
-
-    this.nodes.push(result);
-  }
-};
-
-/**
- * Execute a function on each affected node.
- *
- * The callback is passed two parameters. The first is a node object which looks
- * like this:
- *
- *   {
- *     // Type of diff, e.g. CreatedNode, ModifiedNode
- *     diffType: 'CreatedNode'
- *
- *     // Type of node affected, e.g. RippleState, AccountRoot
- *     entryType: 'RippleState',
- *
- *     // Index of the ledger this change occurred in
- *     ledgerIndex: '01AB01AB...',
- *
- *     // Contains all fields with later versions taking precedence
- *     //
- *     // This is a shorthand for doing things like checking which account
- *     // this affected without having to check the diffType.
- *     fields: {...},
- *
- *     // Old fields (before the change)
- *     fieldsPrev: {...},
- *
- *     // New fields (that have been added)
- *     fieldsNew: {...},
- *
- *     // Changed fields
- *     fieldsFinal: {...}
- *   }
- *
- * The second parameter to the callback is the index of the node in the metadata
- * (first entry is index 0).
- */
-Meta.prototype.each = function (fn)
-{
-  for (var i = 0, l = this.nodes.length; i < l; i++) {
-    fn(this.nodes[i], i);
-  }
-};
-
-var amountFieldsAffectingIssuer = [
-  "LowLimit", "HighLimit", "TakerPays", "TakerGets"
-];
-Meta.prototype.getAffectedAccounts = function ()
-{
-  var accounts = [];
-
-  // This code should match the behavior of the C++ method:
-  // TransactionMetaSet::getAffectedAccounts
-  this.each(function (an) {
-    var fields = (an.diffType === "CreatedNode") ? an.fieldsNew : an.fieldsFinal;
-
-    for (var i in fields) {
-      var field = fields[i];
-
-      if ("string" === typeof field && UInt160.is_valid(field)) {
-        accounts.push(field);
-      } else if (amountFieldsAffectingIssuer.indexOf(i) !== -1) {
-        var amount = Amount.from_json(field);
-        var issuer = amount.issuer();
-        if (issuer.is_valid() && !issuer.is_zero()) {
-          accounts.push(issuer.to_json());
-        }
-      }
-    }
-  });
-
-  return accounts;
-};
-
-exports.Meta = Meta;
-
-
-/******/},
-/******/
 /******/20: function(module, exports, require) {
-
-// Routines for working with an orderbook.
-//
-// Events:
-
-// var network = require("./network.js");
-
-var EventEmitter = require(8).EventEmitter;
-var Amount = require(2).Amount;
-var UInt160 = require(10).UInt160;
-var Currency = require(14).Currency;
-
-var extend = require(4);
-
-var OrderBook = function (remote,
-                          currency_out, issuer_out,
-                          currency_in,  issuer_in) {
-  var self = this;
-
-  this._remote = remote;
-  this._currency_out = currency_out;
-  this._issuer_out = issuer_out;
-  this._currency_in = currency_in;
-  this._issuer_in = issuer_in;
-
-  this._subs = 0;
-
-  // Ledger entry object
-  // Important: This must never be overwritten, only extend()-ed
-  this._entry = {};
-
-  this.on('newListener', function (type, listener) {
-    if (OrderBook.subscribe_events.indexOf(type) !== -1) {
-      if (!self._subs && 'open' === self._remote._online_state) {
-        self._remote.request_subscribe()
-          .books([self.to_json()])
-          .request();
-      }
-      self._subs  += 1;
-    }
-  });
-
-  this.on('removeListener', function (type, listener) {
-    if (OrderBook.subscribe_events.indexOf(type) !== -1) {
-      self._subs  -= 1;
-
-      if (!self._subs && 'open' === self._remote._online_state) {
-        self._remote.request_unsubscribe()
-          .books([self.to_json()])
-          .request();
-      }
-    }
-  });
-
-  this._remote.on('connect', function () {
-    if (self._subs) {
-      self._remote.request_subscribe()
-        .books([self.to_json()])
-        .request();
-    }
-  });
-
-  return this;
-};
-
-OrderBook.prototype = new EventEmitter;
-
-/**
- * List of events that require a remote subscription to the orderbook.
- */
-OrderBook.subscribe_events = ['transaction'];
-
-OrderBook.prototype.to_json = function ()
-{
-  var json = {
-    "CurrencyOut": this._currency_out,
-    "CurrencyIn": this._currency_in
-  };
-
-  if (json["CurrencyOut"] !== "XRP") json["IssuerOut"] = this._issuer_out;
-  if (json["CurrencyIn"] !== "XRP")  json["IssuerIn"]  = this._issuer_in;
-
-  return json;
-};
-
-/**
- * Whether the OrderBook is valid.
- *
- * Note: This only checks whether the parameters (currencies and issuer) are
- *       syntactically valid. It does not check anything against the ledger.
- */
-OrderBook.prototype.is_valid = function ()
-{
-  return (
-    Currency.is_valid(this._currency_in) &&
-    (this._currency_in !== "XRP" && UInt160.is_valid(this._issuer_in)) &&
-    Currency.is_valid(this._currency_out) &&
-    (this._currency_out !== "XRP" && UInt160.is_valid(this._issuer_out)) &&
-    !(this._currency_in === "XRP" && this._currency_out === "XRP")
-  );
-};
-
-exports.OrderBook	    = OrderBook;
-
-// vim:sw=2:sts=2:ts=8:et
-
-
-/******/},
-/******/
-/******/21: function(module, exports, require) {
-
-/******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
-// Remote access to a server.
-// - We never send binary data.
-// - We use the W3C interface for node and browser compatibility:
-//   http://www.w3.org/TR/websockets/#the-websocket-interface
-//
-// This class is intended for both browser and node.js use.
-//
-// This class is designed to work via peer protocol via either the public or
-// private websocket interfaces.  The JavaScript class for the peer protocol
-// has not yet been implemented. However, this class has been designed for it
-// to be a very simple drop option.
-//
-// YYY Will later provide js/network.js which will transparently use multiple
-// instances of this class for network access.
-//
-
-// npm
-var EventEmitter  = require(8).EventEmitter;
-var Amount        = require(2).Amount;
-var Currency      = require(2).Currency;
-var UInt160       = require(2).UInt160;
-var Transaction   = require(23).Transaction;
-var Account       = require(17).Account;
-var Meta          = require(19).Meta;
-var OrderBook     = require(20).OrderBook;
-
-var utils         = require(5);
-var config        = require(6);
-
-// Request events emitted:
-// 'success' : Request successful.
-// 'error'   : Request failed.
-//   'remoteError'
-//   'remoteUnexpected'
-//   'remoteDisconnected'
-var Request = function (remote, command) {
-  var self  = this;
-
-  this.message    = {
-    'command' : command,
-    'id'      : undefined,
-  };
-  this.remote     = remote;
-  this.requested  = false;
-};
-
-Request.prototype  = new EventEmitter;
-
-// Send the request to a remote.
-Request.prototype.request = function (remote) {
-  if (!this.requested) {
-    this.requested  = true;
-    this.remote.request(this);
-    this.emit('request', remote);
-  }
-};
-
-Request.prototype.build_path = function (build) {
-  if (build)
-    this.message.build_path = true;
-
-  return this;
-};
-
-Request.prototype.ledger_choose = function (current) {
-  if (current)
-  {
-    this.message.ledger_index = this.remote._ledger_current_index;
-  }
-  else {
-    this.message.ledger_hash  = this.remote._ledger_hash;
-  }
-
-  return this;
-};
-
-// Set the ledger for a request.
-// - ledger_entry
-// - transaction_entry
-Request.prototype.ledger_hash = function (h) {
-  this.message.ledger_hash  = h;
-
-  return this;
-};
-
-// Set the ledger_index for a request.
-// - ledger_entry
-Request.prototype.ledger_index = function (ledger_index) {
-  this.message.ledger_index  = ledger_index;
-
-  return this;
-};
-
-Request.prototype.account_root = function (account) {
-  this.message.account_root  = UInt160.json_rewrite(account);
-
-  return this;
-};
-
-Request.prototype.index = function (hash) {
-  this.message.index  = hash;
-
-  return this;
-};
-
-// Provide the information id an offer.
-// --> account
-// --> seq : sequence number of transaction creating offer (integer)
-Request.prototype.offer_id = function (account, seq) {
-  this.message.offer = {
-    'account' : UInt160.json_rewrite(account),
-    'seq' : seq
-  };
-
-  return this;
-};
-
-// --> index : ledger entry index.
-Request.prototype.offer_index = function (index) {
-  this.message.offer  = index;
-
-  return this;
-};
-
-Request.prototype.secret = function (s) {
-  if (s)
-    this.message.secret  = s;
-
-  return this;
-};
-
-Request.prototype.tx_hash = function (h) {
-  this.message.tx_hash  = h;
-
-  return this;
-};
-
-Request.prototype.tx_json = function (j) {
-  this.message.tx_json  = j;
-
-  return this;
-};
-
-Request.prototype.tx_blob = function (j) {
-  this.message.tx_blob  = j;
-
-  return this;
-};
-
-Request.prototype.ripple_state = function (account, issuer, currency) {
-  this.message.ripple_state  = {
-      'accounts' : [
-        UInt160.json_rewrite(account),
-        UInt160.json_rewrite(issuer)
-      ],
-      'currency' : currency
-    };
-
-  return this;
-};
-
-Request.prototype.accounts = function (accounts, realtime) {
-  if ("object" !== typeof accounts) {
-    accounts = [accounts];
-  }
-
-  // Process accounts parameters
-  var procAccounts = [];
-  for (var i = 0, l = accounts.length; i < l; i++) {
-    procAccounts.push(UInt160.json_rewrite(accounts[i]));
-  }
-  if (realtime) {
-    this.message.rt_accounts = procAccounts;
-  } else {
-    this.message.accounts = procAccounts;
-  }
-
-  return this;
-};
-
-Request.prototype.rt_accounts = function (accounts) {
-  return this.accounts(accounts, true);
-};
-
-Request.prototype.books = function (books) {
-  var procBooks = [];
-
-  for (var i = 0, l = books.length; i < l; i++) {
-    var book = books[i];
-
-    var json = {
-      "CurrencyOut": Currency.json_rewrite(book["CurrencyOut"]),
-      "CurrencyIn": Currency.json_rewrite(book["CurrencyIn"])
-    };
-
-    if (json["CurrencyOut"] !== "XRP") {
-      json["IssuerOut"] = UInt160.json_rewrite(book["IssuerOut"]);
-    }
-    if (json["CurrencyIn"] !== "XRP") {
-      json["IssuerIn"]  = UInt160.json_rewrite(book["IssuerIn"]);
-    }
-
-    procBooks.push(json);
-  }
-  this.message.books = procBooks;
-
-  return this;
-};
-
-//
-// Remote - access to a remote Ripple server via websocket.
-//
-// Events:
-// 'connected'
-// 'disconnected'
-// 'state':
-// - 'online' : connected and subscribed
-// - 'offline' : not subscribed or not connected.
-// 'ledger_closed': A good indicate of ready to serve.
-// 'subscribed' : This indicates stand-alone is available.
-//
-
-// --> trusted: truthy, if remote is trusted
-var Remote = function (opts, trace) {
-  var self  = this;
-
-  this.trusted                = opts.trusted;
-  this.websocket_ip           = opts.websocket_ip;
-  this.websocket_port         = opts.websocket_port;
-  this.websocket_ssl          = opts.websocket_ssl;
-  this.local_sequence         = opts.local_sequence; // Locally track sequence numbers
-  this.local_fee              = opts.local_fee;      // Locally set fees
-  this.local_signing          = opts.local_signing;
-  this.id                     = 0;
-  this.trace                  = opts.trace || trace;
-  this._server_fatal          = false;              // True, if we know server exited.
-  this._ledger_current_index  = undefined;
-  this._ledger_hash           = undefined;
-  this._ledger_time           = undefined;
-  this._stand_alone           = undefined;
-  this._testnet               = undefined;
-  this._transaction_subs      = 0;
-  this.online_target          = false;
-  this._online_state          = 'closed';         // 'open', 'closed', 'connecting', 'closing'
-  this.state                  = 'offline';        // 'online', 'offline'
-  this.retry_timer            = undefined;
-  this.retry                  = undefined;
-
-  this._load_base             = 256;
-  this._load_factor           = 1.0;
-  this._fee_ref               = undefined;
-  this._fee_base              = undefined;
-  this._reserve_base          = undefined;
-  this._reserve_inc           = undefined;
-  this._server_status         = undefined;
-
-  // Local signing implies local fees and sequences
-  if (this.local_signing) {
-    this.local_sequence = true;
-    this.local_fee = true;
-  }
-
-  // Cache information for accounts.
-  // DEPRECATED, will be removed
-  this.accounts = {
-    // Consider sequence numbers stable if you know you're not generating bad transactions.
-    // Otherwise, clear it to have it automatically refreshed from the network.
-
-    // account : { seq : __ }
-
-    };
-
-  // Hash map of Account objects by AccountId.
-  this._accounts = {};
-
-  // List of secrets that we know about.
-  this.secrets = {
-    // Secrets can be set by calling set_secret(account, secret).
-
-    // account : secret
-  };
-
-  // Cache for various ledgers.
-  // XXX Clear when ledger advances.
-  this.ledgers = {
-    'current' : {
-      'account_root' : {}
-    }
-  };
-
-  this.on('newListener', function (type, listener) {
-      if ('transaction' === type)
-      {
-        if (!self._transaction_subs && 'open' === self._online_state)
-        {
-          self.request_subscribe([ 'transactions' ])
-            .request();
-        
-        }
-        self._transaction_subs  += 1;
-      }
-    });
-
-  this.on('removeListener', function (type, listener) {
-      if ('transaction' === type)
-      {
-        self._transaction_subs  -= 1;
-
-        if (!self._transaction_subs && 'open' === self._online_state)
-        {
-          self.request_unsubscribe([ 'transactions' ])
-            .request();
-        }
-      }
-    });
-};
-
-Remote.prototype      = new EventEmitter;
-
-Remote.from_config = function (obj, trace) {
-  var serverConfig = 'string' === typeof obj ? config.servers[obj] : obj;
-
-  var remote = new Remote(serverConfig, trace);
-
-  for (var account in config.accounts) {
-    var accountInfo = config.accounts[account];
-    if ("object" === typeof accountInfo) {
-      if (accountInfo.secret) {
-        // Index by nickname ...
-        remote.set_secret(account, accountInfo.secret);
-        // ... and by account ID
-        remote.set_secret(accountInfo.account, accountInfo.secret);
-      }
-    }
-  }
-
-  return remote;
-};
-
-var isTemMalformed  = function (engine_result_code) {
-  return (engine_result_code >= -299 && engine_result_code <  199);
-};
-
-var isTefFailure = function (engine_result_code) {
-  return (engine_result_code >= -299 && engine_result_code <  199);
-};
-
-/**
- * Server states that we will treat as the server being online.
- *
- * Our requirements are that the server can process transactions and notify
- * us of changes.
- */
-Remote.online_states = [
-  'proposing',
-  'validating',
-  'full'
-];
-
-// Inform remote that the remote server is not comming back.
-Remote.prototype.server_fatal = function () {
-  this._server_fatal = true;
-};
-
-// Set the emitted state: 'online' or 'offline'
-Remote.prototype._set_state = function (state) {
-  if (this.trace) console.log("remote: set_state: %s", state);
-
-  if (this.state !== state) {
-    this.state = state;
-
-    this.emit('state', state);
-
-    switch (state) {
-      case 'online':
-        this._online_state       = 'open';
-        this.emit('connect');
-        this.emit('connected');
-        break;
-
-      case 'offline':
-        this._online_state       = 'closed';
-        this.emit('disconnect');
-        this.emit('disconnected');
-        break;
-    }
-  }
-};
-
-Remote.prototype.set_trace = function (trace) {
-  this.trace  = undefined === trace || trace;
-
-  return this;
-};
-
-// Set the target online state. Defaults to false.
-Remote.prototype.connect = function (online) {
-  var target  = undefined === online || online;
-
-  if (this.online_target != target) {
-    this.online_target  = target;
-
-    // If we were in a stable state, go dynamic.
-    switch (this._online_state) {
-      case 'open':
-        if (!target) this._connect_stop();
-        break;
-
-      case 'closed':
-        if (target) this._connect_retry();
-        break;
-    }
-  }
-
-  return this;
-};
-
-Remote.prototype.ledger_hash = function () {
-  return this._ledger_hash;
-};
-
-// Stop from open state.
-Remote.prototype._connect_stop = function () {
-  if (this.ws) {
-    delete this.ws.onerror;
-    delete this.ws.onclose;
-
-    this.ws.close();
-    delete this.ws;
-  }
-
-  this._set_state('offline');
-};
-
-// Implictly we are not connected.
-Remote.prototype._connect_retry = function () {
-  var self  = this;
-
-  if (!self.online_target) {
-    // Do not continue trying to connect.
-    this._set_state('offline');
-  }
-  else if ('connecting' !== this._online_state) {
-    // New to connecting state.
-    this._online_state = 'connecting';
-    this.retry        = 0;
-
-    this._set_state('offline'); // Report newly offline.
-    this._connect_start();
-  }
-  else
-  {
-    // Delay and retry.
-    this.retry        += 1;
-    this.retry_timer  =  setTimeout(function () {
-        if (self.trace) console.log("remote: retry");
-
-        if (self._server_fatal) {
-          // Stop trying to connect.
-          // nothing();
-          console.log("FATAL");
-        }
-        else if (self.online_target) {
-          self._connect_start();
-        }
-        else {
-          self._connect_retry();
-        }
-      }, this.retry < 40
-          ? 1000/20           // First, for 2 seconds: 20 times per second
-          : this.retry < 40+60
-            ? 1000            // Then, for 1 minute: once per second
-            : this.retry < 40+60+60
-              ? 10*1000       // Then, for 10 minutes: once every 10 seconds
-              : 30*1000);     // Then: once every 30 seconds
-  }
-};
-
-Remote.prototype._connect_start = function () {
-  // Note: as a browser client can't make encrypted connections to random ips
-  // with self-signed certs as the user must have pre-approved the self-signed certs.
-
-  var self = this;
-  var url  = (this.websocket_ssl ? "wss://" : "ws://") +
-        this.websocket_ip + ":" + this.websocket_port;
-
-  if (this.trace) console.log("remote: connect: %s", url);
-
-  // There should not be an active connection at this point, but if there is
-  // we will shut it down so we don't end up with a duplicate.
-  if (this.ws) {
-    this._connect_stop();
-  }
-
-  var WebSocket     = require(25);
-  var ws = this.ws = new WebSocket(url);
-
-  ws.response = {};
-
-  ws.onopen = function () {
-    if (self.trace) console.log("remote: onopen: %s: online_target=%s", ws.readyState, self.online_target);
-
-    ws.onerror = function () {
-      if (self.trace) console.log("remote: onerror: %s", ws.readyState);
-
-      delete ws.onclose;
-
-      self._connect_retry();
-    };
-
-    ws.onclose = function () {
-      if (self.trace) console.log("remote: onclose: %s", ws.readyState);
-
-      delete ws.onerror;
-
-      self._connect_retry();
-    };
-
-    if (self.online_target) {
-      // Note, we could get disconnected before this goes through.
-      self._server_subscribe();     // Automatically subscribe.
-    }
-    else {
-      self._connect_stop();
-    }
-  };
-
-  ws.onerror = function () {
-    if (self.trace) console.log("remote: onerror: %s", ws.readyState);
-
-    delete ws.onclose;
-
-    self._connect_retry();
-  };
-
-  // Failure to open.
-  ws.onclose = function () {
-    if (self.trace) console.log("remote: onclose: %s", ws.readyState);
-
-    delete ws.onerror;
-
-    self._connect_retry();
-  };
-
-  ws.onmessage = function (json) {
-    self._connect_message(ws, json.data);
-  };
-};
-
-// It is possible for messages to be dispatched after the connection is closed.
-Remote.prototype._connect_message = function (ws, json) {
-  var self        = this;
-  var message     = JSON.parse(json);
-  var unexpected  = false;
-  var request;
-
-  if ('object' !== typeof message) {
-    unexpected  = true;
-  }
-  else {
-    switch (message.type) {
-      case 'response':
-        // A response to a request.
-        {
-          request         = ws.response[message.id];
-
-          if (!request) {
-            unexpected  = true;
-          }
-          else if ('success' === message.status) {
-            if (this.trace) utils.logObject("remote: response: %s", message);
-
-            request.emit('success', message.result);
-          }
-          else if (message.error) {
-            if (this.trace) utils.logObject("remote: error: %s", message);
-
-            request.emit('error', {
-                'error'         : 'remoteError',
-                'error_message' : 'Remote reported an error.',
-                'remote'        : message,
-              });
-          }
-        }
-        break;
-
-      case 'ledgerClosed':
-        // XXX If not trusted, need to verify we consider ledger closed.
-        // XXX Also need to consider a slow server or out of order response.
-        // XXX Be more defensive fields could be missing or of wrong type.
-        // YYY Might want to do some cache management.
-
-        this._ledger_time           = message.ledger_time;
-        this._ledger_hash           = message.ledger_hash;
-        this._ledger_current_index  = message.ledger_index + 1;
-
-        this.emit('ledger_closed', message);
-        break;
-
-      case 'account':
-        // XXX If not trusted, need proof.
-        if (this.trace) utils.logObject("remote: account: %s", message);
-
-        // Process metadata
-        message.mmeta = new Meta(message.meta);
-
-        // Pass the event on to any related Account objects
-        var affected = message.mmeta.getAffectedAccounts();
-        for (var i = 0, l = affected.length; i < l; i++) {
-          var account = self._accounts[affected[i]];
-
-          // Only trigger the event if the account object is actually
-          // subscribed - this prevents some weird phantom events from
-          // occurring.
-          if (account && account._subs) {
-            account.emit('transaction', message);
-          }
-        }
-
-        this.emit('account', message);
-        break;
-
-      case 'transaction':
-        // To get these events, just subscribe to them. A subscribes and
-        // unsubscribes will be added as needed.
-        // XXX If not trusted, need proof.
-
-        this.emit('transaction', message);
-        break;
-
-      case 'serverStatus':
-        // This message is only received when online. As we are connected, it is the definative final state.
-        this._set_state(
-          Remote.online_states.indexOf(message.server_status) !== -1
-            ? 'online'
-            : 'offline');
-
-        if ('load_base' in message
-          && 'load_factor' in message
-          && (message.load_base !== this._load_base || message.load_factor != this._load_factor))
-        {
-          this._load_base     = message.load_base;
-          this._load_factor   = message.load_factor;
-
-          this.emit('load', { 'load_base' : this._load_base, 'load_factor' : this.load_factor });
-        }
-        break;
-
-      // All other messages
-      default:
-        if (this.trace) utils.logObject("remote: "+message.type+": %s", message);
-        this.emit('net_'+message.type, message);
-        break;
-    }
-  }
-
-  if (!unexpected) {
-  }
-  // Unexpected response from remote.
-  // XXX This isn't so robust. Hard fails should probably only happen in a debugging scenairo.
-  else if (this.trusted) {
-    // Remote is trusted, report an error.
-    console.log("unexpected message from trusted remote: %s", json);
-
-    (request || this).emit('error', {
-        'error' : 'remoteUnexpected',
-        'error_message' : 'Unexpected response from remote.'
-      });
-  }
-  else {
-    // Treat as a disconnect.
-    if (this.trace) console.log("unexpected message from untrusted remote: %s", json);
-
-    // XXX All pending request need this treatment and need to actionally disconnect.
-    (request || this).emit('error', {
-        'error' : 'remoteDisconnected',
-        'error_message' : 'Remote disconnected.'
-      });
-  }
-};
-
-// Send a request.
-// <-> request: what to send, consumed.
-Remote.prototype.request = function (request) {
-  if (this.ws) {
-    // Only bother if we are still connected.
-
-    this.ws.response[request.message.id = this.id] = request;
-
-    this.id += 1;   // Advance id.
-
-    if (this.trace) utils.logObject("remote: request: %s", request.message);
-
-    this.ws.send(JSON.stringify(request.message));
-  }
-  else {
-    if (this.trace) utils.logObject("remote: request: DROPPING: %s", request.message);
-  }
-};
-
-Remote.prototype.request_server_info = function () {
-  return new Request(this, 'server_info');
-};
-
-// XXX This is a bad command. Some varients don't scale.
-// XXX Require the server to be trusted.
-Remote.prototype.request_ledger = function (ledger, full) {
-  //utils.assert(this.trusted);
-
-  var request = new Request(this, 'ledger');
-
-  if (ledger)
-    request.message.ledger  = ledger;
-
-  if (full)
-    request.message.full    = true;
-
-  return request;
-};
-
-// Only for unit testing.
-Remote.prototype.request_ledger_hash = function () {
-  //utils.assert(this.trusted);   // If not trusted, need to check proof.
-
-  return new Request(this, 'ledger_closed');
-};
-
-// .ledger()
-// .ledger_index()
-Remote.prototype.request_ledger_header = function () {
-  return new Request(this, 'ledger_header');
-};
-
-// Get the current proposed ledger entry.  May be closed (and revised) at any time (even before returning).
-// Only for unit testing.
-Remote.prototype.request_ledger_current = function () {
-  return new Request(this, 'ledger_current');
-};
-
-// --> type : the type of ledger entry.
-// .ledger()
-// .ledger_index()
-// .offer_id()
-Remote.prototype.request_ledger_entry = function (type) {
-  //utils.assert(this.trusted);   // If not trusted, need to check proof, maybe talk packet protocol.
-
-  var self    = this;
-  var request = new Request(this, 'ledger_entry');
-
-  // Transparent caching. When .request() is invoked, look in the Remote object for the result.
-  // If not found, listen, cache result, and emit it.
-  //
-  // Transparent caching:
-  if ('account_root' === type) {
-    request.request_default = request.request;
-
-    request.request         = function () {                        // Intercept default request.
-      var bDefault  = true;
-      // .self = Remote
-      // this = Request
-
-      // console.log('request_ledger_entry: caught');
-
-      if (self._ledger_hash) {
-        // A specific ledger is requested.
-
-        // XXX Add caching.
-      }
-      // else if (req.ledger_index)
-      // else if ('ripple_state' === request.type)         // YYY Could be cached per ledger.
-      else if ('account_root' === type) {
-        var cache = self.ledgers.current.account_root;
-
-        if (!cache)
-        {
-          cache = self.ledgers.current.account_root = {};
-        }
-
-        var node = self.ledgers.current.account_root[request.message.account_root];
-
-        if (node) {
-          // Emulate fetch of ledger entry.
-          // console.log('request_ledger_entry: emulating');
-          request.emit('success', {
-              // YYY Missing lots of fields.
-              'node' :  node,
-            });
-
-          bDefault  = false;
-        }
-        else {
-          // Was not cached.
-
-          // XXX Only allow with trusted mode.  Must sync response with advance.
-          switch (type) {
-            case 'account_root':
-              request.on('success', function (message) {
-                  // Cache node.
-                  // console.log('request_ledger_entry: caching');
-                  self.ledgers.current.account_root[message.node.Account] = message.node;
-                });
-              break;
-
-            default:
-              // This type not cached.
-              // console.log('request_ledger_entry: non-cached type');
-          }
-        }
-      }
-
-      if (bDefault) {
-        // console.log('request_ledger_entry: invoking');
-        request.request_default();
-      }
-    }
-  };
-
-  return request;
-};
-
-// .accounts(accounts, realtime)
-Remote.prototype.request_subscribe = function (streams) {
-  var request = new Request(this, 'subscribe');
-
-  if (streams) {
-    if ("object" !== typeof streams) {
-      streams = [streams];
-    }
-    request.message.streams = streams;
-  }
-
-  return request;
-};
-
-// .accounts(accounts, realtime)
-Remote.prototype.request_unsubscribe = function (streams) {
-  var request = new Request(this, 'unsubscribe');
-
-  if (streams) {
-    if ("object" !== typeof streams) {
-      streams = [streams];
-    }
-    request.message.streams = streams;
-  }
-
-  return request;
-};
-
-// --> current: true, for the current ledger.
-Remote.prototype.request_transaction_entry = function (hash, current) {
-  //utils.assert(this.trusted);   // If not trusted, need to check proof, maybe talk packet protocol.
-
-  return (new Request(this, 'transaction_entry'))
-    .ledger_choose(current)
-    .tx_hash(hash);
-};
-
-Remote.prototype.request_account_info = function (accountID) {
-  var request = new Request(this, 'account_info');
-
-  request.message.ident = UInt160.json_rewrite(accountID);
-
-  return request;
-};
-
-// --> account_index: sub_account index (optional)
-// --> current: true, for the current ledger.
-Remote.prototype.request_account_lines = function (accountID, account_index, current) {
-  // XXX Does this require the server to be trusted?
-  //utils.assert(this.trusted);
-
-  var request = new Request(this, 'account_lines');
-
-  request.message.account = UInt160.json_rewrite(accountID);
-
-  if (account_index)
-    request.message.index   = account_index;
-
-  return request
-    .ledger_choose(current);
-};
-
-// --> account_index: sub_account index (optional)
-// --> current: true, for the current ledger.
-Remote.prototype.request_account_offers = function (accountID, account_index, current) {
-  var request = new Request(this, 'account_offers');
-
-  request.message.account = UInt160.json_rewrite(accountID);
-
-  if (account_index)
-    request.message.index   = account_index;
-
-  return request
-    .ledger_choose(current);
-};
-
-Remote.prototype.request_account_tx = function (accountID, ledger_min, ledger_max) {
-  // XXX Does this require the server to be trusted?
-  //utils.assert(this.trusted);
-
-  var request = new Request(this, 'account_tx');
-
-  request.message.account     = accountID;
-
-  if (ledger_min === ledger_max) {
-    request.message.ledger      = ledger_min;
-  }
-  else {
-    request.message.ledger_min  = ledger_min;
-    request.message.ledger_max  = ledger_max;
-  }
-
-  return request;
-};
-
-Remote.prototype.request_ledger = function (ledger, full) {
-  var request = new Request(this, 'ledger');
-
-  request.message.ledger = ledger;
-
-  if (full)
-    request.message.full = true;
-
-  return request;
-};
-
-Remote.prototype.request_wallet_accounts = function (seed) {
-  utils.assert(this.trusted);     // Don't send secrets.
-
-  var request = new Request(this, 'wallet_accounts');
-
-  request.message.seed = seed;
-
-  return request;
-};
-
-Remote.prototype.request_sign = function (secret, tx_json) {
-  utils.assert(this.trusted);     // Don't send secrets.
-
-  var request = new Request(this, 'sign');
-
-  request.message.secret = secret;
-  request.message.tx_json = tx_json;
-
-  return request;
-};
-
-// Submit a transaction.
-Remote.prototype.request_submit = function () {
-  var self  = this;
-
-  var request = new Request(this, 'submit');
-
-  return request;
-};
-
-//
-// Higher level functions.
-//
-
-// Subscribe to a server to get 'ledger_closed' events.
-// 'subscribed' : This command was successful.
-// 'ledger_closed : ledger_closed and ledger_current_index are updated.
-Remote.prototype._server_subscribe = function () {
-  var self  = this;
-
-  var feeds = [ 'ledger', 'server' ];
-
-  if (this._transaction_subs)
-    feeds.push('transactions');
-
-  this.request_subscribe(feeds)
-    .on('success', function (message) {
-        self._stand_alone       = !!message.stand_alone;
-        self._testnet           = !!message.testnet;
-
-        if (message.random)
-          self.emit('random', utils.hexToArray(message.random));
-
-        if (message.ledger_hash && message.ledger_index) {
-          self._ledger_time           = message.ledger_time;
-          self._ledger_hash           = message.ledger_hash;
-          self._ledger_current_index  = message.ledger_index+1;
-
-          self.emit('ledger_closed', message);
-        }
-
-        // FIXME Use this to estimate fee.
-        self._load_base     = message.load_base || 256;
-        self._load_factor   = message.load_factor || 1.0;
-        self._fee_ref       = message.fee_ref;
-        self._fee_base      = message.fee_base;
-        self._reserve_base  = message.reserve_base;
-        self._reserve_inc   = message.reserve_inc;
-        self._server_status = message.server_status;
-
-        if (Remote.online_states.indexOf(message.server_status) !== -1) {
-          self._set_state('online');
-        }
-
-        self.emit('subscribed');
-      })
-    .request();
-
-  // XXX Could give error events, maybe even time out.
-
-  return this;
-};
-
-// For unit testing: ask the remote to accept the current ledger.
-// - To be notified when the ledger is accepted, server_subscribe() then listen to 'ledger_hash' events.
-// A good way to be notified of the result of this is:
-//    remote.once('ledger_closed', function (ledger_closed, ledger_index) { ... } );
-Remote.prototype.ledger_accept = function () {
-  if (this._stand_alone || undefined === this._stand_alone)
-  {
-    var request = new Request(this, 'ledger_accept');
-
-    request
-      .request();
-  }
-  else {
-    this.emit('error', {
-        'error' : 'notStandAlone'
-      });
-  }
-
-  return this;
-};
-
-// Return a request to refresh the account balance.
-Remote.prototype.request_account_balance = function (account, current) {
-  var request = this.request_ledger_entry('account_root');
-
-  return request
-    .account_root(account)
-    .ledger_choose(current)
-    .on('success', function (message) {
-        // If the caller also waits for 'success', they might run before this.
-        request.emit('account_balance', Amount.from_json(message.node.Balance));
-      });
-};
-
-// Return a request to emit the owner count.
-Remote.prototype.request_owner_count = function (account, current) {
-  var request = this.request_ledger_entry('account_root');
-
-  return request
-    .account_root(account)
-    .ledger_choose(current)
-    .on('success', function (message) {
-        // If the caller also waits for 'success', they might run before this.
-        request.emit('owner_count', message.node.OwnerCount);
-      });
-};
-
-Remote.prototype.account = function (accountId) {
-  var account = new Account(this, accountId);
-
-  if (!account.is_valid()) return account;
-
-  return this._accounts[account.to_json()] = account;
-};
-
-Remote.prototype.book = function (currency_out, issuer_out,
-                                  currency_in,  issuer_in) {
-  var book = new OrderBook(this,
-                           currency_out, issuer_out,
-                           currency_in,  issuer_in);
-
-  return book;
-}
-
-// Return the next account sequence if possible.
-// <-- undefined or Sequence
-Remote.prototype.account_seq = function (account, advance) {
-  var account       = UInt160.json_rewrite(account);
-  var account_info  = this.accounts[account];
-  var seq;
-
-  if (account_info && account_info.seq)
-  {
-    seq = account_info.seq;
-
-    if (advance === "ADVANCE") account_info.seq += 1;
-    if (advance === "REWIND") account_info.seq -= 1;
-
-    // console.log("cached: %s current=%d next=%d", account, seq, account_info.seq);
-  }
-  else {
-    // console.log("uncached: %s", account);
-  }
-
-  return seq;
-}
-
-Remote.prototype.set_account_seq = function (account, seq) {
-  var account       = UInt160.json_rewrite(account);
-
-  if (!this.accounts[account]) this.accounts[account] = {};
-
-  this.accounts[account].seq = seq;
-}
-
-// Return a request to refresh accounts[account].seq.
-Remote.prototype.account_seq_cache = function (account, current) {
-  var self    = this;
-  var request;
-
-  if (!self.accounts[account]) self.accounts[account] = {};
-
-  var account_info = self.accounts[account];
-
-  request = account_info.caching_seq_request;
-  if (!request) {
-    // console.log("starting: %s", account);
-    request = self.request_ledger_entry('account_root')
-      .account_root(account)
-      .ledger_choose(current)
-      .on('success', function (message) {
-          delete account_info.caching_seq_request;
-
-          var seq = message.node.Sequence;
-
-          account_info.seq  = seq;
-
-          // console.log("caching: %s %d", account, seq);
-          // If the caller also waits for 'success', they might run before this.
-          request.emit('success_account_seq_cache', message);
-        })
-      .on('error', function (message) {
-          // console.log("error: %s", account);
-          delete account_info.caching_seq_request;
-
-          request.emit('error_account_seq_cache', message);
-        });
-
-    account_info.caching_seq_request    = request;
-  }
-
-  return request;
-};
-
-// Mark an account's root node as dirty.
-Remote.prototype.dirty_account_root = function (account) {
-  var account       = UInt160.json_rewrite(account);
-
-  delete this.ledgers.current.account_root[account];
-};
-
-// Store a secret - allows the Remote to automatically fill out auth information.
-Remote.prototype.set_secret = function (account, secret) {
-  this.secrets[account] = secret;
-};
-
-
-// Return a request to get a ripple balance.
-//
-// --> account: String
-// --> issuer: String
-// --> currency: String
-// --> current: bool : true = current ledger
-//
-// If does not exist: emit('error', 'error' : 'remoteError', 'remote' : { 'error' : 'entryNotFound' })
-Remote.prototype.request_ripple_balance = function (account, issuer, currency, current) {
-  var request       = this.request_ledger_entry('ripple_state');          // YYY Could be cached per ledger.
-
-  return request
-    .ripple_state(account, issuer, currency)
-    .ledger_choose(current)
-    .on('success', function (message) {
-        var node            = message.node;
-
-        var lowLimit        = Amount.from_json(node.LowLimit);
-        var highLimit       = Amount.from_json(node.HighLimit);
-        // The amount the low account holds of issuer.
-        var balance         = Amount.from_json(node.Balance);
-        // accountHigh implies: for account: balance is negated, highLimit is the limit set by account.
-        var accountHigh     = UInt160.from_json(account).equals(highLimit.issuer());
-        // The limit set by account.
-        var accountLimit    = (accountHigh ? highLimit : lowLimit).parse_issuer(account);
-        // The limit set by issuer.
-        var issuerLimit     = (accountHigh ? lowLimit : highLimit).parse_issuer(issuer);
-        var accountBalance  = (accountHigh ? balance.negate() : balance).parse_issuer(account);
-        var issuerBalance   = (accountHigh ? balance : balance.negate()).parse_issuer(issuer);
-
-        request.emit('ripple_state', {
-          'issuer_balance'  : issuerBalance,  // Balance with dst as issuer.
-          'account_balance' : accountBalance, // Balance with account as issuer.
-          'issuer_limit'    : issuerLimit,    // Limit set by issuer with src as issuer.
-          'account_limit'   : accountLimit    // Limit set by account with dst as issuer.
-        });
-      });
-};
-
-Remote.prototype.request_ripple_path_find = function (src_account, dst_account, dst_amount, source_currencies) {
-  var self    = this;
-  var request = new Request(this, 'ripple_path_find');
-
-  request.message.source_account      = UInt160.json_rewrite(src_account);
-  request.message.destination_account = UInt160.json_rewrite(dst_account);
-  request.message.destination_amount  = Amount.json_rewrite(dst_amount);
-
-  if (source_currencies) {
-    request.message.source_currencies   = source_currencies.map(function (ci) {
-      var ci_new  = {};
-
-      if ('issuer' in ci)
-        ci_new.issuer   = UInt160.json_rewrite(ci.issuer);
-
-      if ('currency' in ci)
-        ci_new.currency = Currency.json_rewrite(ci.currency);
-
-      return ci_new;
-    });
-  }
-
-  return request;
-};
-
-Remote.prototype.request_unl_list = function () {
-  return new Request(this, 'unl_list');
-};
-
-Remote.prototype.request_unl_add = function (addr, comment) {
-  var request = new Request(this, 'unl_add');
-
-  request.message.node    = addr;
-
-  if (comment !== undefined)
-    request.message.comment = note;
-
-  return request;
-};
-
-// --> node: <domain> | <public_key>
-Remote.prototype.request_unl_delete = function (node) {
-  var request = new Request(this, 'unl_delete');
-
-  request.message.node = node;
-
-  return request;
-};
-
-Remote.prototype.request_peers = function () {
-  return new Request(this, 'peers');
-};
-
-Remote.prototype.request_connect = function (ip, port) {
-  var request = new Request(this, 'connect');
-
-  request.message.ip = ip;
-
-  if (port)
-    request.message.port = port;
-
-  return request;
-};
-
-Remote.prototype.transaction = function () {
-  return new Transaction(this);
-};
-
-exports.Remote          = Remote;
-
-// vim:sw=2:sts=2:ts=8:et
-
-/******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_console */1)))
-
-/******/},
-/******/
-/******/22: function(module, exports, require) {
-
-var binformat = require(13),
-    sjcl = require(3),
-    extend = require(4),
-    stypes = require(16);
-
-var UInt256 = require(12).UInt256;
-
-var SerializedObject = function () {
-  this.buffer = [];
-  this.pointer = 0;
-};
-
-SerializedObject.from_json = function (obj) {
-  var typedef;
-  var so = new SerializedObject();
-
-  // Create a copy of the object so we don't modify it
-  obj = extend({}, obj);
-
-  if ("number" === typeof obj.TransactionType) {
-    obj.TransactionType = SerializedObject.lookup_type_tx(obj.TransactionType);
-
-    if (!obj.TransactionType) {
-      throw new Error("Transaction type ID is invalid.");
-    }
-  }
-
-  if ("string" === typeof obj.TransactionType) {
-    typedef = binformat.tx[obj.TransactionType].slice();
-
-    obj.TransactionType = typedef.shift();
-  } else if ("undefined" !== typeof obj.LedgerEntryType) {
-    // XXX: TODO
-    throw new Error("Ledger entry binary format not yet implemented.");
-  } else throw new Error("Object to be serialized must contain either " +
-                         "TransactionType or LedgerEntryType.");
-
-  so.serialize(typedef, obj);
-
-  return so;
-};
-
-SerializedObject.prototype.append = function (bytes) {
-  this.buffer = this.buffer.concat(bytes);
-  this.pointer += bytes.length;
-};
-
-SerializedObject.prototype.to_bits = function ()
-{
-  return sjcl.codec.bytes.toBits(this.buffer);
-};
-
-SerializedObject.prototype.to_hex = function () {
-  return sjcl.codec.hex.fromBits(this.to_bits()).toUpperCase();
-};
-
-SerializedObject.prototype.serialize = function (typedef, obj)
-{
-  // Ensure canonical order
-  typedef = SerializedObject._sort_typedef(typedef.slice());
-
-  // Serialize fields
-  for (var i = 0, l = typedef.length; i < l; i++) {
-    var spec = typedef[i];
-    this.serialize_field(spec, obj);
-  }
-};
-
-SerializedObject.prototype.signing_hash = function (prefix)
-{
-  var sign_buffer = new SerializedObject();
-  stypes.Int32.serialize(sign_buffer, prefix);
-  sign_buffer.append(this.buffer);
-  return sign_buffer.hash_sha512_half();
-};
-
-SerializedObject.prototype.hash_sha512_half = function ()
-{
-  var bits = sjcl.codec.bytes.toBits(this.buffer),
-      hash = sjcl.bitArray.bitSlice(sjcl.hash.sha512.hash(bits), 0, 256);
-
-  return UInt256.from_hex(sjcl.codec.hex.fromBits(hash));
-};
-
-SerializedObject.prototype.serialize_field = function (spec, obj)
-{
-  spec = spec.slice();
-
-  var name = spec.shift(),
-      presence = spec.shift(),
-      field_id = spec.shift(),
-      Type = spec.shift();
-
-  if ("undefined" !== typeof obj[name]) {
-    //console.log(name, Type.id, field_id);
-    this.append(SerializedObject.get_field_header(Type.id, field_id));
-
-    try {
-      Type.serialize(this, obj[name]);
-    } catch (e) {
-      // Add field name to message and rethrow
-      e.message = "Error serializing '"+name+"': "+e.message;
-      throw e;
-    }
-  } else if (presence === binformat.REQUIRED) {
-    throw new Error('Missing required field '+name);
-  }
-};
-
-SerializedObject.get_field_header = function (type_id, field_id)
-{
-  var buffer = [0];
-  if (type_id > 0xf) buffer.push(type_id & 0xff);
-  else buffer[0] += (type_id & 0xf) << 4;
-
-  if (field_id > 0xf) buffer.push(field_id & 0xff);
-  else buffer[0] += field_id & 0xf;
-
-  return buffer;
-};
-
-function sort_field_compare(a, b) {
-  // Sort by type id first, then by field id
-  return a[3].id !== b[3].id ?
-    a[3].id - b[3].id :
-    a[2] - b[2];
-};
-SerializedObject._sort_typedef = function (typedef) {
-  return typedef.sort(sort_field_compare);
-};
-
-SerializedObject.lookup_type_tx = function (id) {
-  for (var i in binformat.tx) {
-    if (!binformat.tx.hasOwnProperty(i)) continue;
-
-    if (binformat.tx[i][0] === id) {
-      return i;
-    }
-  }
-
-  return null;
-};
-
-exports.SerializedObject = SerializedObject;
-
-
-/******/},
-/******/
-/******/23: function(module, exports, require) {
 
 //
 // Transactions
@@ -9406,16 +8372,18 @@ exports.SerializedObject = SerializedObject;
 //   - may or may not forward.
 //
 
-var sjcl             = require(3);
+var EventEmitter     = require(7).EventEmitter;
+var util             = require(10);
 
-var Amount           = require(2).Amount;
-var Currency         = require(2).Currency;
-var UInt160          = require(2).UInt160;
-var Seed             = require(15).Seed;
-var EventEmitter     = require(8).EventEmitter;
-var SerializedObject = require(22).SerializedObject;
+var sjcl             = require(2);
 
-var config           = require(6);
+var Amount           = require(3).Amount;
+var Currency         = require(3).Currency;
+var UInt160          = require(3).UInt160;
+var Seed             = require(18).Seed;
+var SerializedObject = require(26).SerializedObject;
+
+var config           = require(8);
 
 var SUBMIT_MISSING  = 4;    // Report missing.
 var SUBMIT_LOST     = 8;    // Give up tracking.
@@ -9424,6 +8392,8 @@ var SUBMIT_LOST     = 8;    // Give up tracking.
 // - Collects parameters
 // - Allow event listeners to be attached to determine the outcome.
 var Transaction = function (remote) {
+  EventEmitter.call(this);
+
   // YYY Make private as many variables as possible.
   var self  = this;
 
@@ -9461,7 +8431,7 @@ var Transaction = function (remote) {
     });
 };
 
-Transaction.prototype  = new EventEmitter;
+util.inherits(Transaction, EventEmitter);
 
 // XXX This needs to be determined from the network.
 Transaction.fees = {
@@ -9473,6 +8443,9 @@ Transaction.fees = {
 Transaction.flags = {
   'OfferCreate' : {
     'Passive'                 : 0x00010000,
+    'ImmediateOrCancel'       : 0x00020000,
+    'FillOrKill'              : 0x00040000,
+    'Sell'                    : 0x00080000,
   },
 
   'Payment' : {
@@ -9482,7 +8455,7 @@ Transaction.flags = {
   },
 };
 
-Transaction.formats = require(13).tx;
+Transaction.formats = require(16).tx;
 
 Transaction.HASH_SIGN         = 0x53545800;
 Transaction.HASH_SIGN_TESTNET = 0x73747800;
@@ -9541,10 +8514,11 @@ Transaction.prototype.set_state = function (state) {
 Transaction.prototype.complete = function () {
   var tx_json = this.tx_json;
 
-  if (this.remote.local_fee && undefined === tx_json.Fee) {
+  if (undefined === tx_json.Fee && this.remote.local_fee) {
     tx_json.Fee    = Transaction.fees['default'].to_json();
   }
-  if (this.remote.local_signing && undefined === tx_json.SigningPubKey) {
+
+  if (undefined === tx_json.SigningPubKey && (!this.remote || this.remote.local_signing)) {
     var seed = Seed.from_json(this._secret);
     var key = seed.get_key(this.tx_json.Account);
     tx_json.SigningPubKey = key.to_hex_pub();
@@ -9931,6 +8905,8 @@ Transaction.prototype.offer_cancel = function (src, sequence) {
   return this;
 };
 
+// Options:
+//  .set_flags()
 // --> expiration : Date or Number
 Transaction.prototype.offer_create = function (src, taker_pays, taker_gets, expiration) {
   this._secret                  = this._account_secret(src);
@@ -10035,7 +9011,2179 @@ exports.Transaction     = Transaction;
 
 /******/},
 /******/
+/******/21: function(module, exports, require) {
+
+exports.fork = exports.exec =
+exports.execFile = exports.spawn =
+function() {
+	throw new Error("child_process is not availibe in browser");
+}
+
+/******/},
+/******/
+/******/22: function(module, exports, require) {
+
+// Routines for working with an account.
+//
+// You should not instantiate this class yourself, instead use Remote#account.
+//
+// Events:
+//   wallet_clean	: True, iff the wallet has been updated.
+//   wallet_dirty	: True, iff the wallet needs to be updated.
+//   balance		: The current stamp balance.
+//   balance_proposed
+//
+
+// var network = require("./network.js");
+
+var EventEmitter = require(7).EventEmitter;
+var util = require(10);
+
+var Amount = require(3).Amount;
+var UInt160 = require(11).UInt160;
+
+var extend = require(5);
+
+var Account = function (remote, account) {
+  EventEmitter.call(this);
+  var self = this;
+
+  this._remote = remote;
+  this._account = UInt160.from_json(account);
+  this._account_id = this._account.to_json();
+  this._subs = 0;
+
+  // Ledger entry object
+  // Important: This must never be overwritten, only extend()-ed
+  this._entry = {};
+
+  this.on('newListener', function (type, listener) {
+    if (Account.subscribe_events.indexOf(type) !== -1) {
+      if (!self._subs && 'open' === self._remote._online_state) {
+        self._remote.request_subscribe()
+          .accounts(self._account_id)
+          .request();
+      }
+      self._subs  += 1;
+    }
+  });
+
+  this.on('removeListener', function (type, listener) {
+    if (Account.subscribe_events.indexOf(type) !== -1) {
+      self._subs  -= 1;
+
+      if (!self._subs && 'open' === self._remote._online_state) {
+        self._remote.request_unsubscribe()
+          .accounts(self._account_id)
+          .request();
+      }
+    }
+  });
+
+  this._remote.on('prepare_subscribe', function (request) {
+    if (self._subs) request.accounts(self._account_id);
+  });
+
+  this.on('transaction', function (msg) {
+    var changed = false;
+    msg.mmeta.each(function (an) {
+      if (an.entryType === 'AccountRoot' &&
+          an.fields.Account === self._account_id) {
+        extend(self._entry, an.fieldsNew, an.fieldsFinal);
+        changed = true;
+      }
+    });
+    if (changed) {
+      self.emit('entry', self._entry);
+    }
+  });
+
+  return this;
+};
+
+util.inherits(Account, EventEmitter);
+
+/**
+ * List of events that require a remote subscription to the account.
+ */
+Account.subscribe_events = ['transaction', 'entry'];
+
+Account.prototype.to_json = function ()
+{
+  return this._account.to_json();
+};
+
+/**
+ * Whether the AccountId is valid.
+ *
+ * Note: This does not tell you whether the account exists in the ledger.
+ */
+Account.prototype.is_valid = function ()
+{
+  return this._account.is_valid();
+};
+
+/**
+ * Retrieve the current AccountRoot entry.
+ *
+ * To keep up-to-date with changes to the AccountRoot entry, subscribe to the
+ * "entry" event.
+ *
+ * @param {function (err, entry)} callback Called with the result
+ */
+Account.prototype.entry = function (callback)
+{
+  var self = this;
+
+  self._remote.request_account_info(this._account_id)
+    .on('success', function (e) {
+      extend(self._entry, e.account_data);
+      self.emit('entry', self._entry);
+
+      if ("function" === typeof callback) {
+        callback(null, e);
+      }
+    })
+    .on('error', function (e) {
+      callback(e);
+    })
+    .request();
+
+  return this;
+};
+
+/**
+ * Notify object of a relevant transaction.
+ *
+ * This is only meant to be called by the Remote class. You should never have to
+ * call this yourself.
+ */
+Account.prototype.notifyTx = function (message)
+{
+  // Only trigger the event if the account object is actually
+  // subscribed - this prevents some weird phantom events from
+  // occurring.
+  if (this._subs) {
+    this.emit('transaction', message);
+  }
+};
+
+exports.Account	    = Account;
+
+// vim:sw=2:sts=2:ts=8:et
+
+
+/******/},
+/******/
+/******/23: function(module, exports, require) {
+
+var sjcl    = require(2);
+
+var UInt256 = require(15).UInt256;
+
+var KeyPair = function ()
+{
+  this._curve = sjcl.ecc.curves['c256'];
+  this._secret = null;
+  this._pubkey = null;
+};
+
+KeyPair.from_bn_secret = function (j)
+{
+  if (j instanceof this) {
+    return j.clone();
+  } else {
+    return (new this()).parse_bn_secret(j);
+  }
+};
+
+KeyPair.prototype.parse_bn_secret = function (j)
+{
+  this._secret = new sjcl.ecc.ecdsa.secretKey(sjcl.ecc.curves['c256'], j);
+  return this;
+};
+
+/**
+ * Returns public key as sjcl public key.
+ *
+ * @private
+ */
+KeyPair.prototype._pub = function ()
+{
+  var curve = this._curve;
+
+  if (!this._pubkey && this._secret) {
+    var exponent = this._secret._exponent;
+    this._pubkey = new sjcl.ecc.ecdsa.publicKey(curve, curve.G.mult(exponent));
+  }
+
+  return this._pubkey;
+};
+
+/**
+ * Returns public key as hex.
+ *
+ * Key will be returned as a compressed pubkey - 33 bytes converted to hex.
+ */
+KeyPair.prototype.to_hex_pub = function ()
+{
+  var pub = this._pub();
+  if (!pub) return null;
+
+  var point = pub._point, y_even = point.y.mod(2).equals(0);
+  return sjcl.codec.hex.fromBits(sjcl.bitArray.concat(
+    [sjcl.bitArray.partial(8, y_even ? 0x02 : 0x03)],
+    point.x.toBits(this._curve.r.bitLength())
+  )).toUpperCase();
+};
+
+KeyPair.prototype.sign = function (hash)
+{
+  hash = UInt256.from_json(hash);
+  return this._secret.signDER(hash.to_bits(), 0);
+};
+
+exports.KeyPair = KeyPair;
+
+
+/******/},
+/******/
 /******/24: function(module, exports, require) {
+
+// Routines for working with an orderbook.
+//
+// One OrderBook object represents one half of an order book. (i.e. bids OR
+// asks) Which one depends on the ordering of the parameters.
+//
+// Events:
+//  - transaction   A transaction that affects the order book.
+
+// var network = require("./network.js");
+
+var EventEmitter = require(7).EventEmitter;
+var util = require(10);
+
+var Amount = require(3).Amount;
+var UInt160 = require(11).UInt160;
+var Currency = require(13).Currency;
+
+var extend = require(5);
+
+var OrderBook = function (remote,
+                          currency_gets, issuer_gets,
+                          currency_pays, issuer_pays) {
+  EventEmitter.call(this);
+
+  var self = this;
+
+  this._remote = remote;
+  this._currency_gets = currency_gets;
+  this._issuer_gets = issuer_gets;
+  this._currency_pays = currency_pays;
+  this._issuer_pays = issuer_pays;
+
+  this._subs = 0;
+
+  // We consider ourselves synchronized if we have a current copy of the offers,
+  // we are online and subscribed to updates.
+  this._sync = false;
+
+  // Offers
+  this._offers = [];
+
+  this.on('newListener', function (type, listener) {
+    if (OrderBook.subscribe_events.indexOf(type) !== -1) {
+      if (!self._subs && 'open' === self._remote._online_state) {
+        self._subscribe();
+      }
+      self._subs  += 1;
+    }
+  });
+
+  this.on('removeListener', function (type, listener) {
+    if (OrderBook.subscribe_events.indexOf(type) !== -1) {
+      self._subs  -= 1;
+
+      if (!self._subs && 'open' === self._remote._online_state) {
+        self._sync = false;
+        self._remote.request_unsubscribe()
+          .books([self.to_json()])
+          .request();
+      }
+    }
+  });
+
+  this._remote.on('connect', function () {
+    if (self._subs) {
+      self._subscribe();
+    }
+  });
+
+  this._remote.on('disconnect', function () {
+    self._sync = false;
+  });
+
+  return this;
+};
+
+util.inherits(OrderBook, EventEmitter);
+
+/**
+ * List of events that require a remote subscription to the orderbook.
+ */
+OrderBook.subscribe_events = ['transaction', 'model', 'trade'];
+
+/**
+ * Subscribes to orderbook.
+ *
+ * @private
+ */
+OrderBook.prototype._subscribe = function ()
+{
+  var self = this;
+  self._remote.request_subscribe()
+    .books([self.to_json()], true)
+    .on('error', function () {
+      // XXX What now?
+    })
+    .on('success', function (res) {
+      self._sync = true;
+      self._offers = res.offers;
+      self.emit('model', self._offers);
+    })
+    .request();
+};
+
+OrderBook.prototype.to_json = function ()
+{
+  var json = {
+    "taker_gets": {
+      "currency": this._currency_gets
+    },
+    "taker_pays": {
+      "currency": this._currency_pays
+    }
+  };
+
+  if (this._currency_gets !== "XRP") json["taker_gets"]["issuer"] = this._issuer_gets;
+  if (this._currency_pays !== "XRP") json["taker_pays"]["issuer"] = this._issuer_pays;
+
+  return json;
+};
+
+/**
+ * Whether the OrderBook is valid.
+ *
+ * Note: This only checks whether the parameters (currencies and issuer) are
+ *       syntactically valid. It does not check anything against the ledger.
+ */
+OrderBook.prototype.is_valid = function ()
+{
+  // XXX Should check for same currency (non-native) && same issuer
+  return (
+    Currency.is_valid(this._currency_pays) &&
+    (this._currency_pays === "XRP" || UInt160.is_valid(this._issuer_pays)) &&
+    Currency.is_valid(this._currency_gets) &&
+    (this._currency_gets === "XRP" || UInt160.is_valid(this._issuer_gets)) &&
+    !(this._currency_pays === "XRP" && this._currency_gets === "XRP")
+  );
+};
+
+/**
+ * Notify object of a relevant transaction.
+ *
+ * This is only meant to be called by the Remote class. You should never have to
+ * call this yourself.
+ */
+OrderBook.prototype.notifyTx = function (message)
+{
+  var self = this;
+
+  var changed = false;
+
+  var trade_gets = Amount.from_json("0" + ((this._currency_gets === 'XRP') ? "" :
+                                    "/" + this._currency_gets +
+                                    "/" + this._issuer_gets));
+  var trade_pays = Amount.from_json("0" + ((this._currency_pays === 'XRP') ? "" :
+                                    "/" + this._currency_pays +
+                                    "/" + this._issuer_pays));
+
+  message.mmeta.each(function (an) {
+    if (an.entryType !== 'Offer') return;
+
+    var i, l, offer;
+    if (an.diffType === 'DeletedNode' ||
+        an.diffType === 'ModifiedNode') {
+      for (i = 0, l = self._offers.length; i < l; i++) {
+        offer = self._offers[i];
+        if (offer.index === an.ledgerIndex) {
+          if (an.diffType === 'DeletedNode') {
+            self._offers.splice(i, 1);
+          }
+          else extend(offer, an.fieldsFinal);
+          changed = true;
+          break;
+        }
+      }
+
+      // We don't want to count a OfferCancel as a trade
+      if (message.transaction.TransactionType === "OfferCancel") return;
+
+      trade_gets = trade_gets.add(an.fieldsPrev.TakerGets);
+      trade_pays = trade_pays.add(an.fieldsPrev.TakerPays);
+      if (an.diffType === 'ModifiedNode') {
+        trade_gets = trade_gets.subtract(an.fieldsFinal.TakerGets);
+        trade_pays = trade_pays.subtract(an.fieldsFinal.TakerPays);
+      }
+    } else if (an.diffType === 'CreatedNode') {
+      var price = Amount.from_json(an.fields.TakerPays).ratio_human(an.fields.TakerGets);
+      for (i = 0, l = self._offers.length; i < l; i++) {
+        offer = self._offers[i];
+        var priceItem = Amount.from_json(offer.TakerPays).ratio_human(offer.TakerGets);
+
+        if (price.compareTo(priceItem) <= 0) {
+          var obj = an.fields;
+          obj.index = an.ledgerIndex;
+          self._offers.splice(i, 0, an.fields);
+          changed = true;
+          break;
+        }
+      }
+    }
+  });
+
+  // Only trigger the event if the account object is actually
+  // subscribed - this prevents some weird phantom events from
+  // occurring.
+  if (this._subs) {
+    this.emit('transaction', message);
+    if (changed) this.emit('model', this._offers);
+    if (!trade_gets.is_zero()) this.emit('trade', trade_pays, trade_gets);
+  }
+};
+
+/**
+ * Get offers model asynchronously.
+ *
+ * This function takes a callback and calls it with an array containing the
+ * current set of offers in this order book.
+ *
+ * If the data is available immediately, the callback may be called synchronously.
+ */
+OrderBook.prototype.offers = function (callback)
+{
+  var self = this;
+
+  if ("function" === typeof callback) {
+    if (this._sync) {
+      callback(this._offers);
+    } else {
+      this.once('model', function (offers) {
+        callback(offers);
+      });
+    }
+  }
+  return this;
+};
+
+/**
+ * Return latest known offers.
+ *
+ * Usually, this will just be an empty array if the order book hasn't been
+ * loaded yet. But this accessor may be convenient in some circumstances.
+ */
+OrderBook.prototype.offersSync = function ()
+{
+  return this._offers;
+};
+
+exports.OrderBook	    = OrderBook;
+
+// vim:sw=2:sts=2:ts=8:et
+
+
+/******/},
+/******/
+/******/25: function(module, exports, require) {
+
+/******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
+// Remote access to a server.
+// - We never send binary data.
+// - We use the W3C interface for node and browser compatibility:
+//   http://www.w3.org/TR/websockets/#the-websocket-interface
+//
+// This class is intended for both browser and node.js use.
+//
+// This class is designed to work via peer protocol via either the public or
+// private websocket interfaces.  The JavaScript class for the peer protocol
+// has not yet been implemented. However, this class has been designed for it
+// to be a very simple drop option.
+//
+// YYY Will later provide js/network.js which will transparently use multiple
+// instances of this class for network access.
+//
+
+// npm
+var EventEmitter  = require(7).EventEmitter;
+var util          = require(10);
+
+var Server        = require(27).Server;
+var Amount        = require(3).Amount;
+var Currency      = require(13).Currency;
+var UInt160       = require(11).UInt160;
+var Transaction   = require(20).Transaction;
+var Account       = require(22).Account;
+var Meta          = require(17).Meta;
+var OrderBook     = require(24).OrderBook;
+
+var utils         = require(4);
+var config        = require(8);
+var sjcl          = require(2);
+
+// Request events emitted:
+// 'success' : Request successful.
+// 'error'   : Request failed.
+//   'remoteError'
+//   'remoteUnexpected'
+//   'remoteDisconnected'
+var Request = function (remote, command) {
+  EventEmitter.call(this);
+
+  var self  = this;
+
+  this.message    = {
+    'command' : command,
+    'id'      : undefined,
+  };
+  this.remote     = remote;
+  this.requested  = false;
+};
+
+util.inherits(Request, EventEmitter);
+
+// Send the request to a remote.
+Request.prototype.request = function (remote) {
+  if (!this.requested) {
+    this.requested  = true;
+    this.remote.request(this);
+    this.emit('request', remote);
+  }
+};
+
+Request.prototype.build_path = function (build) {
+  if (build)
+    this.message.build_path = true;
+
+  return this;
+};
+
+Request.prototype.ledger_choose = function (current) {
+  if (current)
+  {
+    this.message.ledger_index = this.remote._ledger_current_index;
+  }
+  else {
+    this.message.ledger_hash  = this.remote._ledger_hash;
+  }
+
+  return this;
+};
+
+// Set the ledger for a request.
+// - ledger_entry
+// - transaction_entry
+Request.prototype.ledger_hash = function (h) {
+  this.message.ledger_hash  = h;
+
+  return this;
+};
+
+// Set the ledger_index for a request.
+// - ledger_entry
+Request.prototype.ledger_index = function (ledger_index) {
+  this.message.ledger_index  = ledger_index;
+
+  return this;
+};
+
+Request.prototype.ledger_select = function (ledger_spec) {
+  if (ledger_spec === 'current') {
+    this.message.ledger_index  = ledger_spec;
+
+  } else if (ledger_spec === 'closed') {
+    this.message.ledger_index  = ledger_spec;
+
+  } else if (ledger_spec === 'verified') {
+    this.message.ledger_index  = ledger_spec;
+
+  } else if (String(ledger_spec).length > 12) { // XXX Better test needed
+    this.message.ledger_hash  = ledger_spec;
+
+  } else {
+    this.message.ledger_index  = ledger_spec;
+  }
+
+  return this;
+};
+
+Request.prototype.account_root = function (account) {
+  this.message.account_root  = UInt160.json_rewrite(account);
+
+  return this;
+};
+
+Request.prototype.index = function (hash) {
+  this.message.index  = hash;
+
+  return this;
+};
+
+// Provide the information id an offer.
+// --> account
+// --> seq : sequence number of transaction creating offer (integer)
+Request.prototype.offer_id = function (account, seq) {
+  this.message.offer = {
+    'account' : UInt160.json_rewrite(account),
+    'seq' : seq
+  };
+
+  return this;
+};
+
+// --> index : ledger entry index.
+Request.prototype.offer_index = function (index) {
+  this.message.offer  = index;
+
+  return this;
+};
+
+Request.prototype.secret = function (s) {
+  if (s)
+    this.message.secret  = s;
+
+  return this;
+};
+
+Request.prototype.tx_hash = function (h) {
+  this.message.tx_hash  = h;
+
+  return this;
+};
+
+Request.prototype.tx_json = function (j) {
+  this.message.tx_json  = j;
+
+  return this;
+};
+
+Request.prototype.tx_blob = function (j) {
+  this.message.tx_blob  = j;
+
+  return this;
+};
+
+Request.prototype.ripple_state = function (account, issuer, currency) {
+  this.message.ripple_state  = {
+      'accounts' : [
+        UInt160.json_rewrite(account),
+        UInt160.json_rewrite(issuer)
+      ],
+      'currency' : currency
+    };
+
+  return this;
+};
+
+Request.prototype.accounts = function (accounts, realtime) {
+  if ("object" !== typeof accounts) {
+    accounts = [accounts];
+  }
+
+  // Process accounts parameters
+  var procAccounts = [];
+  for (var i = 0, l = accounts.length; i < l; i++) {
+    procAccounts.push(UInt160.json_rewrite(accounts[i]));
+  }
+  if (realtime) {
+    this.message.rt_accounts = procAccounts;
+  } else {
+    this.message.accounts = procAccounts;
+  }
+
+  return this;
+};
+
+Request.prototype.rt_accounts = function (accounts) {
+  return this.accounts(accounts, true);
+};
+
+Request.prototype.books = function (books, snapshot) {
+  var procBooks = [];
+
+  for (var i = 0, l = books.length; i < l; i++) {
+    var book = books[i];
+    var json = {};
+
+    function process(side) {
+      if (!book[side]) throw new Error("Missing "+side);
+
+      var obj = {};
+      obj["currency"] = Currency.json_rewrite(book[side]["currency"]);
+      if (obj["currency"] !== "XRP") {
+        obj.issuer = UInt160.json_rewrite(book[side]["issuer"]);
+      }
+
+      json[side] = obj;
+    }
+
+    process("taker_gets");
+    process("taker_pays");
+
+    if (snapshot || book["snapshot"]) json["snapshot"] = true;
+    if (book["both"]) json["both"] = true;
+
+    procBooks.push(json);
+  }
+  this.message.books = procBooks;
+
+  return this;
+};
+
+//
+// Remote - access to a remote Ripple server via websocket.
+//
+// Events:
+// 'connect'
+// 'connected' (DEPRECATED)
+// 'disconnect'
+// 'disconnected' (DEPRECATED)
+// 'state':
+// - 'online'        : Connected and subscribed.
+// - 'offline'       : Not subscribed or not connected.
+// 'subscribed'      : This indicates stand-alone is available.
+//
+// Server events:
+// 'ledger_closed'   : A good indicate of ready to serve.
+// 'transaction'     : Transactions we receive based on current subscriptions.
+// 'transaction_all' : Listening triggers a subscribe to all transactions
+//                     globally in the network.
+
+// --> trusted: truthy, if remote is trusted
+var Remote = function (opts, trace) {
+  EventEmitter.call(this);
+
+  var self  = this;
+
+  this.trusted                = opts.trusted;
+  this.websocket_ip           = opts.websocket_ip;
+  this.websocket_port         = opts.websocket_port;
+  this.websocket_ssl          = opts.websocket_ssl;
+  this.local_sequence         = opts.local_sequence; // Locally track sequence numbers
+  this.local_fee              = opts.local_fee;      // Locally set fees
+  this.local_signing          = opts.local_signing;
+  this.id                     = 0;
+  this.trace                  = opts.trace || trace;
+  this._server_fatal          = false;              // True, if we know server exited.
+  this._ledger_current_index  = undefined;
+  this._ledger_hash           = undefined;
+  this._ledger_time           = undefined;
+  this._stand_alone           = undefined;
+  this._testnet               = undefined;
+  this._transaction_subs      = 0;
+  this.online_target          = false;
+  this._online_state          = 'closed';         // 'open', 'closed', 'connecting', 'closing'
+  this.state                  = 'offline';        // 'online', 'offline'
+  this.retry_timer            = undefined;
+  this.retry                  = undefined;
+
+  this._load_base             = 256;
+  this._load_factor           = 1.0;
+  this._fee_ref               = undefined;
+  this._fee_base              = undefined;
+  this._reserve_base          = undefined;
+  this._reserve_inc           = undefined;
+  this._connection_count      = 0;
+
+  this._last_tx               = null;
+
+  // Local signing implies local fees and sequences
+  if (this.local_signing) {
+    this.local_sequence = true;
+    this.local_fee = true;
+  }
+
+  this._servers = [];
+
+  // Cache information for accounts.
+  // DEPRECATED, will be removed
+  this.accounts = {
+    // Consider sequence numbers stable if you know you're not generating bad transactions.
+    // Otherwise, clear it to have it automatically refreshed from the network.
+
+    // account : { seq : __ }
+
+    };
+
+  // Hash map of Account objects by AccountId.
+  this._accounts = {};
+
+  // Hash map of OrderBook objects
+  this._books = {};
+
+  // List of secrets that we know about.
+  this.secrets = {
+    // Secrets can be set by calling set_secret(account, secret).
+
+    // account : secret
+  };
+
+  // Cache for various ledgers.
+  // XXX Clear when ledger advances.
+  this.ledgers = {
+    'current' : {
+      'account_root' : {}
+    }
+  };
+
+  // XXX Add support for multiple servers
+  var url  = (this.websocket_ssl ? "wss://" : "ws://") +
+        this.websocket_ip + ":" + this.websocket_port;
+
+  this.add_server(new Server(this, {url: url}));
+
+  this.on('newListener', function (type, listener) {
+      if ('transaction_all' === type)
+      {
+        if (!self._transaction_subs && 'open' === self._online_state)
+        {
+          self.request_subscribe([ 'transactions' ])
+            .request();
+        }
+        self._transaction_subs  += 1;
+      }
+    });
+
+  this.on('removeListener', function (type, listener) {
+      if ('transaction_all' === type)
+      {
+        self._transaction_subs  -= 1;
+
+        if (!self._transaction_subs && 'open' === self._online_state)
+        {
+          self.request_unsubscribe([ 'transactions' ])
+            .request();
+        }
+      }
+    });
+};
+
+util.inherits(Remote, EventEmitter);
+
+Remote.from_config = function (obj, trace) {
+  var serverConfig = 'string' === typeof obj ? config.servers[obj] : obj;
+
+  var remote = new Remote(serverConfig, trace);
+
+  for (var account in config.accounts) {
+    var accountInfo = config.accounts[account];
+    if ("object" === typeof accountInfo) {
+      if (accountInfo.secret) {
+        // Index by nickname ...
+        remote.set_secret(account, accountInfo.secret);
+        // ... and by account ID
+        remote.set_secret(accountInfo.account, accountInfo.secret);
+      }
+    }
+  }
+
+  return remote;
+};
+
+var isTemMalformed  = function (engine_result_code) {
+  return (engine_result_code >= -299 && engine_result_code <  199);
+};
+
+var isTefFailure = function (engine_result_code) {
+  return (engine_result_code >= -299 && engine_result_code <  199);
+};
+
+Remote.prototype.add_server = function (server) {
+  var self = this;
+
+  server.on('message', function (data) {
+    self._handle_message(data);
+  });
+
+  server.on('connect', function () {
+    self._connection_count++;
+    self._set_state('online');
+  });
+
+  server.on('disconnect', function () {
+    self._connection_count--;
+    if (!self._connection_count) self._set_state('offline');
+  });
+
+  this._servers.push(server);
+
+  return this;
+};
+
+// Inform remote that the remote server is not comming back.
+Remote.prototype.server_fatal = function () {
+  this._server_fatal = true;
+};
+
+// Set the emitted state: 'online' or 'offline'
+Remote.prototype._set_state = function (state) {
+  if (this.trace) console.log("remote: set_state: %s", state);
+
+  if (this.state !== state) {
+    this.state = state;
+
+    this.emit('state', state);
+
+    switch (state) {
+      case 'online':
+        this._online_state       = 'open';
+        this.emit('connect');
+        this.emit('connected');
+        break;
+
+      case 'offline':
+        this._online_state       = 'closed';
+        this.emit('disconnect');
+        this.emit('disconnected');
+        break;
+    }
+  }
+};
+
+Remote.prototype.set_trace = function (trace) {
+  this.trace  = undefined === trace || trace;
+
+  return this;
+};
+
+/**
+ * Connect to the Ripple network.
+ */
+Remote.prototype.connect = function (online) {
+  // Downwards compatibility
+  if ("undefined" !== typeof online && !online) {
+    return this.disconnect();
+  }
+
+  if (!this._servers.length) {
+    throw new Error("No servers available.");
+  } else {
+    // XXX Add support for multiple servers
+    this._servers[0].connect();
+  }
+
+  return this;
+};
+
+/**
+ * Disconnect from the Ripple network.
+ */
+Remote.prototype.disconnect = function (online) {
+  for (var i = 0, l = this._servers.length; i < l; i++) {
+    this._servers[i].disconnect();
+  }
+
+  this._set_state('offline');
+
+  return this;
+};
+
+Remote.prototype.ledger_hash = function () {
+  return this._ledger_hash;
+};
+
+// It is possible for messages to be dispatched after the connection is closed.
+Remote.prototype._handle_message = function (json) {
+  var self        = this;
+  var message     = JSON.parse(json);
+  var unexpected  = false;
+  var request;
+
+  if ('object' !== typeof message) {
+    unexpected  = true;
+  }
+  else {
+    switch (message.type) {
+      case 'response':
+        // Handled by the server that sent the request
+        break;
+
+      case 'ledgerClosed':
+        // XXX If not trusted, need to verify we consider ledger closed.
+        // XXX Also need to consider a slow server or out of order response.
+        // XXX Be more defensive fields could be missing or of wrong type.
+        // YYY Might want to do some cache management.
+
+        this._ledger_time           = message.ledger_time;
+        this._ledger_hash           = message.ledger_hash;
+        this._ledger_current_index  = message.ledger_index + 1;
+
+        this.emit('ledger_closed', message);
+        break;
+
+      case 'transaction':
+        // To get these events, just subscribe to them. A subscribes and
+        // unsubscribes will be added as needed.
+        // XXX If not trusted, need proof.
+
+        // De-duplicate transactions that are immediately following each other
+        // XXX Should have a cache of n txs so we can dedup out of order txs
+        if (this._last_tx === message.transaction.hash) break;
+        this._last_tx = message.transaction.hash;
+
+        if (this.trace) utils.logObject("remote: tx: %s", message);
+
+        // Process metadata
+        message.mmeta = new Meta(message.meta);
+
+        // Pass the event on to any related Account objects
+        var affected = message.mmeta.getAffectedAccounts();
+        for (var i = 0, l = affected.length; i < l; i++) {
+          var account = self._accounts[affected[i]];
+
+          if (account) account.notifyTx(message);
+        }
+
+        // Pass the event on to any related OrderBooks
+        affected = message.mmeta.getAffectedBooks();
+        for (i = 0, l = affected.length; i < l; i++) {
+          var book = self._books[affected[i]];
+
+          if (book) book.notifyTx(message);
+        }
+
+        this.emit('transaction', message);
+        this.emit('transaction_all', message);
+        break;
+
+      // XXX Should be tracked by the Server object
+      case 'serverStatus':
+        if ('load_base' in message &&
+            'load_factor' in message &&
+            (message.load_base !== self._load_base || message.load_factor != self._load_factor))
+        {
+          self._load_base     = message.load_base;
+          self._load_factor   = message.load_factor;
+
+          self.emit('load', { 'load_base' : self._load_base, 'load_factor' : self.load_factor });
+        }
+        break;
+
+      // All other messages
+      default:
+        if (this.trace) utils.logObject("remote: "+message.type+": %s", message);
+        this.emit('net_'+message.type, message);
+        break;
+    }
+  }
+
+  // Unexpected response from remote.
+  if (unexpected) {
+    console.log("unexpected message from trusted remote: %s", json);
+
+    (request || this).emit('error', {
+        'error' : 'remoteUnexpected',
+        'error_message' : 'Unexpected response from remote.'
+      });
+  }
+};
+
+// Send a request.
+// <-> request: what to send, consumed.
+Remote.prototype.request = function (request) {
+  if (!this._servers.length) {
+    throw new Error("No servers available.");
+  } else {
+    // XXX Add support for multiple servers
+    this._servers[0].request(request);
+  }
+};
+
+Remote.prototype.request_server_info = function () {
+  return new Request(this, 'server_info');
+};
+
+// XXX This is a bad command. Some varients don't scale.
+// XXX Require the server to be trusted.
+Remote.prototype.request_ledger = function (ledger, opts) {
+  //utils.assert(this.trusted);
+
+  var request = new Request(this, 'ledger');
+
+  if (ledger)
+  {
+    // DEPRECATED: use .ledger_hash() or .ledger_index()
+    console.log("request_ledger: ledger parameter is deprecated");
+    request.message.ledger  = ledger;
+  }
+
+  if ('object' == typeof opts) {
+    if (opts.full)
+      request.message.full          = true;
+  
+    if (opts.expand)
+      request.message.expand        = true;
+  
+    if (opts.transactions)
+      request.message.transactions  = true;
+
+    if (opts.accounts)
+      request.message.accounts      = true;
+  }
+  // DEPRECATED:
+  else if (opts)
+  {
+    console.log("request_ledger: full parameter is deprecated");
+    request.message.full    = true;
+  }
+
+  return request;
+};
+
+// Only for unit testing.
+Remote.prototype.request_ledger_hash = function () {
+  //utils.assert(this.trusted);   // If not trusted, need to check proof.
+
+  return new Request(this, 'ledger_closed');
+};
+
+// .ledger()
+// .ledger_index()
+Remote.prototype.request_ledger_header = function () {
+  return new Request(this, 'ledger_header');
+};
+
+// Get the current proposed ledger entry.  May be closed (and revised) at any time (even before returning).
+// Only for unit testing.
+Remote.prototype.request_ledger_current = function () {
+  return new Request(this, 'ledger_current');
+};
+
+// --> type : the type of ledger entry.
+// .ledger()
+// .ledger_index()
+// .offer_id()
+Remote.prototype.request_ledger_entry = function (type) {
+  //utils.assert(this.trusted);   // If not trusted, need to check proof, maybe talk packet protocol.
+
+  var self    = this;
+  var request = new Request(this, 'ledger_entry');
+
+  // Transparent caching. When .request() is invoked, look in the Remote object for the result.
+  // If not found, listen, cache result, and emit it.
+  //
+  // Transparent caching:
+  if ('account_root' === type) {
+    request.request_default = request.request;
+
+    request.request         = function () {                        // Intercept default request.
+      var bDefault  = true;
+      // .self = Remote
+      // this = Request
+
+      // console.log('request_ledger_entry: caught');
+
+      if (self._ledger_hash) {
+        // A specific ledger is requested.
+
+        // XXX Add caching.
+      }
+      // else if (req.ledger_index)
+      // else if ('ripple_state' === request.type)         // YYY Could be cached per ledger.
+      else if ('account_root' === type) {
+        var cache = self.ledgers.current.account_root;
+
+        if (!cache)
+        {
+          cache = self.ledgers.current.account_root = {};
+        }
+
+        var node = self.ledgers.current.account_root[request.message.account_root];
+
+        if (node) {
+          // Emulate fetch of ledger entry.
+          // console.log('request_ledger_entry: emulating');
+          request.emit('success', {
+              // YYY Missing lots of fields.
+              'node' :  node,
+            });
+
+          bDefault  = false;
+        }
+        else {
+          // Was not cached.
+
+          // XXX Only allow with trusted mode.  Must sync response with advance.
+          switch (type) {
+            case 'account_root':
+              request.on('success', function (message) {
+                  // Cache node.
+                  // console.log('request_ledger_entry: caching');
+                  self.ledgers.current.account_root[message.node.Account] = message.node;
+                });
+              break;
+
+            default:
+              // This type not cached.
+              // console.log('request_ledger_entry: non-cached type');
+          }
+        }
+      }
+
+      if (bDefault) {
+        // console.log('request_ledger_entry: invoking');
+        request.request_default();
+      }
+    }
+  };
+
+  return request;
+};
+
+// .accounts(accounts, realtime)
+Remote.prototype.request_subscribe = function (streams) {
+  var request = new Request(this, 'subscribe');
+
+  if (streams) {
+    if ("object" !== typeof streams) {
+      streams = [streams];
+    }
+    request.message.streams = streams;
+  }
+
+  return request;
+};
+
+// .accounts(accounts, realtime)
+Remote.prototype.request_unsubscribe = function (streams) {
+  var request = new Request(this, 'unsubscribe');
+
+  if (streams) {
+    if ("object" !== typeof streams) {
+      streams = [streams];
+    }
+    request.message.streams = streams;
+  }
+
+  return request;
+};
+
+// .ledger_choose()
+// .ledger_hash()
+// .ledger_index()
+Remote.prototype.request_transaction_entry = function (hash) {
+  //utils.assert(this.trusted);   // If not trusted, need to check proof, maybe talk packet protocol.
+
+  return (new Request(this, 'transaction_entry'))
+    .tx_hash(hash);
+};
+
+// DEPRECATED: use request_transaction_entry
+Remote.prototype.request_tx = function (hash) {
+  var request = new Request(this, 'tx');
+
+  request.message.transaction  = hash;
+
+  return request;
+};
+
+Remote.prototype.request_account_info = function (accountID) {
+  var request = new Request(this, 'account_info');
+
+  request.message.ident   = UInt160.json_rewrite(accountID);  // DEPRECATED
+  request.message.account = UInt160.json_rewrite(accountID);
+
+  return request;
+};
+
+// --> account_index: sub_account index (optional)
+// --> current: true, for the current ledger.
+Remote.prototype.request_account_lines = function (accountID, account_index, current) {
+  // XXX Does this require the server to be trusted?
+  //utils.assert(this.trusted);
+
+  var request = new Request(this, 'account_lines');
+
+  request.message.account = UInt160.json_rewrite(accountID);
+
+  if (account_index)
+    request.message.index   = account_index;
+
+  return request
+    .ledger_choose(current);
+};
+
+// --> account_index: sub_account index (optional)
+// --> current: true, for the current ledger.
+Remote.prototype.request_account_offers = function (accountID, account_index, current) {
+  var request = new Request(this, 'account_offers');
+
+  request.message.account = UInt160.json_rewrite(accountID);
+
+  if (account_index)
+    request.message.index   = account_index;
+
+  return request
+    .ledger_choose(current);
+};
+
+
+/*
+  account: account,
+  ledger_index_min: ledger_index, // optional, defaults to -1 if ledger_index_max is specified.
+  ledger_index_max: ledger_index, // optional, defaults to -1 if ledger_index_min is specified.
+  binary: boolean,                // optional, defaults to false
+  count: boolean,                 // optional, defaults to false
+  descending: boolean,            // optional, defaults to false
+  offset: integer,                // optional, defaults to 0
+  limit: integer                  // optional
+*/
+
+Remote.prototype.request_account_tx = function (obj) {
+  // XXX Does this require the server to be trusted?
+  //utils.assert(this.trusted);
+
+  var request = new Request(this, 'account_tx');
+
+  request.message.account     = obj.account;
+
+  if (false && ledger_min === ledger_max) {
+    //request.message.ledger      = ledger_min;
+  }
+  else {
+	if ("undefined" != typeof obj.ledger_index_min)	{request.message.ledger_index_min  = obj.ledger_index_min;}
+    if ("undefined" != typeof obj.ledger_index_max)	{request.message.ledger_index_max  = obj.ledger_index_max;}
+	if ("undefined" != typeof obj.binary)			{request.message.binary  = obj.binary;}
+	if ("undefined" != typeof obj.count)			{request.message.count  = obj.count;}
+	if ("undefined" != typeof obj.descending)		{request.message.descending  = obj.descending;}
+	if ("undefined" != typeof obj.offset)			{request.message.offset  = obj.offset;}
+	if ("undefined" != typeof obj.limit)			{request.message.limit  = obj.limit;}
+  }
+  return request;
+};
+
+Remote.prototype.request_book_offers = function (gets, pays, taker) {
+  var request = new Request(this, 'book_offers');
+
+  request.message.taker_gets = {
+    currency: Currency.json_rewrite(gets.currency)
+  };
+
+  if (request.message.taker_gets.currency !== 'XRP') {
+    request.message.taker_gets.issuer = UInt160.json_rewrite(gets.issuer);
+  }
+
+  request.message.taker_pays = {
+    currency: Currency.json_rewrite(pays.currency)
+  };
+
+  if (request.message.taker_pays.currency !== 'XRP') {
+    request.message.taker_pays.issuer = UInt160.json_rewrite(pays.issuer);
+  }
+
+  request.message.taker = taker ? taker : UInt160.ACCOUNT_ONE;
+
+  return request;
+};
+
+Remote.prototype.request_wallet_accounts = function (seed) {
+  utils.assert(this.trusted);     // Don't send secrets.
+
+  var request = new Request(this, 'wallet_accounts');
+
+  request.message.seed = seed;
+
+  return request;
+};
+
+Remote.prototype.request_sign = function (secret, tx_json) {
+  utils.assert(this.trusted);     // Don't send secrets.
+
+  var request = new Request(this, 'sign');
+
+  request.message.secret = secret;
+  request.message.tx_json = tx_json;
+
+  return request;
+};
+
+// Submit a transaction.
+Remote.prototype.request_submit = function () {
+  var self  = this;
+
+  var request = new Request(this, 'submit');
+
+  return request;
+};
+
+//
+// Higher level functions.
+//
+
+/**
+ * Create a subscribe request with current subscriptions.
+ *
+ * Other classes can add their own subscriptions to this request by listening to
+ * the server_subscribe event.
+ *
+ * This function will create and return the request, but not submit it.
+ */
+Remote.prototype._server_prepare_subscribe = function ()
+{
+  var self  = this;
+
+  var feeds = [ 'ledger', 'server' ];
+
+  if (this._transaction_subs)
+    feeds.push('transactions');
+
+  var req = this.request_subscribe(feeds);
+
+  req.on('success', function (message) {
+    self._stand_alone       = !!message.stand_alone;
+    self._testnet           = !!message.testnet;
+
+    if ("string" === typeof message.random) {
+      var rand = message.random.match(/[0-9A-F]{8}/ig);
+      while (rand && rand.length)
+        sjcl.random.addEntropy(parseInt(rand.pop(), 16));
+
+      self.emit('random', utils.hexToArray(message.random));
+    }
+
+    if (message.ledger_hash && message.ledger_index) {
+      self._ledger_time           = message.ledger_time;
+      self._ledger_hash           = message.ledger_hash;
+      self._ledger_current_index  = message.ledger_index+1;
+
+      self.emit('ledger_closed', message);
+    }
+
+    // FIXME Use this to estimate fee.
+    // XXX When we have multiple server support, most of this should be tracked
+    //     by the Server objects and then aggregated/interpreted by Remote.
+    self._load_base     = message.load_base || 256;
+    self._load_factor   = message.load_factor || 1.0;
+    self._fee_ref       = message.fee_ref;
+    self._fee_base      = message.fee_base;
+    self._reserve_base  = message.reserve_base;
+    self._reserve_inc   = message.reserve_inc;
+
+    self.emit('subscribed');
+  });
+
+  self.emit('prepare_subscribe', req);
+
+  // XXX Could give error events, maybe even time out.
+
+  return req;
+};
+
+// For unit testing: ask the remote to accept the current ledger.
+// - To be notified when the ledger is accepted, server_subscribe() then listen to 'ledger_hash' events.
+// A good way to be notified of the result of this is:
+//    remote.once('ledger_closed', function (ledger_closed, ledger_index) { ... } );
+Remote.prototype.ledger_accept = function () {
+  if (this._stand_alone || undefined === this._stand_alone)
+  {
+    var request = new Request(this, 'ledger_accept');
+
+    request
+      .request();
+  }
+  else {
+    this.emit('error', {
+        'error' : 'notStandAlone'
+      });
+  }
+
+  return this;
+};
+
+// Return a request to refresh the account balance.
+Remote.prototype.request_account_balance = function (account, current) {
+  var request = this.request_ledger_entry('account_root');
+
+  return request
+    .account_root(account)
+    .ledger_choose(current)
+    .on('success', function (message) {
+        // If the caller also waits for 'success', they might run before this.
+        request.emit('account_balance', Amount.from_json(message.node.Balance));
+      });
+};
+
+// Return a request to emit the owner count.
+Remote.prototype.request_owner_count = function (account, current) {
+  var request = this.request_ledger_entry('account_root');
+
+  return request
+    .account_root(account)
+    .ledger_choose(current)
+    .on('success', function (message) {
+        // If the caller also waits for 'success', they might run before this.
+        request.emit('owner_count', message.node.OwnerCount);
+      });
+};
+
+Remote.prototype.account = function (accountId) {
+  accountId = UInt160.json_rewrite(accountId);
+
+  if (!this._accounts[accountId]) {
+    var account = new Account(this, accountId);
+
+    if (!account.is_valid()) return account;
+
+    this._accounts[accountId] = account;
+  }
+
+  return this._accounts[accountId];
+};
+
+Remote.prototype.book = function (currency_gets, issuer_gets,
+                                  currency_pays, issuer_pays) {
+  var gets = currency_gets;
+  if (gets !== 'XRP') gets += '/' + issuer_gets;
+  var pays = currency_pays;
+  if (pays !== 'XRP') pays += '/' + issuer_pays;
+
+  var key = gets + ":" + pays;
+
+  if (!this._books[key]) {
+    var book = new OrderBook(this,
+                             currency_gets, issuer_gets,
+                             currency_pays, issuer_pays);
+
+    if (!book.is_valid()) return book;
+
+    this._books[key] = book;
+  }
+
+  return this._books[key];
+}
+
+// Return the next account sequence if possible.
+// <-- undefined or Sequence
+Remote.prototype.account_seq = function (account, advance) {
+  account           = UInt160.json_rewrite(account);
+  var account_info  = this.accounts[account];
+  var seq;
+
+  if (account_info && account_info.seq)
+  {
+    seq = account_info.seq;
+
+    if (advance === "ADVANCE") account_info.seq += 1;
+    if (advance === "REWIND") account_info.seq -= 1;
+
+    // console.log("cached: %s current=%d next=%d", account, seq, account_info.seq);
+  }
+  else {
+    // console.log("uncached: %s", account);
+  }
+
+  return seq;
+}
+
+Remote.prototype.set_account_seq = function (account, seq) {
+  var account       = UInt160.json_rewrite(account);
+
+  if (!this.accounts[account]) this.accounts[account] = {};
+
+  this.accounts[account].seq = seq;
+}
+
+// Return a request to refresh accounts[account].seq.
+Remote.prototype.account_seq_cache = function (account, current) {
+  var self    = this;
+  var request;
+
+  if (!self.accounts[account]) self.accounts[account] = {};
+
+  var account_info = self.accounts[account];
+
+  request = account_info.caching_seq_request;
+  if (!request) {
+    // console.log("starting: %s", account);
+    request = self.request_ledger_entry('account_root')
+      .account_root(account)
+      .ledger_choose(current)
+      .on('success', function (message) {
+          delete account_info.caching_seq_request;
+
+          var seq = message.node.Sequence;
+
+          account_info.seq  = seq;
+
+          // console.log("caching: %s %d", account, seq);
+          // If the caller also waits for 'success', they might run before this.
+          request.emit('success_account_seq_cache', message);
+        })
+      .on('error', function (message) {
+          // console.log("error: %s", account);
+          delete account_info.caching_seq_request;
+
+          request.emit('error_account_seq_cache', message);
+        });
+
+    account_info.caching_seq_request    = request;
+  }
+
+  return request;
+};
+
+// Mark an account's root node as dirty.
+Remote.prototype.dirty_account_root = function (account) {
+  var account       = UInt160.json_rewrite(account);
+
+  delete this.ledgers.current.account_root[account];
+};
+
+// Store a secret - allows the Remote to automatically fill out auth information.
+Remote.prototype.set_secret = function (account, secret) {
+  this.secrets[account] = secret;
+};
+
+
+// Return a request to get a ripple balance.
+//
+// --> account: String
+// --> issuer: String
+// --> currency: String
+// --> current: bool : true = current ledger
+//
+// If does not exist: emit('error', 'error' : 'remoteError', 'remote' : { 'error' : 'entryNotFound' })
+Remote.prototype.request_ripple_balance = function (account, issuer, currency, current) {
+  var request       = this.request_ledger_entry('ripple_state');          // YYY Could be cached per ledger.
+
+  return request
+    .ripple_state(account, issuer, currency)
+    .ledger_choose(current)
+    .on('success', function (message) {
+        var node            = message.node;
+
+        var lowLimit        = Amount.from_json(node.LowLimit);
+        var highLimit       = Amount.from_json(node.HighLimit);
+        // The amount the low account holds of issuer.
+        var balance         = Amount.from_json(node.Balance);
+        // accountHigh implies: for account: balance is negated, highLimit is the limit set by account.
+        var accountHigh     = UInt160.from_json(account).equals(highLimit.issuer());
+
+        request.emit('ripple_state', {
+          'account_balance'     : ( accountHigh ? balance.negate() : balance.clone()).parse_issuer(account),
+          'peer_balance'        : (!accountHigh ? balance.negate() : balance.clone()).parse_issuer(issuer),
+
+          'account_limit'       : ( accountHigh ? highLimit : lowLimit).clone().parse_issuer(issuer),
+          'peer_limit'          : (!accountHigh ? highLimit : lowLimit).clone().parse_issuer(account),
+
+          'account_quality_in'  : ( accountHigh ? node.HighQualityIn : node.LowQualityIn),
+          'peer_quality_in'     : (!accountHigh ? node.HighQualityIn : node.LowQualityIn),
+
+          'account_quality_out' : ( accountHigh ? node.HighQualityOut : node.LowQualityOut),
+          'peer_quality_out'    : (!accountHigh ? node.HighQualityOut : node.LowQualityOut),
+        });
+      });
+};
+
+Remote.prototype.request_ripple_path_find = function (src_account, dst_account, dst_amount, source_currencies) {
+  var self    = this;
+  var request = new Request(this, 'ripple_path_find');
+
+  request.message.source_account      = UInt160.json_rewrite(src_account);
+  request.message.destination_account = UInt160.json_rewrite(dst_account);
+  request.message.destination_amount  = Amount.json_rewrite(dst_amount);
+
+  if (source_currencies) {
+    request.message.source_currencies   = source_currencies.map(function (ci) {
+      var ci_new  = {};
+
+      if ('issuer' in ci)
+        ci_new.issuer   = UInt160.json_rewrite(ci.issuer);
+
+      if ('currency' in ci)
+        ci_new.currency = Currency.json_rewrite(ci.currency);
+
+      return ci_new;
+    });
+  }
+
+  return request;
+};
+
+Remote.prototype.request_unl_list = function () {
+  return new Request(this, 'unl_list');
+};
+
+Remote.prototype.request_unl_add = function (addr, comment) {
+  var request = new Request(this, 'unl_add');
+
+  request.message.node    = addr;
+
+  if (comment !== undefined)
+    request.message.comment = note;
+
+  return request;
+};
+
+// --> node: <domain> | <public_key>
+Remote.prototype.request_unl_delete = function (node) {
+  var request = new Request(this, 'unl_delete');
+
+  request.message.node = node;
+
+  return request;
+};
+
+Remote.prototype.request_peers = function () {
+  return new Request(this, 'peers');
+};
+
+Remote.prototype.request_connect = function (ip, port) {
+  var request = new Request(this, 'connect');
+
+  request.message.ip = ip;
+
+  if (port)
+    request.message.port = port;
+
+  return request;
+};
+
+Remote.prototype.transaction = function () {
+  return new Transaction(this);
+};
+
+exports.Remote          = Remote;
+
+// vim:sw=2:sts=2:ts=8:et
+
+/******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_console */1)))
+
+/******/},
+/******/
+/******/26: function(module, exports, require) {
+
+var binformat = require(16),
+    sjcl = require(2),
+    extend = require(5),
+    stypes = require(19);
+
+var UInt256 = require(15).UInt256;
+
+var SerializedObject = function () {
+  this.buffer = [];
+  this.pointer = 0;
+};
+
+SerializedObject.from_json = function (obj) {
+  var typedef;
+  var so = new SerializedObject();
+
+  // Create a copy of the object so we don't modify it
+  obj = extend({}, obj);
+
+  if ("number" === typeof obj.TransactionType) {
+    obj.TransactionType = SerializedObject.lookup_type_tx(obj.TransactionType);
+
+    if (!obj.TransactionType) {
+      throw new Error("Transaction type ID is invalid.");
+    }
+  }
+
+  if ("string" === typeof obj.TransactionType) {
+    typedef = binformat.tx[obj.TransactionType].slice();
+
+    obj.TransactionType = typedef.shift();
+  } else if ("undefined" !== typeof obj.LedgerEntryType) {
+    // XXX: TODO
+    throw new Error("Ledger entry binary format not yet implemented.");
+  } else throw new Error("Object to be serialized must contain either " +
+                         "TransactionType or LedgerEntryType.");
+
+  so.serialize(typedef, obj);
+
+  return so;
+};
+
+SerializedObject.prototype.append = function (bytes) {
+  this.buffer = this.buffer.concat(bytes);
+  this.pointer += bytes.length;
+};
+
+SerializedObject.prototype.to_bits = function ()
+{
+  return sjcl.codec.bytes.toBits(this.buffer);
+};
+
+SerializedObject.prototype.to_hex = function () {
+  return sjcl.codec.hex.fromBits(this.to_bits()).toUpperCase();
+};
+
+SerializedObject.prototype.serialize = function (typedef, obj)
+{
+  // Ensure canonical order
+  typedef = SerializedObject._sort_typedef(typedef.slice());
+
+  // Serialize fields
+  for (var i = 0, l = typedef.length; i < l; i++) {
+    var spec = typedef[i];
+    this.serialize_field(spec, obj);
+  }
+};
+
+SerializedObject.prototype.signing_hash = function (prefix)
+{
+  var sign_buffer = new SerializedObject();
+  stypes.Int32.serialize(sign_buffer, prefix);
+  sign_buffer.append(this.buffer);
+  return sign_buffer.hash_sha512_half();
+};
+
+SerializedObject.prototype.hash_sha512_half = function ()
+{
+  var bits = sjcl.codec.bytes.toBits(this.buffer),
+      hash = sjcl.bitArray.bitSlice(sjcl.hash.sha512.hash(bits), 0, 256);
+
+  return UInt256.from_hex(sjcl.codec.hex.fromBits(hash));
+};
+
+SerializedObject.prototype.serialize_field = function (spec, obj)
+{
+  spec = spec.slice();
+
+  var name = spec.shift(),
+      presence = spec.shift(),
+      field_id = spec.shift(),
+      Type = spec.shift();
+
+  if ("undefined" !== typeof obj[name]) {
+    //console.log(name, Type.id, field_id);
+    this.append(SerializedObject.get_field_header(Type.id, field_id));
+
+    try {
+      Type.serialize(this, obj[name]);
+    } catch (e) {
+      // Add field name to message and rethrow
+      e.message = "Error serializing '"+name+"': "+e.message;
+      throw e;
+    }
+  } else if (presence === binformat.REQUIRED) {
+    throw new Error('Missing required field '+name);
+  }
+};
+
+SerializedObject.get_field_header = function (type_id, field_id)
+{
+  var buffer = [0];
+  if (type_id > 0xf) buffer.push(type_id & 0xff);
+  else buffer[0] += (type_id & 0xf) << 4;
+
+  if (field_id > 0xf) buffer.push(field_id & 0xff);
+  else buffer[0] += field_id & 0xf;
+
+  return buffer;
+};
+
+function sort_field_compare(a, b) {
+  // Sort by type id first, then by field id
+  return a[3].id !== b[3].id ?
+    a[3].id - b[3].id :
+    a[2] - b[2];
+};
+SerializedObject._sort_typedef = function (typedef) {
+  return typedef.sort(sort_field_compare);
+};
+
+SerializedObject.lookup_type_tx = function (id) {
+  for (var i in binformat.tx) {
+    if (!binformat.tx.hasOwnProperty(i)) continue;
+
+    if (binformat.tx[i][0] === id) {
+      return i;
+    }
+  }
+
+  return null;
+};
+
+exports.SerializedObject = SerializedObject;
+
+
+/******/},
+/******/
+/******/27: function(module, exports, require) {
+
+/******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
+var EventEmitter  = require(7).EventEmitter;
+var util          = require(10);
+
+var utils         = require(4);
+
+var Server = function (remote, cfg)
+{
+  EventEmitter.call(this);
+
+  if ("object" !== typeof cfg || "string" !== typeof cfg.url) {
+    throw new Error("Invalid server configuration.");
+  }
+
+  this._remote = remote;
+  this._cfg = cfg;
+
+  this._ws = null;
+  this._connected = false;
+  this._should_connect = false;
+  this._state = null;
+
+  this._id = 0;
+  this._retry = 0;
+
+  this._requests = {};
+
+  this.on('message', this._handle_message.bind(this));
+  this.on('response_subscribe', this._handle_response_subscribe.bind(this));
+};
+
+util.inherits(Server, EventEmitter);
+
+/**
+ * Server states that we will treat as the server being online.
+ *
+ * Our requirements are that the server can process transactions and notify
+ * us of changes.
+ */
+Server.online_states = [
+  'proposing',
+  'validating',
+  'full'
+];
+
+Server.prototype.connect = function ()
+{
+  var self = this;
+
+  // We don't connect if we believe we're already connected. This means we have
+  // recently received a message from the server and the WebSocket has not
+  // reported any issues either. If we do fail to ping or the connection drops,
+  // we will automatically reconnect.
+  if (this._connected === true) return;
+
+  if (this._remote.trace) console.log("server: connect: %s", this._cfg.url);
+
+  // Ensure any existing socket is given the command to close first.
+  if (this._ws) this._ws.close();
+
+  var WebSocket = require(29);
+  var ws = this._ws = new WebSocket(this._cfg.url);
+
+  this._should_connect = true;
+
+  self.emit('connecting');
+
+  ws.onopen = function () {
+    // If we are no longer the active socket, simply ignore any event
+    if (ws !== self._ws) return;
+
+    self.emit('socket_open');
+
+    // Subscribe to events
+    var request = self._remote._server_prepare_subscribe();
+    self.request(request);
+  };
+
+  ws.onerror = function (e) {
+    // If we are no longer the active socket, simply ignore any event
+    if (ws !== self._ws) return;
+
+    if (self._remote.trace) console.log("server: onerror: %s", e.data || e);
+
+    // Most connection errors for WebSockets are conveyed as "close" events with
+    // code 1006. This is done for security purposes and therefore unlikely to
+    // ever change.
+
+    // This means that this handler is hardly ever called in practice. If it is,
+    // it probably means the server's WebSocket implementation is corrupt, or
+    // the connection is somehow producing corrupt data.
+
+    // Most WebSocket applications simply log and ignore this error. Once we
+    // support for multiple servers, we may consider doing something like
+    // lowering this server's quality score.
+
+    // However, in Node.js this event may be triggered instead of the close
+    // event, so we need to handle it.
+    handleConnectionClose();
+  };
+
+  // Failure to open.
+  ws.onclose = function () {
+    // If we are no longer the active socket, simply ignore any event
+    if (ws !== self._ws) return;
+
+    if (self._remote.trace) console.log("server: onclose: %s", ws.readyState);
+
+    handleConnectionClose();
+  };
+
+  function handleConnectionClose()
+  {
+    self.emit('socket_close');
+    self._set_state('offline');
+
+    // Prevent additional events from this socket
+    ws.onopen = ws.onerror = ws.onclose = ws.onmessage = function () {};
+
+    // Should we be connected?
+    if (!self._should_connect) return;
+
+    // Delay and retry.
+    self._retry      += 1;
+    self._retry_timer = setTimeout(function () {
+      if (self._remote.trace) console.log("server: retry");
+
+      if (!self._should_connect) return;
+      self.connect();
+    }, self._retry < 40
+        ? 1000/20           // First, for 2 seconds: 20 times per second
+        : self._retry < 40+60
+          ? 1000            // Then, for 1 minute: once per second
+          : self._retry < 40+60+60
+            ? 10*1000       // Then, for 10 minutes: once every 10 seconds
+            : 30*1000);     // Then: once every 30 seconds
+  }
+
+  ws.onmessage = function (msg) {
+    self.emit('message', msg.data);
+  };
+};
+
+Server.prototype.disconnect = function ()
+{
+  this._should_connect = false;
+  this._set_state('offline');
+
+  if (this.ws) {
+    this.ws.close();
+  }
+};
+
+/**
+ * Submit a Request object to this server.
+ */
+Server.prototype.request = function (request)
+{
+  var self  = this;
+
+  // Only bother if we are still connected.
+  if (self._ws) {
+    request.message.id = self._id;
+
+    self._requests[request.message.id] = request;
+
+    // Advance message ID
+    self._id++;
+
+    if (self._state === "online" ||
+        (request.message.command === "subscribe" && self._ws.readyState === 1)) {
+      if (self._remote.trace) {
+        utils.logObject("server: request: %s", request.message);
+      }
+
+      self._ws.send(JSON.stringify(request.message));
+    } else {
+      // XXX There are many ways to make self smarter.
+      self.once('connect', function () {
+        if (self._remote.trace) {
+          utils.logObject("server: request: %s", request.message);
+        }
+        self._ws.send(JSON.stringify(request.message));
+      });
+    }
+  } else {
+    if (self._remote.trace) {
+      utils.logObject("server: request: DROPPING: %s", request.message);
+    }
+  }
+};
+
+Server.prototype._set_state = function (state) {
+  if (state !== this._state) {
+    this._state = state;
+
+    this.emit('state', state);
+    if (state === 'online') {
+      this.emit('connect');
+    } else if (state === 'offline') {
+      this.emit('disconnect');
+    }
+  }
+};
+
+Server.prototype._handle_message = function (json) {
+  var self = this;
+
+  var message = JSON.parse(json);
+
+  if (message.type === 'response') {
+    // A response to a request.
+    var request = self._requests[message.id];
+
+    delete self._requests[message.id];
+
+    if (!request) {
+      if (self._remote.trace) utils.logObject("server: UNEXPECTED: %s", message);
+    } else if ('success' === message.status) {
+      if (self._remote.trace) utils.logObject("server: response: %s", message);
+
+      request.emit('success', message.result);
+      self.emit('response_'+request.message.command, message.result, request, message);
+      self._remote.emit('response_'+request.message.command, message.result, request, message);
+    } else if (message.error) {
+      if (self._remote.trace) utils.logObject("server: error: %s", message);
+
+      request.emit('error', {
+        'error'         : 'remoteError',
+        'error_message' : 'Remote reported an error.',
+        'remote'        : message
+      });
+    }
+  } else if (message.type === 'serverStatus') {
+    // This message is only received when online. As we are connected, it is the definative final state.
+    self._set_state(
+      Server.online_states.indexOf(message.server_status) !== -1
+        ? 'online'
+        : 'offline');
+  }
+};
+
+Server.prototype._handle_response_subscribe = function (message)
+{
+  var self = this;
+
+  self._server_status = message.server_status;
+
+  if (Server.online_states.indexOf(message.server_status) !== -1) {
+    self._set_state('online');
+  }
+};
+
+exports.Server = Server;
+
+// vim:sw=2:sts=2:ts=8:et
+
+/******/ /* WEBPACK FREE VAR INJECTION */ }(require(/* __webpack_console */1)))
+
+/******/},
+/******/
+/******/28: function(module, exports, require) {
 
 /******/ /* WEBPACK FREE VAR INJECTION */ (function(console) {
 Function.prototype.method = function(name,func) {
@@ -10137,6 +11285,30 @@ var assert = function (assertion, msg) {
   }
 };
 
+/**
+ * Return unique values in array.
+ */
+var arrayUnique = function (arr) {
+  var u = {}, a = [];
+  for (var i = 0, l = arr.length; i < l; ++i){
+    if (u.hasOwnProperty(arr[i])) {
+      continue;
+    }
+    a.push(arr[i]);
+    u[arr[i]] = 1;
+  }
+  return a;
+};
+
+/**
+ * Convert a ripple epoch to a JavaScript timestamp.
+ *
+ * JavaScript timestamps are unix epoch in milliseconds.
+ */
+var toTimestamp = function (rpepoch) {
+  return (rpepoch + 0x386D4380) * 1000;
+};
+
 exports.trace         = trace;
 exports.arraySet      = arraySet;
 exports.hexToString   = hexToString;
@@ -10146,6 +11318,8 @@ exports.stringToHex   = stringToHex;
 exports.chunkString   = chunkString;
 exports.logObject     = logObject;
 exports.assert        = assert;
+exports.arrayUnique   = arrayUnique;
+exports.toTimestamp   = toTimestamp;
 
 // vim:sw=2:sts=2:ts=8:et
 
@@ -10153,7 +11327,7 @@ exports.assert        = assert;
 
 /******/},
 /******/
-/******/25: function(module, exports, require) {
+/******/29: function(module, exports, require) {
 
 module.exports = WebSocket;
 
