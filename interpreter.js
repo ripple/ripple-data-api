@@ -145,7 +145,7 @@ exports.applyLedger = function (model, e) {
     data.vol = data.vol.to_json();
   });
 
-  model.apply({
+  console.log("MODEL DIFF", {
     ledger_index: e.ledger.seqNum,
     ledger_hash: e.ledger.hash,
     account_count: Object.keys(accounts).length,
@@ -244,5 +244,6 @@ exports.applyTransaction = function (model, e) {
 
   modelDiff.account_count = Object.keys(accounts).length;
 
-  model.apply(modelDiff);
+  console.log("MODEL DIFF", modelDiff);
+  //model.apply(modelDiff);
 };

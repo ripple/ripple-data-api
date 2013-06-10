@@ -94,8 +94,10 @@ Processor.prototype.processLedger = function (ledger_index, callback)
   clearLedger();
 
   function clearLedger() {
-    self.db.query("DELETE FROM trades WHERE ledger = ?",
-                  [ledger_index],
+    self.db.query("DELETE FROM trades WHERE ledger = ?; "+
+                  "DELETE FROM caps WHERE ledger = ?; "+
+                  "DELETE FROM ledgers WHERE id = ?",
+                  [ledger_index, ledger_index, ledger_index],
                   function (err)
     {
       if (err) callback(err);
@@ -120,9 +122,12 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   function processLedger(e) {
     try {
-      var rows = [];
+      var tradeRows = [],
+          fees = Amount.from_json("0"),
+          newAccounts = 0;
 
       var ledger = e.ledger;
+      if (ledger.transactions.length) console.log(ledger);
 
       if (!ledger.close_time) {
         callback(new Error("No ledger close time"));
@@ -144,13 +149,64 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         return a.meta.TransactionIndex - b.meta.TransactionIndex;
       });
 
+      // Other data processing
+      ledger.transactions.forEach(function (tx, i_tx) {
+        // Process metadata
+        tx.mmeta = new Meta(tx.meta);
+
+        fees = fees.add(Amount.from_json(tx.Fee));
+
+        tx.mmeta.each(function (an) {
+          if (an.entryType === "AccountRoot" && an.diffType === "CreatedNode") {
+            newAccounts++;
+          } else if (an.entryType === "RippleState") {
+            /*
+            var cur, account, balance_new, balance_old, negate = false;
+            if ((cur = currenciesById[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
+              account = an.fields.HighLimit.issuer;
+              negate = true;
+            } else if ((cur = currenciesById[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
+              account = an.fields.LowLimit.issuer;
+            } else return;
+
+            var gateway = index.issuers[cur.gat];
+
+            balance_new = (an.diffType === "DeletedNode")
+              ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
+              : Amount.from_json(an.fieldsFinal.Balance);
+            balance_old = (an.diffType === "CreatedNode")
+              ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
+              : Amount.from_json(an.fieldsPrev.Balance);
+
+            if (negate) {
+              balance_new = balance_new.negate();
+              balance_old = balance_old.negate();
+            }
+
+            var balance_diff = balance_new.subtract(balance_old);
+
+            // if (!balance_diff.is_zero())
+
+            if (gateway.hotwallets && gateway.hotwallets[account]) {
+              cur.hot = Amount.from_json(cur.hot).add(balance_diff).to_json();
+
+              console.log("HOT", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.hot).to_text());
+            } else {
+              cur.cap = Amount.from_json(cur.cap).add(balance_diff).to_json();
+
+              console.log("CAP", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.cap).to_text());
+            }
+            */
+          }
+        });
+      });
+
+      // Trade processing
       ledger.transactions.forEach(function (tx, i_tx) {
         if (tx.meta.TransactionResult !== 'tesSUCCESS' ||
             tx.TransactionType !== "Payment" &&
             tx.TransactionType !== "OfferCreate") return;
 
-        // Process metadata
-        tx.mmeta = new Meta(tx.meta);
         var nodes = tx.mmeta.nodes;
 
         nodes = _.filter(nodes, function (an) {
@@ -235,33 +291,52 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
           console.log("TRADE", price.to_text_full(), volume.to_text_full());
 
-          rows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
+          tradeRows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
                      price.is_native() ? price.to_number() / 1000000 : price.to_number(),
                      volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
                      i_tx, i_an]);
         });
       });
 
-      if (rows.length) {
-        self.db.query("INSERT INTO trades" +
+      if (tradeRows.length) {
+        self.db.query("INSERT INTO trades " +
                       "(`c1`, `i1`, `c2`, `i2`," +
                       " `time`, `ledger`, `price`, `amount`," +
-                      " `tx`, `order`)" +
+                      " `tx`, `order`) " +
                       "VALUES ?",
-                      [rows],
+                      [tradeRows],
                       function (err)
                       {
                         if (err) console.error(err);
 
-                        updateStatus();
+                        writeLedger();
                       });
       } else {
-        updateStatus();
+        writeLedger();
+      }
+
+      function writeLedger(err)
+      {
+        if (err) return callback(err);
+
+        self.db.query("INSERT INTO ledgers " +
+                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`) " +
+                      "SELECT ?, ?, ?, `accounts` + ?, ?, ? " +
+                      "FROM ledgers " +
+                      "WHERE `id` = ?",
+                      [ledger_index, ledger.ledger_hash, ledger.total_coins,
+                       newAccounts,
+                       ledger.transactions.length, fees.to_number(),
+                       ledger_index-1],
+                      updateStatus);
       }
     } catch (e) { callback(e); }
   }
 
-  function updateStatus() {
+
+  function updateStatus(err) {
+    if (err) return callback(err);
+
     self.db.query("INSERT INTO config (`key`, `value`) VALUES (?, ?)" +
                   "ON DUPLICATE KEY UPDATE value = ?",
                   ['ledger_processed', ledger_index, ledger_index],

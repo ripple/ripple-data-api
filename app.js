@@ -26,7 +26,8 @@ var db = mysql.createConnection({
   host: config.db.mysql_ip,
   user: config.db.mysql_user,
   password: config.db.mysql_pass,
-  database: config.db.mysql_db
+  database: config.db.mysql_db,
+  multipleStatements: true
 });
 
 // Historic data processor
@@ -101,7 +102,7 @@ remote.on('error', function (err) {
 });
 
 remote.on('transaction_all', function (e) {
-  interp.applyTransaction(model, e);
+  //interp.applyTransaction(model, e);
 });
 
 remote.on('ledger_closed', function (e) {
@@ -131,15 +132,18 @@ remote.on('connected', function(connection) {
     status_connected: true
   });
 
-  remote.request_ledger("ledger_closed", "full")
+  /*
+  remote.request_ledger(32570, "full")
     .on('error', function (err) {
       console.error(err);
     })
     .on('success', function (e) {
+      console.log(e);
       interp.applyLedger(model, e);
       processor.loadState();
     })
     .request();
+  */
 });
 
 remote.on('disconnected', function(connection) {
