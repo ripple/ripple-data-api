@@ -13,6 +13,7 @@
 exports.issuers = [{
   name: "WeExchange",
   url: "https://weexchange.co/",
+  disabled: true,
   currencies: {
     "AUD": "rBcYpuDT1aXNo4jnqczWJTytKGdBGufsre",
     "BTC": "rpvfJ4mR6QQAeogpXEKnuyGBx8mYCSnYZi",
@@ -53,6 +54,23 @@ exports.issuers = [{
   currencies: {
     "LTC": "rDihBcUrrfDwUBZWBcuP2z5n47KVLQFNQH"
   }
+}, {
+  name: "RippleCN",
+  url: "http://ripplecn.com",
+  currencies: {
+    "CNY": "rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK",
+    "BTC": "rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK",
+    "LTC": "rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"
+  }
+}, {
+  name: "SnapSwap",
+  url: "https://www.snapswap.us/",
+  currencies: {
+    "USD": "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q"
+  },
+  hotwallets: {
+    "rhasPLL5GaXzBh5amQkN7Dr1SNF4Whb2ZT": true
+  }
 }];
 
 // Curated list of currencies
@@ -70,15 +88,14 @@ exports.currencies = [
   'NZD',
   'ZAR',
   'SLL',
-  'LTC'
+  'LTC',
+  'CNY'
 ];
 
 // Highlighted XRP markets
 exports.xrp = [
   "USD:Bitstamp",
   "BTC:Bitstamp",
-  "USD:WeExchange",
-  "BTC:WeExchange",
-  "AUD:WeExchange"
-//"CAD:WeExchange"
+  "USD:SnapSwap",
+  "CNY:RippleCN"
 ];
