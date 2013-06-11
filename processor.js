@@ -19,6 +19,34 @@ Processor.prototype.loadState = function ()
 {
   var self = this;
 
+  console.log("LOAD STATE");
+  var state = {};
+  state.tickers = {};
+
+  self.db.query("SELECT * FROM ledgers ORDER BY `id` DESC LIMIT 0,1",
+                function (err, rows)
+  {
+    if (err) console.error(err);
+
+    if (rows[0]) {
+      var ledger = rows[0];
+      state.account_count = ledger.accounts;
+    }
+  });
+
+  _.each(index.xrp, function (data) {
+    // Initialize field with basic properties
+    state.tickers[data.first] = {
+      sym: data.sym,
+      first: data.first,
+      second: "XRP",
+      bid: "0",
+      ask: "0",
+      last: "0",
+      vol: Amount.from_json("0/"+data.first).to_json()
+    };
+  });
+
   _.each(index.xrp, function (ticker, i) {
     self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
                   "ORDER BY time DESC LIMIT 0,1",
@@ -33,6 +61,8 @@ Processor.prototype.loadState = function ()
     });
     self.updateAggregates();
   });
+
+  model.apply(state);
 };
 
 /**
