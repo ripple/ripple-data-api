@@ -21,20 +21,6 @@
               td: a(href="market/{{ticker.sym}}/XRP", ng-bind="ticker.sym")
               td.fin(ng-bind="ticker.last | rpamount:{rel_precision: 0, min_rel_precision: 0}")
               td.fin(ng-bind="ticker.d30.avg * ticker.d30.vol | rpcurr:ticker.second | rpamount:{rel_precision: 0, min_rel_precision: 0}")
-      .widget-box
-        .widget-title
-          span.icon: i.icon-dollar
-          h5 Currencies
-        .widget-content.nopadding
-          table#currency-list.table.table-bordered.table-striped
-            thead: tr
-              th &nbsp;
-              th Issuer
-              th Capitalization
-            tr(ng-repeat="currency in currencies")
-              td(ng-bind="currency.cur")
-              td(ng-bind="issuers[currency.gat].name")
-              td.cap(ng-bind="currency.cap | rpamount:{rel_precision: 0, min_rel_precision: 0}")
     .span5
       .widget-box
         .widget-title
