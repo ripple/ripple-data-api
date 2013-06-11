@@ -132,6 +132,8 @@ remote.on('connected', function(connection) {
     status_connected: true
   });
 
+  processor.loadState();
+
   /*
   remote.request_ledger(32570, "full")
     .on('error', function (err) {
