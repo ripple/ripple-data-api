@@ -47,21 +47,6 @@ Processor.prototype.loadState = function ()
     };
   });
 
-  _.each(index.xrp, function (ticker, i) {
-    self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
-                  "ORDER BY time DESC LIMIT 0,1",
-                  [ticker.cur.id, ticker.iss.id],
-                  function (err, rows)
-    {
-      if (err) console.error(err);
-
-      if (rows[0]) {
-        model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
-      }
-    });
-    self.updateAggregates();
-  });
-
   model.apply(state);
 };
 
@@ -152,6 +137,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   function processLedger(e) {
     try {
+		
       var tradeRows = [],
           fees = Amount.from_json("0"),
           newAccounts = 0;
@@ -182,30 +168,31 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       // Other data processing
       ledger.transactions.forEach(function (tx, i_tx) {
         // Process metadata
-        tx.mmeta = new Meta(tx.meta);
 
+		tx.mmeta = new Meta(tx.meta);
         fees = fees.add(Amount.from_json(tx.Fee));
-
         tx.mmeta.each(function (an) {
           if (an.entryType === "AccountRoot" && an.diffType === "CreatedNode") {
             newAccounts++;
           } else if (an.entryType === "RippleState") {
-            /*
-            var cur, account, balance_new, balance_old, negate = false;
-            if ((cur = currenciesById[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
+
+			var cur, cur_issuer, account, balance_new, balance_old, negate = false;
+            if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
               account = an.fields.HighLimit.issuer;
+			  cur = an.fields.LowLimit.currency;
               negate = true;
-            } else if ((cur = currenciesById[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
+            } else if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
               account = an.fields.LowLimit.issuer;
+			  cur = an.fields.HighLimit.currency;
             } else return;
 
-            var gateway = index.issuers[cur.gat];
+			var gateway = cur_issuer;
 
             balance_new = (an.diffType === "DeletedNode")
-              ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
+              ? Amount.from_json("0/"+cur+"/"+account)
               : Amount.from_json(an.fieldsFinal.Balance);
             balance_old = (an.diffType === "CreatedNode")
-              ? Amount.from_json("0/"+cur.cur+"/"+cur.iss)
+              ? Amount.from_json("0/"+cur+"/"+account)
               : Amount.from_json(an.fieldsPrev.Balance);
 
             if (negate) {
@@ -215,18 +202,54 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
             var balance_diff = balance_new.subtract(balance_old);
 
-            // if (!balance_diff.is_zero())
+			var currency_id = index.currenciesByCode[cur].id;
+			var issuer_id = cur_issuer.id;
 
-            if (gateway.hotwallets && gateway.hotwallets[account]) {
-              cur.hot = Amount.from_json(cur.hot).add(balance_diff).to_json();
+			var type = 0;
+			var hot_val = 0;
+			var cap_val = 0;
 
-              console.log("HOT", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.hot).to_text());
+			if (gateway.hotwallets && gateway.hotwallets[account]) {
+
+			  type = 1;			  
+			  self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 1 ORDER BY time DESC LIMIT 0,1", 
+							[currency_id, issuer_id], 
+							function(err, rows) {
+			    if (err) console.error(err);
+				if(rows && rows[0]) {
+					hot_val = rows[0].amount;
+				}
+				hot_val = hot_val + balance_diff.to_number();
+
+				write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, hot_val);
+			  });
+
             } else {
-              cur.cap = Amount.from_json(cur.cap).add(balance_diff).to_json();
 
-              console.log("CAP", cur.gat, cur.cur, balance_diff.to_text(), Amount.from_json(cur.cap).to_text());
+			  type = 0;
+			  self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 0 ORDER BY time DESC LIMIT 0,1", 
+							[currency_id, issuer_id], 
+							function(err, rows) {
+			    if (err) console.error(err);
+				if(rows && rows[0]) {
+					cap_val = rows[0].amount;
+				}
+				cap_val = cap_val + balance_diff.to_number();
+
+				write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, cap_val);
+			  });
+
             }
-            */
+
+			function write_caps(c, i, type, time, ledger, amount) {
+			  self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?)",
+                  [c, i, type, time, ledger, amount],
+                  function (err)
+			  {
+			    if (err) console.error(err);
+              });
+			}
+            
           }
         });
       });
@@ -379,7 +402,32 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
 Processor.prototype.updateAggregates = function () {
   var self = this;
+  
+  self.db.query("SELECT " + 
+                " accounts " + 
+				" FROM ledgers ORDER BY id DESC " +
+				" LIMIT 0,1", function(err, rows)
+  {
+    if (err) console.error(err);
+
+    if(rows && rows[0]) {
+	  var data = rows[0].accounts || 0;
+	  model.set("account_count", data);
+	}
+  });
+
   _.each(index.xrp, function (ticker, i) {
+    self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
+                  "ORDER BY time DESC LIMIT 0,1",
+                  [ticker.cur.id, ticker.iss.id],
+                  function (err, rows)
+    {
+      if (err) console.error(err);
+
+      if (rows[0]) {
+        model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
+      }
+    });
     [1, 30].forEach(function (days) {
       var cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
@@ -395,7 +443,7 @@ Processor.prototype.updateAggregates = function () {
                     function (err, rows)
       {
         if (err) console.error(err);
-
+		
         if (rows && rows[0]) {
           var data = {
             avg: ""+(rows[0].avg || 0),

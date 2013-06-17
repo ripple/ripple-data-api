@@ -18,10 +18,12 @@ exports.issuers = _.map(markets.issuers, function (issuer, i) {
 exports.issuersByAddress = {};
 exports.issuersByIOU = {};
 exports.issuersByName = {};
+exports.issuerByCurrencyAddress = {};
 exports.issuers.forEach(function (issuer, i) {
   _.each(issuer.currencies, function (address, cur) {
     exports.issuersByAddress[address] = issuer;
     exports.issuersByIOU[cur + ':' + address] = issuer;
+	exports.issuerByCurrencyAddress[cur + ':' + address] = issuer;
   });
   exports.issuersByName[issuer.name] = issuer;
 });
