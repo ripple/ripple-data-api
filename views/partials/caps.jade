@@ -1,0 +1,14 @@
+#content-header
+  h1 Capitalization {{first}}
+#breadcrumb
+  a(href='/')
+    i.icon-home
+    | Home
+  a(href='/') Capitalization
+  a.current {{first}}
+.container-fluid
+  .row-fluid
+    .span12
+      .widget-box.widget-plain
+        #market-chart.widget-content
+          highchart(value="data", height="500")

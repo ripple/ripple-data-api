@@ -143,3 +143,56 @@ exports.market_daily = function (db) {
   };
 };
 
+//Return parameters for Caps process.
+function capsProcessParam (q) {
+  var currency_code = q.first.split(':')[0],
+      issuer_name = q.first.split(':')[1];
+
+  currency_id = index.currenciesByCode[currency_code].id;
+  issuer_id = index.issuersByName[issuer_name].id || index.issuersByAddress[issuer_name].id;
+
+  return [currency_id, issuer_id];
+}
+
+//Return real data from Caps rows.
+function capsProcessRows(rows) {
+  return _.map(rows, function (row) {
+    return [
+      new Date(row.date).getTime(),
+      row.currency,
+      row.issuer,
+      row.type,
+      row.ledger,
+      row.amount
+    ];
+  });
+}
+
+//Get all rows with parameters.
+exports.caps_currency = function (db) {
+  return function (req, res) {
+    var q = req.route.params,
+        caps_arr = capsProcessParam(q);
+    if(caps_arr) {
+	   db.query(
+        "SELECT " +
+        " c as currency, i as issuer, type, DATE(time) AS date, ledger, amount " +
+        "FROM caps " +
+        "WHERE c = ? AND i = ? " +
+        "ORDER BY time",
+        caps_arr,
+        function (err, rows) {
+          if (err) {
+            console.error(err);
+            res.json(null);
+            return;
+          }
+
+          res.json(capsProcessRows(rows));
+        }
+      );
+    } else {
+      res.json(null);
+    }
+  };
+};

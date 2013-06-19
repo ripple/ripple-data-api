@@ -151,3 +151,68 @@ function MarketCtrl($scope, $http, $routeParams)
     };
   });
 }
+
+//Caps Control
+function CapsCtrl($scope, $http, $routeParams) {
+  angular.extend($scope, $routeParams);
+  var symbol = $scope.symbol = $scope.first;
+
+  $http.get('api/caps/'+symbol+'/caps.json').success(function (data) {
+    var dataLength = data.length,
+        hot_data = [],
+        caps_data = [],
+        category = [];
+
+    for (var i = 0; i < dataLength; i++) {
+      category.push(data[i][0]);
+      if (data[i][3] == 0) {
+        caps_data.push(data[i][5]);
+      } else {
+        hot_data.push(data[i][5]);
+      }
+
+      $scope.data = {
+        chart: {
+          type: 'line'
+        },
+
+        title: {
+          text: symbol
+        },
+
+        xAxis: {
+          type: 'datetime',
+          categories: category,
+          labels: {
+            formatter : function() {
+              return Highcharts.dateFormat('%a, %b %d', this.value)
+            }
+          }
+        },
+
+        yAxis: {
+          title: {
+            text: 'Amount'
+          },
+          plotLines: [{
+            value: 0,
+            width: 1,
+            color: '#808080'
+          }]
+        },
+
+        tooltip: {
+          borderColor: "#2F7ED8"
+        },
+
+        series: [{
+            name: 'Hotwallets',
+            data: hot_data
+          }, {
+            name: 'Capitalization',
+            data: caps_data
+        }]
+      };
+    }
+  });
+}

@@ -83,6 +83,8 @@ app.get('/partials/:name', routes.partials);
 app.get('/api/name', api.name);
 app.get('/api/market/:first/:second/hourly.json', api.market_hourly(db));
 app.get('/api/market/:first/:second/daily.json', api.market_daily(db));
+//Caps
+app.get('/api/caps/:first/caps.json', api.caps_currency(db));
 
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);
