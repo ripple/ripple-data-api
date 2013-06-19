@@ -163,7 +163,7 @@ function capsProcessRows(rows) {
       row.issuer,
       row.type,
       row.ledger,
-      row.amount
+      row.val
     ];
   });
 }
@@ -176,10 +176,10 @@ exports.caps_currency = function (db) {
     if(caps_arr) {
 	   db.query(
         "SELECT " +
-        " c as currency, i as issuer, type, DATE(time) AS date, ledger, amount " +
+        " c as currency, i as issuer, type, DATE(time) AS date, ledger, AVG(amount) as val " +
         "FROM caps " +
         "WHERE c = ? AND i = ? " +
-        "ORDER BY time",
+        "GROUP BY type, TO_DAYS(time), HOUR(time)",
         caps_arr,
         function (err, rows) {
           if (err) {
