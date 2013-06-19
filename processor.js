@@ -137,7 +137,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   function processLedger(e) {
     try {
-		
+
       var tradeRows = [],
           fees = Amount.from_json("0"),
           newAccounts = 0;
@@ -169,24 +169,24 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       ledger.transactions.forEach(function (tx, i_tx) {
         // Process metadata
 
-		tx.mmeta = new Meta(tx.meta);
+        tx.mmeta = new Meta(tx.meta);
         fees = fees.add(Amount.from_json(tx.Fee));
         tx.mmeta.each(function (an) {
           if (an.entryType === "AccountRoot" && an.diffType === "CreatedNode") {
             newAccounts++;
           } else if (an.entryType === "RippleState") {
-
-			var cur, cur_issuer, account, balance_new, balance_old, negate = false;
+            //Insert Capitalizations Data
+            var cur, cur_issuer, account, balance_new, balance_old, negate = false;
             if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
               account = an.fields.HighLimit.issuer;
-			  cur = an.fields.LowLimit.currency;
+              cur = an.fields.LowLimit.currency;
               negate = true;
             } else if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
               account = an.fields.LowLimit.issuer;
-			  cur = an.fields.HighLimit.currency;
+              cur = an.fields.HighLimit.currency;
             } else return;
 
-			var gateway = cur_issuer;
+            var gateway = cur_issuer;
 
             balance_new = (an.diffType === "DeletedNode")
               ? Amount.from_json("0/"+cur+"/"+account)
@@ -202,54 +202,53 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
             var balance_diff = balance_new.subtract(balance_old);
 
-			var currency_id = index.currenciesByCode[cur].id;
-			var issuer_id = cur_issuer.id;
+            var currency_id = index.currenciesByCode[cur].id;
+            var issuer_id = cur_issuer.id;
 
-			var type = 0;
-			var hot_val = 0;
-			var cap_val = 0;
+            var type = 0;
+            var hot_val = 0;
+            var cap_val = 0;
 
-			if (gateway.hotwallets && gateway.hotwallets[account]) {
+            if (gateway.hotwallets && gateway.hotwallets[account]) {
 
-			  type = 1;			  
-			  self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 1 ORDER BY time DESC LIMIT 0,1", 
-							[currency_id, issuer_id], 
-							function(err, rows) {
-			    if (err) console.error(err);
-				if(rows && rows[0]) {
-					hot_val = rows[0].amount;
-				}
-				hot_val = hot_val + balance_diff.to_number();
+              type = 1;			  
+              self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 1 ORDER BY time DESC LIMIT 0,1", 
+                            [currency_id, issuer_id], 
+                            function(err, rows) {
+                if (err) console.error(err);
+                if(rows && rows[0]) {
+                  hot_val = rows[0].amount;
+                }
+                hot_val = hot_val + balance_diff.to_number();
 
-				write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, hot_val);
-			  });
+                write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, hot_val);
+              });
 
             } else {
 
-			  type = 0;
-			  self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 0 ORDER BY time DESC LIMIT 0,1", 
-							[currency_id, issuer_id], 
-							function(err, rows) {
-			    if (err) console.error(err);
-				if(rows && rows[0]) {
-					cap_val = rows[0].amount;
-				}
-				cap_val = cap_val + balance_diff.to_number();
+              type = 0;
+              self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 0 ORDER BY time DESC LIMIT 0,1", 
+                            [currency_id, issuer_id], 
+                            function(err, rows) {
+                if (err) console.error(err);
+                if(rows && rows[0]) {
+                  cap_val = rows[0].amount;
+                }
+                cap_val = cap_val + balance_diff.to_number();
 
-				write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, cap_val);
-			  });
+                write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, cap_val);
+              });
 
             }
 
-			function write_caps(c, i, type, time, ledger, amount) {
-			  self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?)",
-                  [c, i, type, time, ledger, amount],
-                  function (err)
-			  {
-			    if (err) console.error(err);
+            function write_caps(c, i, type, time, ledger, amount) {
+              self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?)",
+                            [c, i, type, time, ledger, amount],
+                            function (err) {
+                if (err) console.error(err);
               });
-			}
-            
+            }
+
           }
         });
       });
@@ -405,15 +404,15 @@ Processor.prototype.updateAggregates = function () {
   
   self.db.query("SELECT " + 
                 " accounts " + 
-				" FROM ledgers ORDER BY id DESC " +
-				" LIMIT 0,1", function(err, rows)
+                " FROM ledgers ORDER BY id DESC " +
+                " LIMIT 0,1", function(err, rows)
   {
     if (err) console.error(err);
 
     if(rows && rows[0]) {
-	  var data = rows[0].accounts || 0;
-	  model.set("account_count", data);
-	}
+      var data = rows[0].accounts || 0;
+      model.set("account_count", data);
+    }
   });
 
   _.each(index.xrp, function (ticker, i) {
@@ -443,7 +442,7 @@ Processor.prototype.updateAggregates = function () {
                     function (err, rows)
       {
         if (err) console.error(err);
-		
+
         if (rows && rows[0]) {
           var data = {
             avg: ""+(rows[0].avg || 0),
