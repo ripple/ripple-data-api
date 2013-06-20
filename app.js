@@ -6,6 +6,7 @@
 var express = require('express'),
     extend = require('extend'),
     fs = require('fs'),
+    winston = require('winston'),
     config = require('./config'),
     routes = require('./routes'),
     api = require('./routes/api'),
@@ -83,6 +84,8 @@ app.get('/partials/:name', routes.partials);
 app.get('/api/name', api.name);
 app.get('/api/market/:first/:second/hourly.json', api.market_hourly(db));
 app.get('/api/market/:first/:second/daily.json', api.market_daily(db));
+//Intraday
+app.get('/api/intraday/:first/:second/intraday.json', api.intraday_trade(db));
 //Caps
 app.get('/api/caps/:first/caps.json', api.caps_currency(db));
 
@@ -100,7 +103,7 @@ io.sockets.on('connection', function (socket) {
 });
 
 remote.on('error', function (err) {
-  console.error(err);
+  winston.error(err);
 });
 
 remote.on('transaction_all', function (e) {
@@ -108,7 +111,7 @@ remote.on('transaction_all', function (e) {
 });
 
 remote.on('ledger_closed', function (e) {
-  console.log('LEDGER CLOSE ' + e.ledger_index + ' ' + e.validated_ledgers);
+  winston.info('LEDGER CLOSE ' + e.ledger_index + ' ' + e.validated_ledgers);
 
   var status_ledger = false, vrange;
   if ("string" === typeof e.validated_ledgers) {
@@ -128,7 +131,7 @@ remote.on('ledger_closed', function (e) {
 });
 
 remote.on('connected', function(connection) {
-  console.log('WebSocket client connected');
+  winston.info('WebSocket client connected');
 
   model.apply({
     status_connected: true
@@ -161,7 +164,7 @@ startupHttp();
 function startupHttp()
 {
   server.listen(http_config.port, function(){
-    console.log("Express server listening on port %d in %s mode",
+    winston.info("Express server listening on port %d in %s mode",
                 this.address().port, app.settings.env);
 
     startupMysql();
@@ -172,11 +175,11 @@ function startupMysql()
 {
   db.connect(function (err) {
     if (err) {
-      console.error(err);
+      winston.error(err);
       process.exit(1);
     }
 
-    console.log("Connected to MySQL server");
+    winston.info("Connected to MySQL server");
     startupRipple();
   });
 }
