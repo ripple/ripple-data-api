@@ -1,4 +1,5 @@
 var _ = require('lodash');
+var winston = require('winston');
 
 var config = require('./config');
 var index = require('./indexes');
@@ -19,14 +20,14 @@ Processor.prototype.loadState = function ()
 {
   var self = this;
 
-  console.log("LOAD STATE");
+  winston.info("LOAD STATE");
   var state = {};
   state.tickers = {};
 
   self.db.query("SELECT * FROM ledgers ORDER BY `id` DESC LIMIT 0,1",
                 function (err, rows)
   {
-    if (err) console.error(err);
+    if (err) winston.error(err);
 
     if (rows[0]) {
       var ledger = rows[0];
@@ -69,7 +70,7 @@ Processor.prototype.processValidated = function (vrange)
     self.processing = false;
 
     if (err) {
-      console.error(err);
+      winston.error(err);
       return;
     }
 
@@ -93,7 +94,7 @@ Processor.prototype.processNextValidated = function (vrange, start)
     self.processing = false;
 
     if (err) {
-      console.error(err.stack ? err.stack : err);
+      winston.error(err.stack ? err.stack : err);
     } else {
       self.processNextValidated(vrange, start+1);
     }
@@ -104,7 +105,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 {
   var self = this;
 
-  console.log("Processing ledger "+ledger_index);
+  winston.info("Processing ledger "+ledger_index);
 
   clearLedger();
 
@@ -141,9 +142,14 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       var tradeRows = [],
           fees = Amount.from_json("0"),
           newAccounts = 0;
-
+      
+      var caps_amount = [],
+          hots_amount = [],
+          hots_data = [],
+          caps_data = [] ;
+	  
       var ledger = e.ledger;
-      if (ledger.transactions.length) console.log(ledger);
+      if (ledger.transactions.length) winston.info(ledger);
 
       if (!ledger.close_time) {
         callback(new Error("No ledger close time"));
@@ -176,6 +182,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             newAccounts++;
           } else if (an.entryType === "RippleState") {
             //Insert Capitalizations Data
+
             var cur, cur_issuer, account, balance_new, balance_old, negate = false;
             if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
               account = an.fields.HighLimit.issuer;
@@ -201,7 +208,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             }
 
             var balance_diff = balance_new.subtract(balance_old);
-
+            
             var currency_id = index.currenciesByCode[cur].id;
             var issuer_id = cur_issuer.id;
 
@@ -210,48 +217,77 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             var cap_val = 0;
 
             if (gateway.hotwallets && gateway.hotwallets[account]) {
-
               type = 1;			  
-              self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 1 ORDER BY time DESC LIMIT 0,1", 
-                            [currency_id, issuer_id], 
-                            function(err, rows) {
-                if (err) console.error(err);
-                if(rows && rows[0]) {
-                  hot_val = rows[0].amount;
-                }
-                hot_val = hot_val + balance_diff.to_number();
+              if (hots_amount.length < 1) {
+                self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 1 ORDER BY time DESC LIMIT 0,1", 
+                              [currency_id, issuer_id], 
+                              function(err, rows) {
+                  if (err) winston.error(err);
+                  if(rows && rows[0]) {
+                    hot_val = rows[0].amount;
+                  }
+                });
+              } else {
+                hot_val = hots_amount[hots_amount.length - 1];
+              }
+              hot_val = hot_val + balance_diff.to_number();
+              hots_amount.push(hot_val);
 
-                write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, hot_val);
-              });
-
+              hots_data.push([currency_id, issuer_id, type, ledger_date, ledger_index, hot_val]);
             } else {
-
               type = 0;
-              self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 0 ORDER BY time DESC LIMIT 0,1", 
-                            [currency_id, issuer_id], 
-                            function(err, rows) {
-                if (err) console.error(err);
-                if(rows && rows[0]) {
-                  cap_val = rows[0].amount;
-                }
-                cap_val = cap_val + balance_diff.to_number();
+              if (caps_amount.length < 1) {
+                self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 0 ORDER BY time DESC LIMIT 0,1", 
+                              [currency_id, issuer_id], 
+                              function(err, rows) {
+                  if (err) winston.error(err);
+                  if(rows && rows[0]) {
+                    cap_val = rows[0].amount;
+                  }
+                });
+              } else {
+                cap_val = caps_amount[caps_amount.length - 1];
+              }
+              cap_val = cap_val + balance_diff.to_number();
+              caps_amount.push(cap_val);
 
-                write_caps(currency_id, issuer_id, type, ledger_date, ledger_index, cap_val);
-              });
-
+              caps_data.push([currency_id, issuer_id, type, ledger_date, ledger_index, cap_val]);
             }
-
-            function write_caps(c, i, type, time, ledger, amount) {
-              self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?)",
-                            [c, i, type, time, ledger, amount],
-                            function (err) {
-                if (err) console.error(err);
-              });
-            }
-
           }
         });
       });
+
+      if (caps_data.length > 0)
+      {
+        caps_data.forEach(function(cap_data) {
+          self.db.query("DELETE FROM caps WHERE type = 0  and ledger = ?",
+                        [ledger_index],
+                        function (err) {
+            if (err) winston.error(err);
+          });
+          self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?) ",
+                        cap_data,
+                        function (err) {
+            if (err) winston.error(err);
+          });
+        });
+      }
+
+      if (hots_data.length > 0)
+      {
+        hots_data.forEach(function(hot_data) {
+          self.db.query("DELETE FROM caps WHERE type = 1 and ledger = ?",
+                        [ledger_index],
+                        function (err) {
+            if (err) winston.error(err);
+          });
+          self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?) ",
+                        hot_data,
+                        function (err) {
+            if (err) winston.error(err);
+          });
+        });
+      }
 
       // Trade processing
       ledger.transactions.forEach(function (tx, i_tx) {
@@ -274,7 +310,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           var trade_pays = Amount.from_json(an.fieldsPrev.TakerPays);
 
           if (!trade_gets.is_valid() || !trade_pays.is_valid()) {
-            console.log("TRADE ERR (INVALID AMNTS)");
+            winston.error("TRADE ERR (INVALID AMNTS)");
             return false;
           }
 
@@ -301,7 +337,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           //console.log("TRADE POSTFILTER");
 
           if (cg.id === cp.id && ig.id === ip.id) {
-            console.log("TRADE ERR (SAME FOR SAME)");
+            winston.error("TRADE ERR (SAME FOR SAME)");
             return false;
           }
 
@@ -341,7 +377,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             }
           }
 
-          console.log("TRADE", price.to_text_full(), volume.to_text_full());
+          winston.info("TRADE", price.to_text_full(), volume.to_text_full());
 
           tradeRows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
                      price.is_native() ? price.to_number() / 1000000 : price.to_number(),
@@ -359,7 +395,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                       [tradeRows],
                       function (err)
                       {
-                        if (err) console.error(err);
+                        if (err) winston.error(err);
 
                         writeLedger();
                       });
@@ -407,7 +443,7 @@ Processor.prototype.updateAggregates = function () {
                 " FROM ledgers ORDER BY id DESC " +
                 " LIMIT 0,1", function(err, rows)
   {
-    if (err) console.error(err);
+    if (err) winston.error(err);
 
     if(rows && rows[0]) {
       var data = rows[0].accounts || 0;
@@ -421,7 +457,7 @@ Processor.prototype.updateAggregates = function () {
                   [ticker.cur.id, ticker.iss.id],
                   function (err, rows)
     {
-      if (err) console.error(err);
+      if (err) winston.error(err);
 
       if (rows[0]) {
         model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
@@ -441,7 +477,7 @@ Processor.prototype.updateAggregates = function () {
                     [ticker.cur.id, ticker.iss.id, cutoff],
                     function (err, rows)
       {
-        if (err) console.error(err);
+        if (err) winston.error(err);
 
         if (rows && rows[0]) {
           var data = {
