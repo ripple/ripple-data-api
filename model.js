@@ -1,5 +1,6 @@
 var extend = require('extend');
 var _ = require('lodash');
+var winston = require('winston');
 
 var model = exports;
 
@@ -27,6 +28,6 @@ model.set = function (path_str, value) {
     }
   }
 
-  console.log("SET", path_str, value);
+  winston.info("SET", path_str, value);
   model.broadcast('set', [path_str, value]);
 }
