@@ -196,3 +196,45 @@ exports.caps_currency = function (db) {
     }
   };
 };
+
+//Intraday
+function intradayProcessRows(rows) {
+  return _.map(rows, function (row) {
+    return [
+      new Date(row.date).getTime(),
+      row.price,
+      row.amount
+    ];
+  });
+}
+
+exports.intraday_trade = function (db) {
+  return function (req, res) {
+    var q = req.route.params,
+        book = marketProcessParam(q),
+        period = parseInt(req.query.period),
+        start = req.query.start;
+    book.push(start, period);
+    if (book) {
+      db.query(
+        "SELECT " +
+        "DATE_FORMAT(time, '%Y %m %d %H:00:00') AS date, price, amount " +
+        "FROM trades " +
+        "WHERE c1 = ? AND i1 = ? AND c2 = ? AND i2 = ? AND " + 
+        "TIMESTAMPDIFF(HOUR, DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s'), DATE_FORMAT(time, '%Y-%m-%d %H:%i:%s')) BETWEEN 0 AND ? ",
+        book.slice(1),
+        function (err, rows) {
+          if (err) {
+            console.error(err);
+            res.json(null);
+            return;
+          }
+
+          res.json(intradayProcessRows(rows));
+        }
+      );
+    } else {
+      res.json(null);
+    }
+  };
+};

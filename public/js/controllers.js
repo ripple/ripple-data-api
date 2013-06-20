@@ -213,3 +213,59 @@ function CapsCtrl($scope, $http, $routeParams) {
     
   });
 }
+
+//Intraday Ctrl
+function IntradayCtrl($scope, $http, $routeParams)
+{
+  angular.extend($scope, $routeParams);
+  var symbol = $scope.symbol = $scope.first + "/" + $scope.second,
+      period_param = $scope.period_param = $scope.period,
+      start_param = $scope.start_param = $scope.start;
+
+  $http.get('api/intraday/'+symbol+'/intraday.json?period=' + period_param + '&start=' + start_param ).success(function (data) {
+    var dataLength = data.length,
+        intra_data = [];
+
+    for (var i = 0; i < dataLength; i++) {
+      intra_data.push([data[i][0], data[i][2]]);
+    }
+    $scope.data = {
+      chart: {
+        type: 'line'
+      },
+
+      title: {
+        text: symbol
+      },
+
+      xAxis: {
+        type: 'datetime',
+        labels: {
+          formatter : function() {
+            return Highcharts.dateFormat('%a, %b %d', this.value)
+          }
+        }
+      },
+
+      yAxis: {
+        title: {
+          text: 'Amount'
+        },
+        plotLines: [{
+          value: 0,
+          width: 1,
+          color: '#808080'
+        }]
+      },
+
+      tooltip: {
+        borderColor: "#2F7ED8"
+      },
+
+      series: [{
+          name: 'Intraday',
+          data: intra_data
+      }]
+    };
+  });
+}

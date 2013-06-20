@@ -1,0 +1,14 @@
+#content-header
+  h1 Intraday {{first}}/{{second}}
+#breadcrumb
+  a(href='/')
+    i.icon-home
+    | Home
+  a(href='/') Intraday
+  a.current {{first}}/{{second}}
+.container-fluid
+  .row-fluid
+    .span12
+      .widget-box.widget-plain
+        #market-chart.widget-content
+          highchart(value="data", height="500")

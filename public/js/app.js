@@ -10,6 +10,9 @@ angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
     $routeProvider.when('/grid', {templateUrl: 'partials/grid'});
     $routeProvider.when('/market/:first/:second', {templateUrl: 'partials/market',
                                                    controller: MarketCtrl});
+    //Intraday
+    $routeProvider.when('/intraday/:first/:second', {templateUrl: 'partials/intraday',
+                                                   controller: IntradayCtrl});
     //Caps
     $routeProvider.when('/caps/:first', {templateUrl: 'partials/caps',
                                          controller: CapsCtrl});
