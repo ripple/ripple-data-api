@@ -143,11 +143,9 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           fees = Amount.from_json("0"),
           newAccounts = 0;
       
-      var caps_amount = [],
-          hots_amount = [],
-          hots_data = [],
-          caps_data = [] ;
-	  
+      var caps_amount = {},
+          hots_amount = {};
+
       var ledger = e.ledger;
       if (ledger.transactions.length) winston.info(ledger);
 
@@ -185,11 +183,11 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
             var cur, cur_issuer, account, balance_new, balance_old, negate = false;
             if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
-              account = an.fields.HighLimit.issuer;
+              account = an.fields.LowLimit.issuer;
               cur = an.fields.LowLimit.currency;
               negate = true;
             } else if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
-              account = an.fields.LowLimit.issuer;
+              account = an.fields.HighLimit.issuer;
               cur = an.fields.HighLimit.currency;
             } else return;
 
@@ -208,7 +206,6 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             }
 
             var balance_diff = balance_new.subtract(balance_old);
-            
             var currency_id = index.currenciesByCode[cur].id;
             var issuer_id = cur_issuer.id;
 
@@ -217,75 +214,59 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             var cap_val = 0;
 
             if (gateway.hotwallets && gateway.hotwallets[account]) {
-              type = 1;			  
-              if (hots_amount.length < 1) {
-                self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 1 ORDER BY time DESC LIMIT 0,1", 
-                              [currency_id, issuer_id], 
-                              function(err, rows) {
-                  if (err) winston.error(err);
-                  if(rows && rows[0]) {
-                    hot_val = rows[0].amount;
-                  }
-                });
+              if (hots_amount[cur + ":" + account]) {
+                hots_amount[cur + ":" + account] = hots_amount+[cur + ":" + account].add(balance_diff.to_number());
               } else {
-                hot_val = hots_amount[hots_amount.length - 1];
+                hots_amount[cur + ":" + account] = balance_diff;
               }
-              hot_val = hot_val + balance_diff.to_number();
-              hots_amount.push(hot_val);
-
-              hots_data.push([currency_id, issuer_id, type, ledger_date, ledger_index, hot_val]);
             } else {
-              type = 0;
-              if (caps_amount.length < 1) {
-                self.db.query("SELECT amount FROM caps WHERE c = ? and i = ? and type = 0 ORDER BY time DESC LIMIT 0,1", 
-                              [currency_id, issuer_id], 
-                              function(err, rows) {
-                  if (err) winston.error(err);
-                  if(rows && rows[0]) {
-                    cap_val = rows[0].amount;
-                  }
-                });
+              if (caps_amount[cur + ":" + account]) {
+                caps_amount[cur + ":" + account] = caps_amount[cur + ":" + account].add(balance_diff.to_number());
               } else {
-                cap_val = caps_amount[caps_amount.length - 1];
+                caps_amount[cur + ":" + account] = balance_diff;
               }
-              cap_val = cap_val + balance_diff.to_number();
-              caps_amount.push(cap_val);
-
-              caps_data.push([currency_id, issuer_id, type, ledger_date, ledger_index, cap_val]);
             }
           }
         });
       });
 
-      if (caps_data.length > 0)
-      {
-        caps_data.forEach(function(cap_data) {
-          self.db.query("DELETE FROM caps WHERE type = 0  and ledger = ?",
-                        [ledger_index],
-                        function (err) {
-            if (err) winston.error(err);
-          });
-          self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?) ",
-                        cap_data,
-                        function (err) {
-            if (err) winston.error(err);
-          });
+      _.each(caps_amount, function(amount, key) {
+        var i = index.issuersByAddress[key.split(':')[1]].id, 
+            c = index.currenciesByCode[key.split(':')[0]].id;
+        var cap_val = 0,
+            type = 0;
+        self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 0 AND ledger < ? ORDER BY ledger DESC LIMIT 0,1", 
+                      [c, i, ledger_index], 
+                      function(err, rows) {
+          if (err) winston.error(err);
+          if(rows && rows[0]) {
+            cap_val = amount.to_number() + rows[0].amount;
+            write_caps(c, i, type, ledger_date, ledger_index, cap_val);
+          }
         });
-      }
+      });
 
-      if (hots_data.length > 0)
-      {
-        hots_data.forEach(function(hot_data) {
-          self.db.query("DELETE FROM caps WHERE type = 1 and ledger = ?",
-                        [ledger_index],
-                        function (err) {
+      _.each(hots_amount, function(amount, key) {
+        var i = index.issuersByAddress[key.split(':')[1]].id, 
+            c = index.currenciesByCode[key.split(':')[0]].id;
+        var hot_val = 0,
+            type = 1;
+        self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 1 AND ledger < ? ORDER BY ledger DESC LIMIT 0,1", 
+                      [c, i, ledger_index], 
+                      function(err, rows) {
+          if (err) winston.error(err);
+          if(rows && rows[0]) {
+            hot_val = amount.to_number() + rows[0].amount;
+            write_caps(c, i, type, ledger_date, ledger_index, hot_val);
+          }
+        });
+      });
+
+      function write_caps(c, i, type, time, ledger, amount) {
+        self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?)",
+                      [c, i, type, time, ledger, amount],
+          function (err) {
             if (err) winston.error(err);
-          });
-          self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?) ",
-                        hot_data,
-                        function (err) {
-            if (err) winston.error(err);
-          });
         });
       }
 
