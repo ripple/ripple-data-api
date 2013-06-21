@@ -432,6 +432,29 @@ Processor.prototype.updateAggregates = function () {
     }
   });
 
+  _.each(index.issuerByCurrencyAddress, function (issuer1, key1) {
+    _.each(index.issuerByCurrencyAddress, function (issuer2, key2) {
+      if (key1 === key2) return;
+      var i1 = issuer1.id,
+          i2 = issuer2.id,
+          c1 = index.currenciesByCode[key1.slice(0,3)].id,
+     	  c2 = index.currenciesByCode[key2.slice(0,3)].id;
+      if (c1 > c2 || (c1 === c2 && i1 > i2)) return;
+      
+      self.db.query("SELECT * FROM trades WHERE c1 = ? AND i1 = ? AND c2 = ? AND i2 = ? " +
+                    "ORDER BY time DESC LIMIT 0,1",
+                    [c1, i1, c2, i2],
+                    function (err, rows)
+      {
+        if (err) winston.error(err);
+
+        if (rows[0]) {
+          model.set("crosstickers."+key1+"."+key2+".last", ""+(rows[0].price*1000000));
+        }
+      });
+    });
+  });
+
   _.each(index.xrp, function (ticker, i) {
     self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
                   "ORDER BY time DESC LIMIT 0,1",
