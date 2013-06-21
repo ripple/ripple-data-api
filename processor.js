@@ -449,7 +449,7 @@ Processor.prototype.updateAggregates = function () {
         if (err) winston.error(err);
 
         if (rows[0]) {
-          model.set("crosstickers."+key1+"."+key2+".last", ""+(rows[0].price*1000000));
+          model.set("crosstickers."+key1+"."+key2+".last", ""+(rows[0].price));
         }
       });
     });
