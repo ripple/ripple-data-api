@@ -47,17 +47,17 @@ exports.currencies.forEach(function (cur) {
 // -----------------------------------------------------------------------------
 
 // Process XRP markets
-exports.xrp = _.map(markets.xrp, function (market, i) {
-  var curCode = market.split(':')[0],
-      issName = market.split(':')[1];
-  return {
-    id: i,
-    sym: market,
-    first: curCode + "/" + exports.issuersByName[issName].currencies[curCode],
-    second: "XRP",
-    cur: exports.currenciesByCode[curCode],
-    iss: exports.issuersByName[issName]
-  };
+exports.xrp = [];
+_.each(exports.issuers, function (issuer) {
+  _.each(issuer.currencies, function (address, currency) {
+    exports.xrp.push({
+      sym: currency + ":" + issuer.name,
+      first: currency + "/" + address,
+      second: "XRP",
+      cur: exports.currenciesByCode[currency],
+      iss: issuer
+    });
+  });
 });
 
 // Index XRP markets

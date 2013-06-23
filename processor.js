@@ -23,6 +23,8 @@ Processor.prototype.loadState = function ()
   winston.info("LOAD STATE");
   var state = {};
   state.tickers = {};
+  state.issuers = [];
+  state.currencies = {};
 
   self.db.query("SELECT * FROM ledgers ORDER BY `id` DESC LIMIT 0,1",
                 function (err, rows)
@@ -46,6 +48,32 @@ Processor.prototype.loadState = function ()
       last: "0",
       vol: Amount.from_json("0/"+data.first).to_json()
     };
+  });
+
+  _.each(index.issuers, function (data) {
+    state.issuers[data.id] = data;
+    _.each(data.currencies, function (issuer, currency) {
+      state.currencies[currency + ":" + issuer] = {
+        cur: currency,
+        iss: issuer,
+        gat: data.id
+      };
+    });
+  });
+
+  _.each(index.xrp, function (ticker, i) {
+    self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
+                  "ORDER BY time DESC LIMIT 0,1",
+                  [ticker.cur.id, ticker.iss.id],
+                  function (err, rows)
+    {
+      if (err) console.error(err);
+
+      if (rows[0]) {
+        model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
+      }
+    });
+    self.updateAggregates();
   });
 
   model.apply(state);
@@ -123,16 +151,34 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   function requestLedger() {
     try {
+      var replied = false;
       self.remote.request_ledger(undefined, { transactions: true, expand: true })
         .ledger_index(ledger_index)
         .on('error', function (err) {
+          if (replied) return;
+          console.log("REQUEST LEDGER ERROR");
+          replied = true;
           callback(err);
         })
         .on('success', function (m) {
+          if (replied) return;
+          replied = true;
           processLedger(m);
         })
         .request()
       ;
+
+      // As of writing this, ripple-lib does not handle the server connection
+      // being lost while waiting for a ledger request response.
+      //
+      // This can get the whole processing pipeline stuck, so we add a timeout
+      // so we can recover from this condition.
+      setTimeout(function () {
+        if (replied) return;
+        console.log("REQUEST LEDGER TIMEOUT");
+        replied = true;
+        callback(new Error("Ledger request timed out"));
+      }, 10000);
     } catch(e) { callback(e); }
   }
 
@@ -142,12 +188,11 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       var tradeRows = [],
           fees = Amount.from_json("0"),
           newAccounts = 0;
-      
+
       var caps_amount = {},
           hots_amount = {};
 
       var ledger = e.ledger;
-      if (ledger.transactions.length) winston.info(ledger);
 
       if (!ledger.close_time) {
         callback(new Error("No ledger close time"));
