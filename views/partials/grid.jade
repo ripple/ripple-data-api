@@ -23,10 +23,10 @@
             tr
               th XRP
               td -
-              td(ng-repeat="c2 in currencies"): a(href="market/{{c2.cur}}:{{issuers[c2.gat].name}}/XRP", ng-bind="tickers[c2.cur + '/' + c2.iss].last | rpcurr:tickers[c2.cur + '/' + c2.iss].first | rpamount:{rel_precision: 0, min_rel_precision: 0}")
+              td(ng-repeat="c2 in currencies"): a(href="market/{{c2.cur}}:{{issuers[c2.gat].name}}/XRP", ng-bind="tickers[c2.cur + '/' + c2.iss].last/1000000 | rpcurr:tickers[c2.cur + '/' + c2.iss].first | rpamount:{rel_precision: 0, min_rel_precision: 0}")
             tr(ng-repeat="c1 in currencies")
               th {{c1.cur}}<br>{{issuers[c1.gat].name}}
-              td: a(href="market/XRP/{{c1.cur}}:{{issuers[c1.gat].name}}") {{1/tickers[c1.cur + '/' + c1.iss].last}}
+              td: a(href="market/XRP/{{c1.cur}}:{{issuers[c1.gat].name}}") {{1/tickers[c1.cur + '/' + c1.iss].last*1000000}}
               td(ng-repeat="c2 in currencies")
                 a(ng-hide="c1 == c2", href="market/{{c2.cur}}:{{issuers[c2.gat].name}}/{{c1.cur}}:{{issuers[c1.gat].name}}") 
                   span(ng-bind="crosstickers[c2.cur + ':' + c2.iss][c1.cur + ':' + c1.iss].last | rpcurr:c2.cur + '/' + c2.iss | rpamount:{rel_precision: 0, min_rel_precision: 0}")
