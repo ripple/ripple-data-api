@@ -238,7 +238,7 @@ function IntradayCtrl($scope, $http, $routeParams)
         intra_data = [];
 
     for (var i = 0; i < dataLength; i++) {
-      intra_data.push([data[i][0], data[i][2]]);
+      intra_data.push([data[i][0], data[i][1]]);
     }
     $scope.data = {
       chart: {
@@ -260,7 +260,7 @@ function IntradayCtrl($scope, $http, $routeParams)
 
       yAxis: {
         title: {
-          text: 'Amount'
+          text: 'Price'
         },
         plotLines: [{
           value: 0,

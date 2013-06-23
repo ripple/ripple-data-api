@@ -221,7 +221,7 @@ exports.intraday_trade = function (db) {
         "DATE_FORMAT(time, '%Y %m %d %H:00:00') AS date, price, amount " +
         "FROM trades " +
         "WHERE c1 = ? AND i1 = ? AND c2 = ? AND i2 = ? AND " + 
-        "TIMESTAMPDIFF(HOUR, DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s'), DATE_FORMAT(time, '%Y-%m-%d %H:%i:%s')) BETWEEN 0 AND ? ",
+        "TIMESTAMPDIFF(HOUR, DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s'), time) BETWEEN 0 AND ? ",
         book.slice(1),
         function (err, rows) {
           if (err) {
