@@ -45,17 +45,24 @@ exports.currencies.forEach(function (cur) {
 });
 
 // -----------------------------------------------------------------------------
+exports.xrpHighlightedBySymbol = {};
+_.each(markets.xrp, function (symbol, i) {
+  exports.xrpHighlightedBySymbol[symbol] = i;
+});
 
 // Process XRP markets
 exports.xrp = [];
 _.each(exports.issuers, function (issuer) {
   _.each(issuer.currencies, function (address, currency) {
+    var symbol = currency + ":" + issuer.name;
     exports.xrp.push({
-      sym: currency + ":" + issuer.name,
+      sym: symbol,
       first: currency + "/" + address,
       second: "XRP",
       cur: exports.currenciesByCode[currency],
-      iss: issuer
+      iss: issuer,
+      // Is highlighted? (highlighted means featured on front page)
+      hl: "undefined" !== typeof exports.xrpHighlightedBySymbol[symbol]
     });
   });
 });
