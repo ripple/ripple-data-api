@@ -37,7 +37,8 @@ DashboardCtrl.$inject = [];
 
 function MarketCtrl($scope, $http, $routeParams)
 {
-  angular.extend($scope, $routeParams);
+  $scope.first = $routeParams.first;
+  $scope.second = $routeParams.second;
   var symbol = $scope.symbol = $scope.first + "/" + $scope.second;
 
   $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
@@ -154,7 +155,7 @@ function MarketCtrl($scope, $http, $routeParams)
 
 //Caps Control
 function CapsCtrl($scope, $http, $routeParams) {
-  angular.extend($scope, $routeParams);
+  $scope.first = $routeParams.first;
   var symbol = $scope.symbol = $scope.first;
 
   $http.get('api/caps/'+symbol+'/caps.json').success(function (data) {
@@ -217,7 +218,10 @@ function CapsCtrl($scope, $http, $routeParams) {
 //Intraday Ctrl
 function IntradayCtrl($scope, $http, $routeParams)
 {
-  angular.extend($scope, $routeParams);
+  $scope.first = $routeParams.first;
+  $scope.second = $routeParams.second;
+  $scope.period = +$routeParams.period;
+  $scope.start = $routeParams.start;
   var symbol = $scope.symbol = $scope.first + "/" + $scope.second,
       period_param = $scope.period_param = $scope.period,
       start_param = $scope.start_param = $scope.start;
