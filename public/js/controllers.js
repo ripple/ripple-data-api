@@ -222,6 +222,13 @@ function IntradayCtrl($scope, $http, $routeParams)
   $scope.second = $routeParams.second;
   $scope.period = +$routeParams.period;
   $scope.start = $routeParams.start;
+  if(!$scope.period) {
+    $scope.period = 72;
+    var dateOffset = $scope.period*60*60*1000;
+    var now = new Date();
+    now.setTime(now.getTime() - dateOffset);
+    $scope.start = now.toISOString().slice(0,10).replace(/-/g,"");
+  }
   var symbol = $scope.symbol = $scope.first + "/" + $scope.second,
       period_param = $scope.period_param = $scope.period,
       start_param = $scope.start_param = $scope.start;
