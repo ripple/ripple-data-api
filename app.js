@@ -35,6 +35,10 @@ var db = mysql.createConnection({
 var Processor = require('./processor').Processor;
 var processor = new Processor(db, remote);
 
+// News data
+var News = require('./news').News;
+var news = new News(db, remote);
+
 // Configuration
 var http_config = {};
 app.configure(function(){
@@ -137,7 +141,7 @@ remote.on('connected', function(connection) {
     status_connected: true
   });
 
-  processor.getRss();
+  news.getRss();
   processor.loadState();
 
   /*
