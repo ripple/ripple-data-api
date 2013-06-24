@@ -137,6 +137,7 @@ remote.on('connected', function(connection) {
     status_connected: true
   });
 
+  processor.getRss();
   processor.loadState();
 
   /*
