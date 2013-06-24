@@ -96,3 +96,16 @@ CREATE TABLE IF NOT EXISTS `trades` (
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+--
+-- Table structure for table `articles`
+--
+
+DROP TABLE IF EXISTS `articles`;
+CREATE TABLE `articles` (
+  `title` varchar(100) NOT NULL,
+  `category` varchar(10) NOT NULL,
+  `summary` text NOT NULL,
+  `url` tinytext NOT NULL,
+  `publish_date` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
