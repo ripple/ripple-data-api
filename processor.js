@@ -62,22 +62,8 @@ Processor.prototype.loadState = function ()
     });
   });
 
-  _.each(index.xrp, function (ticker, i) {
-    self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
-                  "ORDER BY time DESC LIMIT 0,1",
-                  [ticker.cur.id, ticker.iss.id],
-                  function (err, rows)
-    {
-      if (err) console.error(err);
-
-      if (rows[0]) {
-        model.set("tickers."+ticker.first+".last", ""+Math.round(rows[0].price*1000000));
-      }
-    });
-    self.updateAggregates();
-  });
-
   model.apply(state);
+  self.updateAggregates();
 };
 
 /**
@@ -510,7 +496,7 @@ Processor.prototype.updateAggregates = function () {
       if (err) winston.error(err);
 
       if (rows[0]) {
-        model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
+        model.set("tickers."+ticker.first+".last", ""+Math.round(rows[0].price*1000000));
       }
     });
     [1, 30].forEach(function (days) {
