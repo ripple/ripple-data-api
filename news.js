@@ -45,4 +45,19 @@ News.prototype.getRss = function () {
   }
 };
 
+News.prototype.getLatestNews = function () {
+  var self = this;
+  self.db.query("SELECT title, url, publish_date FROM articles ORDER BY publish_date DESC LIMIT 0, 7",
+                function (err, rows) {
+    if (err) winston.error(err)
+    if (rows.length > 0) {
+      _.each(rows, function (row, key) {
+        model.set("news."+key+".title", row.title);
+        model.set("news."+key+".url", row.url);
+        model.set("news."+key+".publish_date", row.publish_date);
+      });
+    }
+  });
+};
+
 exports.News = News;

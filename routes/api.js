@@ -238,3 +238,45 @@ exports.intraday_trade = function (db) {
     }
   };
 };
+
+function newsRows (rows, total) {
+  var news_rows = {};
+  news_rows['total'] = total;
+  news_rows['news_data'] = rows;
+  return news_rows;
+}
+
+exports.news_data = function (db) {
+  return function (req, res) {
+    var page_index = req.route.params.first;
+    var item_count = 3;
+    page_index = (page_index*1-1) * item_count;
+    if (page_index >= 0) {
+      db.query("SELECT title, summary, url, publish_date " + 
+        "FROM articles ORDER BY publish_date DESC LIMIT ?, ?",
+        [page_index, item_count],
+        function (err, rows) {
+          if (err) {
+            console.error(err);
+            res.json(null);
+            return;
+          }
+          db.query("SELECT count(*) AS total FROM articles", function (err, data) {
+            if (err) {
+              console.error(err);
+              res.json(null);
+              return;
+            }
+            var total_count = 0;			
+            if(data && data[0])
+              total_count = data[0].total;
+            total_count = Math.ceil(total_count / item_count);
+            res.json(newsRows(rows, total_count));
+          });
+        }
+      );
+    } else {
+      res.json(null);
+    }
+  };
+};

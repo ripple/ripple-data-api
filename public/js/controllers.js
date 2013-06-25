@@ -280,3 +280,21 @@ function IntradayCtrl($scope, $http, $routeParams)
     };
   });
 }
+
+//NewsCtrl
+function NewsCtrl ($scope, $http, $routeParams) {
+  $scope.first = $routeParams.first;
+  if(!$scope.first) 
+    $scope.first = 1;
+  $http.get('api/news/'+$scope.first+'/news.json').success(function (data) {
+    $scope.data = data.news_data;
+    var options = {
+      currentPage: $scope.first,
+      totalPages: data.total,
+      pageUrl: function(type, page, current){
+        return "/news/"+page;
+      }
+    }
+    $('.pagination').bootstrapPaginator(options);
+  });
+}

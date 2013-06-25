@@ -638,7 +638,7 @@ a:hover {
 	margin-bottom: 0;
 }
 
-.widget-title, .modal-header, .table th, div.dataTables_wrapper .ui-widget-header {
+.widget-title, .modal-header, .table th, div.dataTables_wrapper .ui-widget-header, .title {
 	background-color: #efefef;
 	background-image: -webkit-gradient(linear, 0 0%, 0 100%, from(#fdfdfd), to(#eaeaea));
 	background-image: -webkit-linear-gradient(top, #fdfdfd 0%, #eaeaea 100%);
@@ -650,6 +650,11 @@ a:hover {
     border-bottom: 1px solid #CDCDCD;
     height: 36px;
 }
+
+.title {
+    padding: 0 10px;
+}
+
 .widget-title .nav-tabs {
     border-bottom: 0 none;
 }

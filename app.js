@@ -92,6 +92,8 @@ app.get('/api/market/:first/:second/daily.json', api.market_daily(db));
 app.get('/api/intraday/:first/:second/intraday.json', api.intraday_trade(db));
 //Caps
 app.get('/api/caps/:first/caps.json', api.caps_currency(db));
+//News
+app.get('/api/news/:first/news.json', api.news_data(db));
 
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);
@@ -142,6 +144,7 @@ remote.on('connected', function(connection) {
   });
 
   news.getRss();
+  news.getLatestNews();
   processor.loadState();
 
   /*

@@ -16,6 +16,9 @@ angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
     //Caps
     $routeProvider.when('/caps/:first', {templateUrl: 'partials/caps',
                                          controller: CapsCtrl});
+    //News
+    $routeProvider.when('/news/:first', {templateUrl: 'partials/news',
+                                         controller: NewsCtrl});
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);
   }]);

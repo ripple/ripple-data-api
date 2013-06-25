@@ -55,12 +55,12 @@
         .widget-title
           span.icon: i.icon-refresh
           h5 Ripple News
-        .widget-content.nopadding.updates
-          .new-update.clearfix
-            i.icon-exclamation-sign
-            span.update-alert
-              a(href="#"): strong RippleCharts is still in alpha!
-              span Stay tuned for newer and better bugs. :)
-            span.update-date
-              span.update-day 19
-              | feb
+        div(ng-repeat="item in news")
+          .widget-content.nopadding.updates
+            .new-update.clearfix
+              i.icon-exclamation-sign
+              span.update-alert
+                a(href="{{item.url}}"): strong {{item.title}}
+              span.update-date
+                span.update-day {{item.publish_date | date: 'd'}}
+                | {{item.publish_date | date: 'MMM'}}

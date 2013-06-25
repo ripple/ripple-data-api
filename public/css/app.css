@@ -85,3 +85,7 @@ table.table-fin td.fin .minor {
 #market-grid td {
   text-align: center;
 }
+
+.pagination {
+  float: right;
+}
