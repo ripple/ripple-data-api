@@ -71,7 +71,7 @@ Processor.prototype.loadState = function ()
       if (err) console.error(err);
 
       if (rows[0]) {
-        model.set("tickers."+ticker.first+".last", ""+(rows[0].price*1000000));
+        model.set("tickers."+ticker.first+".last", ""+Math.round(rows[0].price*1000000));
       }
     });
     self.updateAggregates();
