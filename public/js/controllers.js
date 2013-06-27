@@ -304,6 +304,13 @@ function OrderbookCtrl ($scope, $http, $routeParams) {
   $scope.firstcurrency = $routeParams.first.split(':')[0];
   $scope.issuer = $routeParams.first.split(':')[1];
   $scope.secondcurrency = $routeParams.second;
+
+  for (var i = 0; i < all_issuers.length; i++) {
+    if (all_issuers[i].name == $scope.issuer) {
+      $scope.issuer = all_issuers[i].currencies[$scope.firstcurrency];
+    }
+  }
+
   var config = {
     socket: "wss://s1.ripple.com:51233/",
     base: {currency: $scope.firstcurrency, issuer:$scope.issuer},

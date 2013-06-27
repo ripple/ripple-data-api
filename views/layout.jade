@@ -28,3 +28,5 @@ html(ng-app="myApp")
     link(rel='stylesheet', href='http://fonts.googleapis.com/css?family=Oswald:400,700', type='text/css')
   body
     block body
+    script(type="text/javascript")
+      var all_issuers = !{JSON.stringify(issuers)};
