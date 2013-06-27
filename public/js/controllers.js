@@ -595,7 +595,7 @@ function OrderbookCtrl ($scope, $http, $routeParams) {
     $scope.supply10 = rk(stats.supply[10]);
     $scope.supply25 = rk(stats.supply[25]);
     $scope.demand10 = rk(stats.demand[10]);
-    $scope.demand25 = rk(stats.demand[10]);
+    $scope.demand25 = rk(stats.demand[25]);
     $scope.center10 = stats.av[250000];
     $scope.center25 = stats.av[750000];
     $scope.data = {
