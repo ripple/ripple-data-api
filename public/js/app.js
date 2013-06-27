@@ -19,6 +19,9 @@ angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
     //News
     $routeProvider.when('/news/:first', {templateUrl: 'partials/news',
                                          controller: NewsCtrl});
+    //Orderbooks
+    $routeProvider.when('/orderbook/:first/:second', {templateUrl: 'partials/orderbook',
+                                                   controller: OrderbookCtrl});
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);
   }]);

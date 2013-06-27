@@ -89,3 +89,56 @@ table.table-fin td.fin .minor {
 .pagination {
   float: right;
 }
+
+.table, .table td, .table th {
+  border: 1px solid #e6e6e6;
+  border-collapse: collapse;
+  padding: 12px;
+  text-align: left;
+}
+
+.table {
+  background-color: white;
+}
+
+.table th {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.live-feed {
+  padding: 5px;
+  border: 1px solid #e6e6e6;
+  background-color: white;
+  font-size: 10px;
+  height: 120px;
+  overflow: auto;
+  margin-bottom: 10px;
+}
+
+.live-feed p {
+  margin:0; padding: 0;
+  line-height: 12px;
+}
+
+.live-feed p.green { color: green; font-weight: bold; }
+
+.live-feed p.red { color: red; font-weight: bold; }
+
+.stats {
+  padding: 5px;
+  border: 1px solid #e6e6e6;
+  background-color: white;
+  height: 120px;
+  overflow: auto;
+  margin-bottom: 10px;
+}
+
+.stats > span {
+  display: block;
+  line-height: 18px;
+}
+
+.stats span { padding-left: 15px; }
+
+.stats > span > strong { font-size: 10px; color: #363636; }
