@@ -409,10 +409,11 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                       function (err)
                       {
                         if (err) winston.error(err);
-
+                        model.set('reload', 'intraday');
                         writeLedger();
                       });
       } else {
+        model.set('reload', 'none');
         writeLedger();
       }
 

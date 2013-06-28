@@ -216,8 +216,16 @@ function CapsCtrl($scope, $http, $routeParams) {
 }
 
 //Intraday Ctrl
-function IntradayCtrl($scope, $http, $routeParams)
+function IntradayCtrl($scope, $http, $routeParams, socket)
 {
+  IntradayChart($scope, $http, $routeParams);
+  socket.on('set', function (data) {
+    if(data[0] == 'reload' && data[1] == 'intraday')
+      IntradayChart($scope, $http, $routeParams);
+  });
+}
+
+function IntradayChart($scope, $http, $routeParams) {
   $scope.first = $routeParams.first;
   $scope.second = $routeParams.second;
   $scope.period = +$routeParams.period;
