@@ -2,13 +2,15 @@
 
 /* Controllers */
 
-function AppCtrl($scope, socket) {
+function AppCtrl($scope, $rootScope, socket) {
   // Easier access for debugging
   window.$scope = $scope;
-
+  
   $scope.$watch("tickers", function (tickers) {
     tickers && ($scope.atickers = _.values(tickers));
   }, true);
+
+  $rootScope.title = 'RippleCharts.com';
 
   socket.on('apply', function (data) {
     angular.extend($scope, data);
@@ -35,10 +37,68 @@ function AppCtrl($scope, socket) {
 function DashboardCtrl() {}
 DashboardCtrl.$inject = [];
 
-function MarketCtrl($scope, $http, $routeParams)
+function MarketCtrl($scope, $http, $routeParams, $rootScope)
 {
   $scope.first = $routeParams.first;
   $scope.second = $routeParams.second;
+    
+  if($scope.first === 'XRP' || $scope.second === 'XRP') {
+    if($scope.first === 'XRP') {
+      var issuer_address = "";
+      for (var i = 0; i < all_issuers.length; i++) {
+        if (all_issuers[i].name == $scope.second.split(':')[1]) {
+          issuer_address = all_issuers[i].currencies[$scope.second.split(':')[0]];
+        }
+      }
+      var param  = $scope.second.split(':')[0] + "/" + issuer_address;
+      $scope.$watch("tickers['" + param + "'].last", function (ticker) {
+        if(ticker) {
+          ticker = 1 / ticker * 1000000;
+          $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';      
+        }
+      }, true);
+    } else if($scope.second === 'XRP') {
+      var issuer_address = "";
+      for (var i = 0; i < all_issuers.length; i++) {
+        if (all_issuers[i].name == $scope.first.split(':')[1]) {
+          issuer_address = all_issuers[i].currencies[$scope.first.split(':')[0]];
+        }
+      }
+      var param  = $scope.first.split(':')[0] + "/" + issuer_address;
+      $scope.$watch("tickers['" + param + "'].last", function (ticker) {
+        if(ticker) {
+          ticker = ticker / 1000000;
+          $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';  
+        }
+      }, true);
+    }
+  } else {
+    var issuer_address_first = "",
+        issuer_address_second = "";
+    for (var i = 0; i < all_issuers.length; i++) {
+      if (all_issuers[i].name == $scope.first.split(':')[1]) {
+        issuer_address_first = all_issuers[i].currencies[$scope.first.split(':')[0]];
+      }
+      if (all_issuers[i].name == $scope.second.split(':')[1]) {
+        issuer_address_second = all_issuers[i].currencies[$scope.second.split(':')[0]];
+      }
+    }
+    var param_first = $scope.first.split(':')[0] + ":" + issuer_address_first;
+    var param_second = $scope.second.split(':')[0] + ":" + issuer_address_second;
+    $scope.$watch("crosstickers['" + param_first + "']['" + param_second + "'].last", function(crossticker) {
+      if (crossticker) {
+        crossticker = crossticker * 1;
+        $rootScope.title = '$(' + crossticker.toFixed(2) + ') RippleCharts.com';
+      }
+    }, true);
+    $scope.$watch("crosstickers['" + param_second + "']['" + param_first + "'].last", function(crossticker) {
+      if (crossticker) {
+        crossticker = crossticker * 1;
+        $rootScope.title = '$(' + crossticker.toFixed(2) + ') RippleCharts.com';
+      }
+    }, true);
+  }
+
   var symbol = $scope.symbol = $scope.first + "/" + $scope.second;
 
   $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
@@ -216,18 +276,49 @@ function CapsCtrl($scope, $http, $routeParams) {
 }
 
 //Intraday Ctrl
-function IntradayCtrl($scope, $http, $routeParams, socket)
+function IntradayCtrl($scope, $http, $routeParams, $rootScope, socket)
 {
-  IntradayChart($scope, $http, $routeParams);
+  IntradayChart($scope, $http, $routeParams, $rootScope);
   socket.on('set', function (data) {
     if(data[0] == 'reload' && data[1] == 'intraday')
-      IntradayChart($scope, $http, $routeParams);
+      IntradayChart($scope, $http, $routeParams, $rootScope);
   });
 }
 
-function IntradayChart($scope, $http, $routeParams) {
+function IntradayChart($scope, $http, $routeParams, $rootScope) {
   $scope.first = $routeParams.first;
   $scope.second = $routeParams.second;
+
+  if($scope.first === 'XRP') {
+    var issuer_address = "";
+    for (var i = 0; i < all_issuers.length; i++) {
+      if (all_issuers[i].name == $scope.second.split(':')[1]) {
+        issuer_address = all_issuers[i].currencies[$scope.second.split(':')[0]];
+      }
+    }
+    var param  = $scope.second.split(':')[0] + "/" + issuer_address;
+    $scope.$watch("tickers['" + param + "'].last", function (ticker) {
+      if(ticker) {
+        ticker = 1 / ticker * 1000000;
+        $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';
+      }
+    }, true);
+  } else if($scope.second === 'XRP') {
+    var issuer_address = "";
+    for (var i = 0; i < all_issuers.length; i++) {
+      if (all_issuers[i].name == $scope.first.split(':')[1]) {
+        issuer_address = all_issuers[i].currencies[$scope.first.split(':')[0]];
+      }
+    }
+    var param  = $scope.first.split(':')[0] + "/" + issuer_address;
+    $scope.$watch("tickers['" + param + "'].last", function (ticker) {
+      if(ticker) {
+        ticker = ticker / 1000000;
+        $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';
+      }
+    }, true);
+  }
+  
   $scope.period = +$routeParams.period;
   $scope.start = $routeParams.start;
   if(!$scope.period) {

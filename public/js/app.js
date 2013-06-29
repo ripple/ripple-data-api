@@ -2,7 +2,7 @@
 
 
 // Declare app level module which depends on filters, and services
-angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
+var app = angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
   .config(['$routeProvider', '$locationProvider', function($routeProvider, $locationProvider) {
     $routeProvider.when('/', {templateUrl: 'partials/dashboard', controller: DashboardCtrl});
     $routeProvider.when('/network', {templateUrl: 'partials/network'});
@@ -25,6 +25,11 @@ angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.directives'])
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);
   }]);
+
+//Add this to have access to a global variable
+app.run(function($rootScope) {
+  $rootScope.title = 'RippleCharts.com';
+});
 
 // UserVoice
 (function(){var uv=document.createElement('script');uv.type='text/javascript';uv.async=true;uv.src='//widget.uservoice.com/BZAhKCSSiDVOI9b4eNA.js';var s=document.getElementsByTagName('script')[0];s.parentNode.insertBefore(uv,s);})();
