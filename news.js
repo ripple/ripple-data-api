@@ -26,6 +26,16 @@ News.prototype.getRss = function () {
 
   function insertNews(date) {
     rssparser.parseURL('https://ripple.com/feed', {}, function(err, data){
+      if (err) {
+        console.error(err);
+        return;
+      }
+
+      if (!data || !data.items) {
+        console.error("FEED No data");
+        return;
+      }
+
       _.each(data.items, function (item) {
         var publish_date = new Date(item.published_at),
             title = item.title,
