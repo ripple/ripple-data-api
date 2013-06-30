@@ -13,6 +13,7 @@
 exports.issuers = [{
   name: "WeExchange",
   url: "https://weexchange.co/",
+  domain: "weexchange.co",
   disabled: true,
   currencies: {
     "AUD": "rBcYpuDT1aXNo4jnqczWJTytKGdBGufsre",
@@ -23,6 +24,7 @@ exports.issuers = [{
 }, {
   name: "Bitstamp",
   url: "https://www.bitstamp.net/",
+  domain: "bitstamp.net",
   currencies: {
     "USD": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
     "BTC": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
@@ -38,8 +40,12 @@ exports.issuers = [{
 }, {
   name: "TheRock",
   url: "https://www.therocktrading.com/",
+  domain: "therocktrading.com",
   currencies: {
-//    "EUR": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
+    "USD": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
+    "EUR": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
+    "BTC": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
+    "LTC": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
     "SLL": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun"
   }
 }, {
@@ -65,11 +71,19 @@ exports.issuers = [{
 }, {
   name: "SnapSwap",
   url: "https://www.snapswap.us/",
+  domain: "snapswap.us",
   currencies: {
     "USD": "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q"
   },
   hotwallets: {
     "rhasPLL5GaXzBh5amQkN7Dr1SNF4Whb2ZT": true
+  }
+}, {
+  name: "Justcoin",
+  url: "https://justcoin.com",
+  domain: "justcoin.com",
+  currencies: {
+    "BTC": "rJHygWcTLVpSXkowott6kzgZU6viQSVYM1"
   }
 }];
 
@@ -89,7 +103,8 @@ exports.currencies = [
   'ZAR',
   'SLL',
   'LTC',
-  'CNY'
+  'CNY',
+  'NOK'
 ];
 
 // Highlighted XRP markets
