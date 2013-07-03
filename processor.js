@@ -500,6 +500,27 @@ Processor.prototype.updateAggregates = function () {
         model.set("tickers."+ticker.first+".last", ""+Math.round(rows[0].price*1000000));
       }
     });
+    //Caps
+    self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 1 ORDER BY ledger DESC LIMIT 0,1", 
+                  [ticker.cur.id, ticker.iss.id], 
+                  function(err, rows) {
+      if (err) winston.error(err);
+      
+      if(rows[0]) {
+        model.set("tickers."+ticker.first+".hot", rows[0].amount);
+      }
+    });
+    //Hots
+    self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 0 ORDER BY ledger DESC LIMIT 0,1", 
+                  [ticker.cur.id, ticker.iss.id], 
+                  function(err, rows) {
+      if (err) winston.error(err);
+      
+      if(rows[0]) {
+        model.set("tickers."+ticker.first+".caps", rows[0].amount);
+      }
+    });
+ 
     [1, 30].forEach(function (days) {
       var cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
