@@ -142,3 +142,7 @@ table.table-fin td.fin .minor {
 .stats span { padding-left: 15px; }
 
 .stats > span > strong { font-size: 10px; color: #363636; }
+
+.raw_data {
+  margin-top: 15px;
+}

@@ -54,7 +54,7 @@ function MarketCtrl($scope, $http, $routeParams, $rootScope)
       $scope.$watch("tickers['" + param + "'].last", function (ticker) {
         if(ticker) {
           ticker = 1 / ticker * 1000000;
-          $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';      
+          $rootScope.title = ticker.toFixed(2) + ' RippleCharts.com';      
         }
       }, true);
     } else if($scope.second === 'XRP') {
@@ -68,7 +68,7 @@ function MarketCtrl($scope, $http, $routeParams, $rootScope)
       $scope.$watch("tickers['" + param + "'].last", function (ticker) {
         if(ticker) {
           ticker = ticker / 1000000;
-          $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';  
+          $rootScope.title = ticker.toFixed(2) + ' RippleCharts.com';  
         }
       }, true);
     }
@@ -88,17 +88,16 @@ function MarketCtrl($scope, $http, $routeParams, $rootScope)
     $scope.$watch("crosstickers['" + param_first + "']['" + param_second + "'].last", function(crossticker) {
       if (crossticker) {
         crossticker = crossticker * 1;
-        $rootScope.title = '$(' + crossticker.toFixed(2) + ') RippleCharts.com';
+        $rootScope.title = crossticker.toFixed(2) + ' RippleCharts.com';
       }
     }, true);
     $scope.$watch("crosstickers['" + param_second + "']['" + param_first + "'].last", function(crossticker) {
       if (crossticker) {
         crossticker = crossticker * 1;
-        $rootScope.title = '$(' + crossticker.toFixed(2) + ') RippleCharts.com';
+        $rootScope.title = crossticker.toFixed(2) + ' RippleCharts.com';
       }
     }, true);
   }
-
   var symbol = $scope.symbol = $scope.first + "/" + $scope.second;
 
   $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
@@ -211,6 +210,14 @@ function MarketCtrl($scope, $http, $routeParams, $rootScope)
       }]
     };
   });
+  
+  $scope.opened = false;
+  $scope.open_raw_data = function() {
+    $scope.opened = true;
+    $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
+      $scope.raw_data =data;
+    });
+  };
 }
 
 //Caps Control
@@ -300,7 +307,7 @@ function IntradayChart($scope, $http, $routeParams, $rootScope) {
     $scope.$watch("tickers['" + param + "'].last", function (ticker) {
       if(ticker) {
         ticker = 1 / ticker * 1000000;
-        $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';
+        $rootScope.title = ticker.toFixed(2) + ' RippleCharts.com';
       }
     }, true);
   } else if($scope.second === 'XRP') {
@@ -314,7 +321,7 @@ function IntradayChart($scope, $http, $routeParams, $rootScope) {
     $scope.$watch("tickers['" + param + "'].last", function (ticker) {
       if(ticker) {
         ticker = ticker / 1000000;
-        $rootScope.title = '$(' + ticker.toFixed(2) + ') RippleCharts.com';
+        $rootScope.title = ticker.toFixed(2) + ' RippleCharts.com';
       }
     }, true);
   }
