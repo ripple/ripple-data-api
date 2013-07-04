@@ -99,8 +99,6 @@ Processor.prototype.processNextValidated = function (vrange, start)
   var self = this;
 
   if (self.processing) return;
-
-  if (!vrange.is_member(config.net.genesis_ledger)) return;
   if (!vrange.is_member(start)) return;
 
   self.processing = true;
@@ -475,11 +473,14 @@ Processor.prototype.updateAggregates = function () {
       if (c1 > c2 || (c1 === c2 && i1 > i2)) return;
       
       self.db.query("SELECT * FROM trades WHERE c1 = ? AND i1 = ? AND c2 = ? AND i2 = ? " +
-                    "ORDER BY time DESC LIMIT 0,1",
+                    "ORDER BY `time` DESC, `tx` DESC, `order` DESC LIMIT 0,1",
                     [c1, i1, c2, i2],
                     function (err, rows)
       {
-        if (err) winston.error(err);
+        if (err) {
+          winston.error(err);
+          return;
+        }
 
         if (rows[0]) {
           model.set("crosstickers."+key1+"."+key2+".last", ""+(rows[0].price));
@@ -490,11 +491,14 @@ Processor.prototype.updateAggregates = function () {
 
   _.each(index.xrp, function (ticker, i) {
     self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
-                  "ORDER BY time DESC LIMIT 0,1",
+                  "ORDER BY `time` DESC, `tx` DESC, `order` DESC LIMIT 0,1",
                   [ticker.cur.id, ticker.iss.id],
                   function (err, rows)
     {
-      if (err) winston.error(err);
+      if (err) {
+        winston.error(err);
+        return;
+      }
 
       if (rows[0]) {
         model.set("tickers."+ticker.first+".last", ""+Math.round(rows[0].price*1000000));
