@@ -144,15 +144,18 @@ exports.applyLedger = function (model, e) {
     data.last = data.last.to_json();
     data.vol = data.vol.to_json();
   });
-
-  console.log("MODEL DIFF", {
+  
+  var ledger_data = {
+    ledger_date: e.ledger.close_time,
     ledger_index: e.ledger.seqNum,
     ledger_hash: e.ledger.hash,
     account_count: Object.keys(accounts).length,
     currencies: currencies,
     tickers: tickers,
     issuers: index.issuers
-  });
+  };
+  return ledger_data;
+  
 };
 
 exports.applyTransaction = function (model, e) {
