@@ -13,6 +13,8 @@ var express = require('express'),
     model = require('./model'),
     interp = require('./interpreter');
 
+var _ = require('lodash');
+
 var Range = require('./range').Range;
 
 var app = module.exports = express();
@@ -114,6 +116,41 @@ remote.on('error', function (err) {
 
 remote.on('transaction_all', function (e) {
   //interp.applyTransaction(model, e);
+});
+
+_.transaction = [];
+
+remote.on('transaction', function (e) {
+  var transaction_ledger = e.ledger_index,
+      transaction_account = e.transaction.Account,
+      transaction_type = e.transaction.TransactionType,
+      transaction_id = e.transaction.hash;
+  switch (e.transaction.TransactionType) {
+    case 'Payment':
+      var amount = ripple.Amount.from_json(e.transaction.Amount);
+      transaction_desc = transaction_account + " sent " + amount.to_number() + " " + amount.currency().to_json() + " to " + e.transaction.Destination;
+      break;
+
+    case 'TrustSet':
+      transaction_desc = transaction_account + " trusts " + ripple.Amount.from_json(e.transaction.LimitAmount).to_number() + " " + e.transaction.LimitAmount.currency + " to " + e.transaction.LimitAmount.issuer;
+      break;
+
+    case 'OfferCreate':
+      if (e.transaction.TakerGets.issuer !== undefined)
+        transaction_desc = transaction_account + " created an offer " + ripple.Amount.from_json(e.transaction.TakerPays).to_number() + " for " + e.transaction.TakerGets.issuer;
+      else
+        transaction_desc = transaction_account + " created an offer " + ripple.Amount.from_json(e.transaction.TakerGets).to_number() + " for " + e.transaction.TakerPays.issuer;
+      break;
+
+    case 'OfferCancel':
+      transaction_desc = transaction_account + " cancelled an offer ";
+      break;
+
+    default:
+      transaction_desc = "";
+  }
+  _.transaction.unshift([transaction_ledger, transaction_account, transaction_type, transaction_id, transaction_desc]);
+  model.apply({transaction:  _.transaction});
 });
 
 remote.on('ledger_closed', function (e) {

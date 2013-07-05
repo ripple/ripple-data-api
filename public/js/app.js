@@ -22,6 +22,10 @@ var app = angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.dir
     //Orderbooks
     $routeProvider.when('/orderbook/:first/:second', {templateUrl: 'partials/orderbook',
                                                    controller: OrderbookCtrl});
+
+    //Transaction
+    $routeProvider.when('/transaction', {templateUrl: 'partials/transaction'});
+
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);
   }]);
