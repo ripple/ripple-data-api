@@ -94,14 +94,13 @@ table.table-fin td.fin .minor {
   border: 1px solid #e6e6e6;
   border-collapse: collapse;
   padding: 12px;
-  text-align: left;
 }
 
 .table {
   background-color: white;
 }
 
-.table th {
+.ordertable th {
   font-weight: 600;
   font-size: 14px;
 }
