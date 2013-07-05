@@ -11,15 +11,18 @@ block body
           span.text &nbsp;Feedback &amp; Support
   #sidebar
     ul
-      li: a(href="/")
+      li: a(href="/", ng-click="title = 'RippleCharts.com'")
         i.icon.icon-home
         span Dashboard
-      li: a(href="/markets")
+      li: a(href="/markets", ng-click="title = 'RippleCharts.com'")
         i.icon.icon-signal
         span Markets
-      li: a(href="/grid")
+      li: a(href="/grid", ng-click="title = 'RippleCharts.com'")
         i.icon.icon-th
         span Grid
+      li: a(href="/transaction", ng-click="title = 'RippleCharts.com'")
+        i.icon.icon-th
+        span Transaction
   #content(ng-controller='AppCtrl', ng-view)
 
   script(src='js/lib/lodash/lodash.compat.js')
