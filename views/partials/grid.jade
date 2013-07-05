@@ -29,6 +29,6 @@
               td: a(href="market/XRP/{{c1.cur}}:{{issuers[c1.gat].name}}") {{1/tickers[c1.cur + '/' + c1.iss].last*1000000}}
               td(ng-repeat="c2 in currencies")
                 a(ng-hide="c1 == c2", href="market/{{c2.cur}}:{{issuers[c2.gat].name}}/{{c1.cur}}:{{issuers[c1.gat].name}}") 
-                  span(ng-show="crosstickers[c2.cur + ':' + c2.iss][c1.cur + ':' + c1.iss].last", ng-bind="crosstickers[c2.cur + ':' + c2.iss][c1.cur + ':' + c1.iss].last | rpcurr:c2.cur + '/' + c2.iss | rpamount:{rel_precision: 0, min_rel_precision: 0}")
+                  span(ng-show="crosstickers[c2.cur + ':' + c2.iss][c1.cur + ':' + c1.iss].last", ng-bind="1/crosstickers[c2.cur + ':' + c2.iss][c1.cur + ':' + c1.iss].last | rpcurr:c2.cur + '/' + c2.iss | rpamount:{rel_precision: 0, min_rel_precision: 0}")
                   span(ng-show="crosstickers[c1.cur + ':' + c1.iss][c2.cur + ':' + c2.iss].last", ng-bind="crosstickers[c1.cur + ':' + c1.iss][c2.cur + ':' + c2.iss].last | rpcurr:c1.cur + '/' + c1.iss | rpamount:{rel_precision: 0, min_rel_precision: 0}")
                 span(ng-show="c1 == c2") -
