@@ -1,0 +1,11 @@
+#content-header
+  h1 Transactions
+#breadcrumb
+  a(href='/', class="tip-bottom")
+    i.icon-home
+    | Home
+  a(href='/transactions') Transactions
+.container-fluid
+  .row-fluid
+    .span12
+      highchart(value="data", height="500")

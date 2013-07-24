@@ -32,6 +32,7 @@ function AppCtrl($scope, $rootScope, socket) {
       }
     }
   });
+
 }
 
 function DashboardCtrl() {}
@@ -760,5 +761,57 @@ function OrderbookCtrl ($scope, $http, $routeParams) {
           data: chartdata
       }]
     };	
+  });
+}
+
+//Transactions Control
+function numTransactionsCtrl($scope, $http, $routeParams) {
+
+  $http.get('api/transactions/transactions.json').success(function (data) {
+    var dataLength = data.length,
+        trans_data = [];
+	for (var i = 0; i < data.length; i++)
+	{
+       trans_data.push([data[i][0], data[i][1]]);
+	}
+    $scope.data = {
+      chart: {
+        type: 'line'
+      },
+
+      title: {
+        text: 'Number of Transaction'
+      },
+
+      xAxis: {
+        type: 'datetime',
+        labels: {
+          formatter : function() {
+            return Highcharts.dateFormat('%a, %b %d', this.value)
+          }
+        }
+      },
+
+      yAxis: {
+        title: {
+          text: 'Amount'
+        },
+        plotLines: [{
+          value: 0,
+          width: 1,
+          color: '#808080'
+        }]
+      },
+
+      tooltip: {
+        borderColor: "#2F7ED8"
+      },
+
+      series: [{
+          name: 'Data',
+          data: trans_data
+        }]
+    };
+    
   });
 }

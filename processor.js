@@ -172,7 +172,16 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
       var tradeRows = [],
           fees = Amount.from_json("0"),
-          newAccounts = 0;
+          newAccounts = 0,
+          txs_xrp_total = 0,
+          txs_cross_total = 0,
+          txs_trade = 0, 
+          evt_trade = 0,
+          txs_paytrade = 0,
+          ledgerEntryCountDiff = 0,
+          offers_placed = 0, 
+          offers_taken = 0, 
+          offers_canceled = 0;
 
       var caps_amount = {},
           hots_amount = {};
@@ -202,11 +211,31 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       // Other data processing
       ledger.transactions.forEach(function (tx, i_tx) {
         // Process metadata
-
         tx.mmeta = new Meta(tx.meta);
+        if (tx.TransactionType === "Payment" && tx.meta.TransactionResult === "tesSUCCESS" && !tx.Paths && !tx.SendMax) {
+          txs_xrp_total += tx.Amount * 1;
+          console.log(txs_xrp_total);
+		}else if (tx.TransactionType === "Payment" && tx.meta.TransactionResult === "tesSUCCESS" && tx.Paths && tx.Paths.length) {
+          txs_cross_total += tx.Amount * 1;
+        }
         fees = fees.add(Amount.from_json(tx.Fee));
+        
+        var isTradingTx = false,
+            isTradingPay = false;
+
         tx.mmeta.each(function (an) {
-          if (an.entryType === "AccountRoot" && an.diffType === "CreatedNode") {
+          if (an.diffType === "CreatedNode") ledgerEntryCountDiff++;
+          else if (an.diffType === "DeletedNode") ledgerEntryCountDiff--;
+          if (an.nodeType === "Offer") {
+            if (an.diffType === "CreatedNode") offers_placed++;
+            else if (an.diffType === "DeletedNode" && tx.TransactionType === "OfferCancel") offers_canceled++;
+            else if (an.diffType === "DeletedNode") offers_taken++;
+          }
+          if (an.entryType === "Offer" && (an.diffType === "ModifiedNode" || (an.diffType === "DeletedNode" && tx.TransactionType !== "OfferCancel"))) {
+            evt_trade++;
+            isTradingTx = true;
+            if (tx.TransactionType === "Payment") isTradingPay = true;
+          }else if (an.entryType === "AccountRoot" && an.diffType === "CreatedNode") {
             newAccounts++;
           } else if (an.entryType === "RippleState") {
             //Insert Capitalizations Data
@@ -258,6 +287,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
             }
           }
         });
+        if (isTradingTx) txs_trade++;
+        if (isTradingPay) txs_paytrade++;
       });
 
       _.each(caps_amount, function(amount, key) {
@@ -418,16 +449,15 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       function writeLedger(err)
       {
         if (err) return callback(err);
-
         self.db.query("INSERT INTO ledgers " +
-                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`) " +
-                      "SELECT ?, ?, ?, `accounts` + ?, ?, ? " +
+                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`, `time`, `txs_xrp_total`, `txs_cross_total`, `txs_trade`, " +
+                      "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
+                      "SELECT ?, ?, ?, `accounts` + ?, ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
                       "FROM ledgers " +
-                      "WHERE `id` = ?",
+                      "ORDER BY `id` DESC LIMIT 0, 1",
                       [ledger_index, ledger.ledger_hash, ledger.total_coins,
-                       newAccounts,
-                       ledger.transactions.length, fees.to_number(),
-                       ledger_index-1],
+                       newAccounts, ledger.transactions.length, fees.to_number(), ledger_date,
+                       txs_xrp_total, txs_cross_total, txs_trade, evt_trade, ledgerEntryCountDiff, offers_placed, offers_taken, offers_canceled],
                       updateStatus);
       }
     } catch (e) { callback(e); }

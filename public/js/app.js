@@ -26,6 +26,10 @@ var app = angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.dir
     //Transaction
     $routeProvider.when('/transaction', {templateUrl: 'partials/transaction'});
 
+    //Transaction
+    $routeProvider.when('/transactions', {templateUrl: 'partials/transactions',
+                                          controller: numTransactionsCtrl});
+
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);
   }]);

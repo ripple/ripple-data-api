@@ -96,6 +96,9 @@ app.get('/api/intraday/:first/:second/intraday.json', api.intraday_trade(db));
 app.get('/api/caps/:first/caps.json', api.caps_currency(db));
 //News
 app.get('/api/news/:first/news.json', api.news_data(db));
+//# of Transactions
+app.get('/api/transactions/transactions.json', api.transactions_data(db));
+
 
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);

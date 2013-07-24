@@ -66,7 +66,8 @@ function marketProcessRows(rows, flip) {
       flip ? (1/row.low)   : +row.high,
       flip ? (1/row.high)  : +row.low,
       flip ? (1/row.close) : +row.close,
-      flip ? +row.fvol     : +row.vol
+      flip ? +row.fvol     : +row.vol,
+      row.price
     ];
   });
 }
@@ -86,7 +87,8 @@ exports.market_hourly = function (db) {
         "  SUBSTRING_INDEX( GROUP_CONCAT(CAST(price AS CHAR) ORDER BY time DESC), ',', 1 ) AS close, " +
         "  COUNT(*) AS num, " +
         "  SUM(amount) AS vol, " +
-        "  SUM(amount*price) AS fvol " +
+        "  SUM(amount*price) AS fvol, " +
+        "  price " +
         "FROM `trades` " +
         "WHERE `c1` = ? AND `i1` = ? AND `c2` = ? AND `i2` = ? " +
         "GROUP BY TO_DAYS(time), HOUR(time)",
@@ -122,7 +124,8 @@ exports.market_daily = function (db) {
         "  SUBSTRING_INDEX( GROUP_CONCAT(CAST(price AS CHAR) ORDER BY time DESC), ',', 1 ) AS close, " +
         "  COUNT(*) AS num, " +
         "  SUM(amount) AS vol, " +
-        "  SUM(amount*price) AS fvol " +
+        "  SUM(amount*price) AS fvol, " +
+        "  price " +
         "FROM `trades` " +
         "WHERE `c1` = ? AND `i1` = ? AND `c2` = ? AND `i2` = ? " +
         "GROUP BY TO_DAYS(time)",
@@ -278,5 +281,32 @@ exports.news_data = function (db) {
     } else {
       res.json(null);
     }
+  };
+};
+
+//Return real data from Transaction rows.
+function transactionsProcessRows(rows) {
+  return _.map(rows, function (row) {
+    return [
+      new Date(row.tx_date).getTime(),
+      row.tx_num
+    ];
+  });
+}
+
+exports.transactions_data = function (db) {
+  return function (req, res) {
+    db.query("SELECT date_format(time, '%Y-%m-%d') AS tx_date, txs AS tx_num FROM ledgers ORDER BY time", function(err, rows) {
+      if (err)
+      {
+        console.error(err);
+        res.json(null);
+        return;
+      }
+      if (rows)
+      {
+        res.json(transactionsProcessRows(rows));
+      }
+	});
   };
 };
