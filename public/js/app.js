@@ -30,6 +30,9 @@ var app = angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.dir
     $routeProvider.when('/transactions', {templateUrl: 'partials/transactions',
                                           controller: numTransactionsCtrl});
 
+    $routeProvider.when('/market/:first/:second/average', {templateUrl: 'partials/average',
+                                                   controller: AverageCtrl});
+
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);
   }]);

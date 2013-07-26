@@ -1,0 +1,17 @@
+#content-header
+  h1 Average {{first}}/{{second}}
+#breadcrumb
+  a(href='/')
+    i.icon-home
+    | Home
+  a(href='/markets') Markets
+  a.current {{first}}/{{second}}/Average
+.container-fluid
+  .row-fluid
+    .alert.alert-info Chart upside down? Some pairs make more sense the other way around.&nbsp;
+      a(href="/market/{{second}}/{{first}}/average") Flip it!
+  .row-fluid
+    .span12
+      .widget-box.widget-plain
+        #market-chart.widget-content
+          stockchart(value="data", height="500")

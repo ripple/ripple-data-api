@@ -815,3 +815,147 @@ function numTransactionsCtrl($scope, $http, $routeParams) {
     
   });
 }
+
+function AverageCtrl($scope, $http, $routeParams, $rootScope)
+{
+  $scope.first = $routeParams.first;
+  $scope.second = $routeParams.second;
+    
+  if($scope.first === 'XRP' || $scope.second === 'XRP') {
+    if($scope.first === 'XRP') {
+      var issuer_address = "";
+      for (var i = 0; i < all_issuers.length; i++) {
+        if (all_issuers[i].name == $scope.second.split(':')[1]) {
+          issuer_address = all_issuers[i].currencies[$scope.second.split(':')[0]];
+        }
+      }
+      var param  = $scope.second.split(':')[0] + "/" + issuer_address;
+      $scope.$watch("tickers['" + param + "'].last", function (ticker) {
+        if(ticker) {
+          ticker = 1 / ticker * 1000000;
+          $rootScope.title = ticker.toFixed(2) + ' RippleCharts.com';      
+        }
+      }, true);
+    } else if($scope.second === 'XRP') {
+      var issuer_address = "";
+      for (var i = 0; i < all_issuers.length; i++) {
+        if (all_issuers[i].name == $scope.first.split(':')[1]) {
+          issuer_address = all_issuers[i].currencies[$scope.first.split(':')[0]];
+        }
+      }
+      var param  = $scope.first.split(':')[0] + "/" + issuer_address;
+      $scope.$watch("tickers['" + param + "'].last", function (ticker) {
+        if(ticker) {
+          ticker = ticker / 1000000;
+          $rootScope.title = ticker.toFixed(2) + ' RippleCharts.com';  
+        }
+      }, true);
+    }
+  } else {
+    var issuer_address_first = "",
+        issuer_address_second = "";
+    for (var i = 0; i < all_issuers.length; i++) {
+      if (all_issuers[i].name == $scope.first.split(':')[1]) {
+        issuer_address_first = all_issuers[i].currencies[$scope.first.split(':')[0]];
+      }
+      if (all_issuers[i].name == $scope.second.split(':')[1]) {
+        issuer_address_second = all_issuers[i].currencies[$scope.second.split(':')[0]];
+      }
+    }
+    var param_first = $scope.first.split(':')[0] + ":" + issuer_address_first;
+    var param_second = $scope.second.split(':')[0] + ":" + issuer_address_second;
+    $scope.$watch("crosstickers['" + param_first + "']['" + param_second + "'].last", function(crossticker) {
+      if (crossticker) {
+        crossticker = crossticker * 1;
+        $rootScope.title = crossticker.toFixed(2) + ' RippleCharts.com';
+      }
+    }, true);
+    $scope.$watch("crosstickers['" + param_second + "']['" + param_first + "'].last", function(crossticker) {
+      if (crossticker) {
+        crossticker = crossticker * 1;
+        $rootScope.title = crossticker.toFixed(2) + ' RippleCharts.com';
+      }
+    }, true);
+  }
+  var symbol = $scope.symbol = $scope.first + "/" + $scope.second;
+
+  $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
+    var dataLength = data.length,
+        avg_data = [];
+	for (var i = 0; i < data.length; i++)
+	{
+       avg_data.push([data[i][0], data[i][7]]);
+	}
+ 
+    var groupingUnits = [[
+      'day',                         // unit name
+      [1]                             // allowed multiples
+    ], [
+      'week',                         // unit name
+      [1]                             // allowed multiples
+    ], [
+      'month',
+      [1, 3]
+    ]];
+
+    $scope.data = {
+      chart: {
+        type: 'line',
+        zoomType: 'x'
+      },
+
+      rangeSelector: {
+        buttons: [{
+          type: 'day',
+          count: 1,
+          text: '1d'
+        }, {
+          type: 'week',
+          count: 1,
+          text: '1w'
+        }, {
+          type: 'month',
+          count: 1,
+          text: '1m'
+        }],
+        selected: 2
+      },
+
+      title: {
+        text: 'Weighted Average'
+      },
+
+      xAxis: {
+        type: 'datetime',
+        labels: {
+          formatter : function() {
+            return Highcharts.dateFormat('%a, %b %d', this.value)
+          }
+        }
+      },
+
+      yAxis: {
+        title: {
+          text: 'Average'
+        },
+        plotLines: [{
+          value: 0,
+          width: 1,
+          color: '#808080'
+        }]
+      },
+
+      tooltip: {
+        borderColor: "#2F7ED8"
+      },
+
+      series: [{
+          name: 'Average',
+          data: avg_data,
+          dataGrouping: {
+            units: groupingUnits
+          }
+        }]
+    };
+  });
+}

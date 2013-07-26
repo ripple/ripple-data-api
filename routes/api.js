@@ -67,7 +67,8 @@ function marketProcessRows(rows, flip) {
       flip ? (1/row.high)  : +row.low,
       flip ? (1/row.close) : +row.close,
       flip ? +row.fvol     : +row.vol,
-      row.price
+      row.price,
+      flip ? (1/row.avg) : +row.avg
     ];
   });
 }
@@ -125,7 +126,8 @@ exports.market_daily = function (db) {
         "  COUNT(*) AS num, " +
         "  SUM(amount) AS vol, " +
         "  SUM(amount*price) AS fvol, " +
-        "  price " +
+        "  price, " +
+        "  SUM( price * amount ) / SUM( amount ) AS avg " +
         "FROM `trades` " +
         "WHERE `c1` = ? AND `i1` = ? AND `c2` = ? AND `i2` = ? " +
         "GROUP BY TO_DAYS(time)",
