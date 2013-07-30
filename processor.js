@@ -215,7 +215,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         if (tx.TransactionType === "Payment" && tx.meta.TransactionResult === "tesSUCCESS" && !tx.Paths && !tx.SendMax) {
           txs_xrp_total += Amount.from_json(tx.Amount).to_number() * 1;
 		}else if (tx.TransactionType === "Payment" && tx.meta.TransactionResult === "tesSUCCESS" && tx.Paths && tx.Paths.length) {
-          txs_cross_total += Amount.from_json(tx.Amount).to_number() * 1;
+          //txs_cross_total += Amount.from_json(tx.Amount).to_number() * 1;
+          txs_cross_total++;
         }
         fees = fees.add(Amount.from_json(tx.Fee));
         
@@ -450,7 +451,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         if (err) return callback(err);
 
         self.db.query("INSERT INTO ledgers " +
-                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`, `time`, `txs_xrp_total`, `txs_cross_total`, `txs_trade`, " +
+                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`, `time`, `txs_xrp_total`, `txs_cross`, `txs_trade`, " +
                       "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
                       "SELECT ?, ?, ?, `accounts` + ?, ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
                       "FROM ledgers " +

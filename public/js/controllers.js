@@ -770,17 +770,32 @@ function numTransactionsCtrl($scope, $http, $routeParams) {
   $http.get('api/transactions/transactions.json').success(function (data) {
     var dataLength = data.length,
         trans_data = [];
-	for (var i = 0; i < data.length; i++)
+
+    for (var i = 0; i < data.length; i++)
 	{
        trans_data.push([data[i][0], data[i][1]]);
 	}
     $scope.data = {
       chart: {
-        type: 'line'
+        type: 'line',
+        zoomType: 'x'
       },
 
       title: {
         text: 'Number of Transaction'
+      },
+
+      rangeSelector: {
+        buttons: [{
+          type: 'week',
+          count: 1,
+          text: '1w'
+        }, {
+          type: 'month',
+          count: 1,
+          text: '1m'
+        }],
+        selected: 1
       },
 
       xAxis: {
@@ -887,17 +902,6 @@ function AverageCtrl($scope, $http, $routeParams, $rootScope)
        avg_data.push([data[i][0], data[i][7]]);
 	}
  
-    var groupingUnits = [[
-      'day',                         // unit name
-      [1]                             // allowed multiples
-    ], [
-      'week',                         // unit name
-      [1]                             // allowed multiples
-    ], [
-      'month',
-      [1, 3]
-    ]];
-
     $scope.data = {
       chart: {
         type: 'line',
@@ -906,10 +910,6 @@ function AverageCtrl($scope, $http, $routeParams, $rootScope)
 
       rangeSelector: {
         buttons: [{
-          type: 'day',
-          count: 1,
-          text: '1d'
-        }, {
           type: 'week',
           count: 1,
           text: '1w'
@@ -917,8 +917,12 @@ function AverageCtrl($scope, $http, $routeParams, $rootScope)
           type: 'month',
           count: 1,
           text: '1m'
+        }, {
+          type: 'year',
+          count: 1,
+          text: '1y'
         }],
-        selected: 2
+        selected: 1
       },
 
       title: {
@@ -951,10 +955,7 @@ function AverageCtrl($scope, $http, $routeParams, $rootScope)
 
       series: [{
           name: 'Average',
-          data: avg_data,
-          dataGrouping: {
-            units: groupingUnits
-          }
+          data: avg_data
         }]
     };
   });

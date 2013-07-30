@@ -23,8 +23,8 @@ var app = angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.dir
     $routeProvider.when('/orderbook/:first/:second', {templateUrl: 'partials/orderbook',
                                                    controller: OrderbookCtrl});
 
-    //Transaction
-    $routeProvider.when('/transaction', {templateUrl: 'partials/transaction'});
+    //Transaction Feed
+    $routeProvider.when('/feed', {templateUrl: 'partials/transaction'});
 
     //Transaction
     $routeProvider.when('/transactions', {templateUrl: 'partials/transactions',

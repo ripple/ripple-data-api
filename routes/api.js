@@ -298,7 +298,7 @@ function transactionsProcessRows(rows) {
 
 exports.transactions_data = function (db) {
   return function (req, res) {
-    db.query("SELECT date_format(time, '%Y-%m-%d') AS tx_date, txs AS tx_num FROM ledgers ORDER BY time", function(err, rows) {
+    db.query("SELECT date_format(time, '%Y-%m-%d') AS tx_date, SUM(txs) AS tx_num FROM ledgers GROUP BY TO_DAYS(time) ORDER BY time", function(err, rows) {
       if (err)
       {
         console.error(err);

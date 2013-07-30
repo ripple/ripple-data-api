@@ -131,7 +131,7 @@ remote.on('transaction', function (e) {
   switch (e.transaction.TransactionType) {
     case 'Payment':
       var amount = ripple.Amount.from_json(e.transaction.Amount);
-      transaction_desc = transaction_account + " sent " + amount.to_number() + " " + amount.currency().to_json() + " to " + e.transaction.Destination;
+      transaction_desc = transaction_account + " sent " + (amount.to_number() / 1000000).toFixed(2) + " " + amount.currency().to_json() + " to " + e.transaction.Destination;
       break;
 
     case 'TrustSet':
@@ -140,9 +140,9 @@ remote.on('transaction', function (e) {
 
     case 'OfferCreate':
       if (e.transaction.TakerGets.issuer !== undefined)
-        transaction_desc = transaction_account + " created an offer " + ripple.Amount.from_json(e.transaction.TakerPays).to_number() + " for " + e.transaction.TakerGets.issuer;
+        transaction_desc = transaction_account + " created an offer " + (ripple.Amount.from_json(e.transaction.TakerPays).to_number() / 1000000).toFixed(2) + " " + ripple.Amount.from_json(e.transaction.TakerPays).currency().to_json() + " for " + ripple.Amount.from_json(e.transaction.TakerGets).to_number() + " " + e.transaction.TakerGets.currency;
       else
-        transaction_desc = transaction_account + " created an offer " + ripple.Amount.from_json(e.transaction.TakerGets).to_number() + " for " + e.transaction.TakerPays.issuer;
+        transaction_desc = transaction_account + " created an offer " + ripple.Amount.from_json(e.transaction.TakerPays).to_number() + " " + e.transaction.TakerPays.currency + " for " + (ripple.Amount.from_json(e.transaction.TakerGets).to_number() / 1000000).toFixed(2) + " " + ripple.Amount.from_json(e.transaction.TakerGets).currency().to_json();
       break;
 
     case 'OfferCancel':
