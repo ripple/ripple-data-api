@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS `ledgers` (
   `accounts` int(10) unsigned NOT NULL,
   `txs` mediumint(8) unsigned NOT NULL,
   `fees` int(10) unsigned NOT NULL,
+  `txs_xrp_total` mediumint(8) NOT NULL,
+  `time` datetime NOT NULL,
+  `txs_cross_total` mediumint(8) NOT NULL,
+  `txs_trade` mediumint(8) NOT NULL,
+  `evt_trade` mediumint(8) NOT NULL,
+  `txs_paytrade` mediumint(8) NOT NULL,
+  `entries` mediumint(8) NOT NULL,
+  `offers_placed` mediumint(8) NOT NULL,
+  `offers_taken` mediumint(8) NOT NULL,
+  `offers_canceled` mediumint(8) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
