@@ -85,6 +85,15 @@ exports.issuers = [{
   currencies: {
     "BTC": "rJHygWcTLVpSXkowott6kzgZU6viQSVYM1"
   }
+}, {
+  name: "RippleChina",
+  url: "http://www.ripplechina.net/",
+  domain: "trade.ripplechina.net",
+  currencies: {
+    "CNY": "razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA",
+    "BTC": "razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA",
+    "USD": "razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA"
+  }
 }];
 
 // Curated list of currencies
