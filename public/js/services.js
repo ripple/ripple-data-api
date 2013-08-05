@@ -26,3 +26,60 @@ module.factory('socket', function ($rootScope) {
     }
   };
 });
+
+
+module.factory('ChartConfig', function(){
+  var root = {};
+  root.getChartConfig = function(data, title, yAxisTitle, seriesName, rangeSelector, index){
+    var dataLength = data.length,
+      trans_data = [];
+
+    for (var i = 0; i < data.length; i++)
+    {
+       trans_data.push([data[i][0], data[i][index]]);
+    }
+    return {
+      chart: {
+        type: 'line',
+        zoomType: 'x'
+      },
+
+      title: {
+        text: title
+      },
+
+      rangeSelector: rangeSelector,
+
+      xAxis: {
+        type: 'datetime',
+        labels: {
+          formatter : function() {
+            return Highcharts.dateFormat('%a, %b %d', this.value)
+          }
+        }
+      },
+
+      yAxis: {
+        title: {
+          text: yAxisTitle
+        },
+        plotLines: [{
+          value: 0,
+          width: 1,
+          color: '#808080'
+        }]
+      },
+
+      tooltip: {
+        borderColor: "#2F7ED8"
+      },
+
+      series: [{
+        name: seriesName,
+        data: trans_data
+      }]
+    };
+  };
+  return root;
+});
+

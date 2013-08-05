@@ -312,3 +312,43 @@ exports.transactions_data = function (db) {
 	});
   };
 };
+
+exports.transmetric_data = function (db) {
+  return function (req, res) {
+    var metric = req.route.params.metric;
+    
+    db.query("SELECT date_format(time, '%Y-%m-%d') AS tx_date, SUM(??) AS tx_num FROM ledgers GROUP BY TO_DAYS(time) ORDER BY time",
+             [metric],
+             function(err, rows) {
+      if (err)
+      {
+        console.error(err);
+        res.json(null);
+        return;
+      }
+      if (rows)
+      {
+        res.json(transactionsProcessRows(rows));
+      }
+	});
+  };
+};
+
+exports.num_accounts = function(db) {
+  return function (req, res) {
+    
+    db.query("SELECT date_format(time, '%Y-%m-%d') AS tx_date, SUM(accounts) AS tx_num FROM ledgers GROUP BY TO_DAYS(time) ORDER BY time",
+             function(err, rows) {
+      if (err)
+      {
+        console.error(err);
+        res.json(null);
+        return;
+      }
+      if (rows)
+      {
+        res.json(transactionsProcessRows(rows));
+      }
+	});
+  };
+};

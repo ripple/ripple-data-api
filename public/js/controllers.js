@@ -212,13 +212,7 @@ function MarketCtrl($scope, $http, $routeParams, $rootScope)
     };
   });
   
-  $scope.opened = false;
-  $scope.open_raw_data = function() {
-    $scope.opened = true;
-    $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
-      $scope.raw_data =data;
-    });
-  };
+  LoadRawData('api/market/'+symbol+'/daily.json', $http);
 }
 
 //Caps Control
@@ -281,6 +275,8 @@ function CapsCtrl($scope, $http, $routeParams) {
     };
     
   });
+  //Grid for Chart Data
+  LoadRawData('api/caps/'+symbol+'/caps.json', $http);
 }
 
 //Intraday Ctrl
@@ -386,6 +382,8 @@ function IntradayChart($scope, $http, $routeParams, $rootScope) {
       }]
     };
   });
+  //Grid for Chart Data
+  LoadRawData('api/intraday/'+symbol+'/intraday.json?period=' + period_param + '&start=' + start_param, $http);
 }
 
 //NewsCtrl
@@ -765,73 +763,32 @@ function OrderbookCtrl ($scope, $http, $routeParams) {
 }
 
 //Transactions Control
-function numTransactionsCtrl($scope, $http, $routeParams) {
-
+function NumTransactionsCtrl($scope, $http, $routeParams, ChartConfig) {
   $http.get('api/transactions/transactions.json').success(function (data) {
-    var dataLength = data.length,
-        trans_data = [];
-
-    for (var i = 0; i < data.length; i++)
-	{
-       trans_data.push([data[i][0], data[i][1]]);
-	}
-    $scope.data = {
-      chart: {
-        type: 'line',
-        zoomType: 'x'
-      },
-
-      title: {
-        text: 'Number of Transaction'
-      },
-
-      rangeSelector: {
-        buttons: [{
-          type: 'week',
-          count: 1,
-          text: '1w'
-        }, {
-          type: 'month',
-          count: 1,
-          text: '1m'
-        }],
-        selected: 1
-      },
-
-      xAxis: {
-        type: 'datetime',
-        labels: {
-          formatter : function() {
-            return Highcharts.dateFormat('%a, %b %d', this.value)
-          }
-        }
-      },
-
-      yAxis: {
-        title: {
-          text: 'Amount'
-        },
-        plotLines: [{
-          value: 0,
-          width: 1,
-          color: '#808080'
-        }]
-      },
-
-      tooltip: {
-        borderColor: "#2F7ED8"
-      },
-
-      series: [{
-          name: 'Data',
-          data: trans_data
-        }]
+    var rangeSelector = {
+      buttons: [{
+        type: 'week',
+        count: 1,
+        text: '1w'
+      }, {
+        type: 'month',
+        count: 1,
+        text: '1m'
+      }],
+      selected: 1
     };
-    
+    var yAxisTitle = 'Amount',
+        seriesName = 'Data',
+        title = 'Number of Transaction';
+
+    $scope.data = getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 1);
   });
+  //Grid for Chart Data
+  LoadRawData('api/transactions/transactions.json', $http);
 }
 
-function AverageCtrl($scope, $http, $routeParams, $rootScope)
+//Weighted Average Control
+function AverageCtrl($scope, $http, $routeParams, $rootScope, ChartConfig)
 {
   $scope.first = $routeParams.first;
   $scope.second = $routeParams.second;
@@ -895,21 +852,8 @@ function AverageCtrl($scope, $http, $routeParams, $rootScope)
   var symbol = $scope.symbol = $scope.first + "/" + $scope.second;
 
   $http.get('api/market/'+symbol+'/daily.json').success(function (data) {
-    var dataLength = data.length,
-        avg_data = [];
-	for (var i = 0; i < data.length; i++)
-	{
-       avg_data.push([data[i][0], data[i][7]]);
-	}
- 
-    $scope.data = {
-      chart: {
-        type: 'line',
-        zoomType: 'x'
-      },
-
-      rangeSelector: {
-        buttons: [{
+    var rangeSelector = {
+      buttons: [{
           type: 'week',
           count: 1,
           text: '1w'
@@ -923,40 +867,102 @@ function AverageCtrl($scope, $http, $routeParams, $rootScope)
           text: '1y'
         }],
         selected: 1
-      },
-
-      title: {
-        text: 'Weighted Average'
-      },
-
-      xAxis: {
-        type: 'datetime',
-        labels: {
-          formatter : function() {
-            return Highcharts.dateFormat('%a, %b %d', this.value)
-          }
-        }
-      },
-
-      yAxis: {
-        title: {
-          text: 'Average'
-        },
-        plotLines: [{
-          value: 0,
-          width: 1,
-          color: '#808080'
-        }]
-      },
-
-      tooltip: {
-        borderColor: "#2F7ED8"
-      },
-
-      series: [{
-          name: 'Average',
-          data: avg_data
-        }]
     };
+    var yAxisTitle = 'Average',
+        seriesName = 'Average',
+        title = 'Weighted Average';
+    $scope.data = ChartConfig.getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 7);
   });
+  //Grid for Chart Data
+  LoadRawData('api/market/'+symbol+'/daily.json', $http);
 }
+
+//Cross-currency transaction, Trading transaction, Paytrade transaction Control
+function NumTransMetricCtrl($scope, $http, $routeParams, ChartConfig) {
+  $scope.metric = $routeParams.metric;
+
+  $http.get('api/transactions/txs_' + $scope.metric + '/transactions.json').success(function (data) {
+    var rangeSelector = {
+      buttons: [{
+        type: 'week',
+        count: 1,
+        text: '1w'
+      }, {
+        type: 'month',
+        count: 1,
+        text: '1m'
+      }],
+      selected: 1
+    };
+    var yAxisTitle = 'Amount',
+        seriesName = 'Data',
+        title = 'Number of ' + $scope.metric + ' Transaction';
+    $scope.data = ChartConfig.getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 1);
+  });
+  //Grid for Chart Data
+  LoadRawData('api/transactions/txs_' + $scope.metric + '/transactions.json', $http);
+}
+
+//Total XRP Control
+function TotalXRPCtrl($scope, $http, $routeParams, ChartConfig) {
+  $http.get('api/transactions/txs_xrp_total/transactions.json').success(function (data) {
+    var rangeSelector = {
+      buttons: [{
+        type: 'week',
+        count: 1,
+        text: '1w'
+      }, {
+        type: 'month',
+        count: 1,
+        text: '1m'
+      }],
+      selected: 1
+    };
+    var yAxisTitle = 'Amount',
+        seriesName = 'Data',
+        title = 'Total XRP';
+    $scope.data = ChartConfig.getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 1);
+  });
+  //Grid for Chart Data
+  LoadRawData('api/transactions/txs_xrp_total/transactions.json', $http);
+}
+
+//Number of Accounts Control
+function AccountsCtrl($scope, $http, $routeParams, ChartConfig) {
+  $http.get('api/accounts.json').success(function (data) {
+    var rangeSelector = {
+      buttons: [{
+        type: 'week',
+        count: 1,
+        text: '1w'
+      }, {
+        type: 'month',
+        count: 1,
+        text: '1m'
+      }],
+      selected: 1
+    };
+    var yAxisTitle = 'Amount',
+        seriesName = 'Data',
+        title = 'Number of Accounts';
+    $scope.data = ChartConfig.getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 1);
+  });
+  //Grid for Chart Data
+  LoadRawData('api/accounts.json', $http);
+}
+
+function LoadRawData (url, $http) {
+  $scope.opened = false;
+  $scope.open_raw_data = function() {
+    $scope.opened = true;
+    $http.get(url).success(function (data) {
+      $scope.raw_data =data;
+    });
+  };
+}
+
+NumTransMetricCtrl.$inject = ['$scope', '$http', '$routeParams', 'ChartConfig'];
+TotalXRPCtrl.$inject = ['$scope', '$http', '$routeParams', 'ChartConfig'];
+AccountsCtrl.$inject = ['$scope', '$http', '$routeParams', 'ChartConfig'];
+NumTransactionsCtrl.$inject = ['$scope', '$http', '$routeParams', 'ChartConfig'];
+AverageCtrl.$inject = ['$scope', '$http', '$routeParams', '$rootScope', 'ChartConfig'];

@@ -98,7 +98,10 @@ app.get('/api/caps/:first/caps.json', api.caps_currency(db));
 app.get('/api/news/:first/news.json', api.news_data(db));
 //# of Transactions
 app.get('/api/transactions/transactions.json', api.transactions_data(db));
-
+//Number of cross, trade, paytrade
+app.get('/api/transactions/:metric/transactions.json', api.transmetric_data(db));
+//Number of accounts
+app.get('/api/accounts.json', api.num_accounts(db));
 
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);

@@ -28,10 +28,23 @@ var app = angular.module('myApp', ['myApp.filters', 'myApp.services', 'myApp.dir
 
     //Transaction
     $routeProvider.when('/transactions', {templateUrl: 'partials/transactions',
-                                          controller: numTransactionsCtrl});
+                                          controller: NumTransactionsCtrl});
 
+    //Weighted Average
     $routeProvider.when('/market/:first/:second/average', {templateUrl: 'partials/average',
                                                    controller: AverageCtrl});
+
+    //Cross-currency transaction, Trading transaction, Paytrade transaction Control
+    $routeProvider.when('/transactions/:metric', {templateUrl: 'partials/transactions',
+                                          controller: NumTransMetricCtrl});
+
+    //Total XRP Control
+    $routeProvider.when('/volume/xrp', {templateUrl: 'partials/xrp',
+                                          controller: TotalXRPCtrl});
+
+    //Number of Accounts Control
+    $routeProvider.when('/accounts', {templateUrl: 'partials/accounts',
+                                          controller: AccountsCtrl});
 
     $routeProvider.otherwise({redirectTo: '/'});
     $locationProvider.html5Mode(true);

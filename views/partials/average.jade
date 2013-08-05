@@ -15,3 +15,15 @@
       .widget-box.widget-plain
         #market-chart.widget-content
           stockchart(value="data", height="500")
+  .row-fluid
+    .span8.raw_data
+      a(ng-click='open_raw_data()') Load raw data
+      table.table(ng-show="opened == true")
+        thead
+          tr
+            th Timestamp
+            th Average
+        tbody
+          tr(ng-repeat="item in raw_data")
+            td {{item[0] | date: 'yyyy-MM-dd HH:mm:ss'}} 
+            td {{item[7].toFixed(2)}} 
