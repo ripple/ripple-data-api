@@ -781,7 +781,7 @@ function NumTransactionsCtrl($scope, $http, $routeParams, ChartConfig) {
         seriesName = 'Data',
         title = 'Number of Transaction';
 
-    $scope.data = getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 1);
+    $scope.data = ChartConfig.getChartConfig(data, title, yAxisTitle, seriesName, rangeSelector, 1);
   });
   //Grid for Chart Data
   LoadRawData('api/transactions/transactions.json', $http);
