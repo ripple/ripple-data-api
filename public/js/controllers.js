@@ -5,34 +5,23 @@
 function AppCtrl($scope, $rootScope, socket) {
   // Easier access for debugging
   window.$scope = $scope;
-  
+
   $scope.$watch("tickers", function (tickers) {
     tickers && ($scope.atickers = _.values(tickers));
   }, true);
 
   $rootScope.title = 'RippleCharts.com';
 
-  socket.on('apply', function (data) {
-    angular.extend($scope, data);
-  });
+  // With Pusher we have to manually request the initial state
+  if ("function" === typeof Pusher) {
+    $.get('/api/model.json', function (data) {
+      $scope.$apply(function () {
+        angular.extend($scope, data);
+      });
+    });
+  }
 
-  socket.on('set', function (data) {
-    var path = data[0], value = data[1];
-
-    path = path.split('.');
-
-    var segment, select = $scope;
-    while ((segment = path.shift())) {
-      if (path.length && select[segment]) {
-        select = select[segment];
-      } else if (path.length) {
-        select = select[segment] = {};
-      } else {
-        select[segment] = value;
-      }
-    }
-  });
-
+  socket.bindChannel($scope, $scope, null);
 }
 
 function DashboardCtrl() {}

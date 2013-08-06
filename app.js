@@ -42,7 +42,7 @@ var News = require('./news').News;
 var news = new News(db, remote);
 
 // Configuration
-var http_config = {};
+var http_config = {}, pusher;
 app.configure(function(){
   extend(http_config, {
     ssl: false,
@@ -72,6 +72,21 @@ app.configure('production', function(){
   app.use(express.errorHandler());
 });
 
+app.configure('proxied', function(){
+  extend(http_config, {
+    port: 9080
+  });
+
+  console.log("Enabling pusher");
+  var Pusher = require('pusher');
+  pusher = new Pusher({
+    appId: '51165',
+    key: '37f7316c0995aaf4e147',
+    secret: 'a8d39a45826946759cff'
+  });
+  app.use(express.errorHandler());
+});
+
 var server = http_config.ssl ?
       require('https').createServer(http_config.ssl, app) :
       require('http').createServer(app);
@@ -88,6 +103,7 @@ app.get('/partials/:name', routes.partials);
 // JSON API
 
 app.get('/api/name', api.name);
+app.get('/api/model.json', api.model);
 app.get('/api/market/:first/:second/hourly.json', api.market_hourly(db));
 app.get('/api/market/:first/:second/daily.json', api.market_daily(db));
 //Intraday
@@ -110,6 +126,9 @@ app.get('*', routes.index);
 
 model.broadcast = function (method, data) {
   io.sockets.emit(method, data);
+  if (pusher) {
+    pusher.trigger('default', method, data);
+  }
 };
 
 io.sockets.on('connection', function (socket) {

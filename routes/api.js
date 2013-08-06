@@ -5,11 +5,16 @@
 var _ = require('lodash');
 
 var index = require('../indexes');
+var model = require('../model');
 
 exports.name = function (req, res) {
   res.json({
   	name: 'Bob'
   });
+};
+
+exports.model = function (req, res) {
+  res.json(model.data);
 };
 
 function marketProcessParam(q) {

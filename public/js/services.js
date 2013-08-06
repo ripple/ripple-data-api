@@ -4,22 +4,57 @@
 var module = angular.module('myApp.services', []);
 
 module.factory('socket', function ($rootScope) {
-  var socket = io.connect();
+  var socket;
+
+  if ("object" === typeof io) {
+    socket = io.connect();
+  } else if ("function" === typeof Pusher) {
+    var pusher = new Pusher('37f7316c0995aaf4e147');
+    socket = pusher.subscribe('default');
+    Pusher.log = function(message) {
+      if (window.console && window.console.log) {
+        window.console.log(message);
+      }
+    };
+  } else {
+    throw new Error("No socket implementation loaded.");
+  }
+
+  var model = {};
+
+  function on(name, callback) {
+    if ("object" === typeof io) {
+      socket.on(name, callback);
+    } else if ("function" === typeof Pusher) {
+      socket.bind(name, callback);
+    } else {
+      throw new Error("Socket implementation disappeared at runtime.");
+    }
+  }
+
   return {
-    on: function (eventName, callback) {
-      socket.on(eventName, function () {
-        var args = arguments;
-        $rootScope.$apply(function () {
-          callback.apply(socket, args);
+    bindChannel: function ($scope, model, channelName) {
+      on('apply', function (data) {
+        $scope.$apply(function () {
+          angular.extend(model, data);
         });
       });
-    },
-    emit: function (eventName, data, callback) {
-      socket.emit(eventName, data, function () {
-        var args = arguments;
-        $rootScope.$apply(function () {
-          if (callback) {
-            callback.apply(socket, args);
+
+      on('set', function (data) {
+        $scope.$apply(function () {
+          var path = data[0], value = data[1];
+
+          path = path.split('.');
+
+          var segment, select = $scope;
+          while ((segment = path.shift())) {
+            if (path.length && select[segment]) {
+              select = select[segment];
+            } else if (path.length) {
+              select = select[segment] = {};
+            } else {
+              select[segment] = value;
+            }
           }
         });
       });
