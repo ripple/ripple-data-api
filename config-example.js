@@ -24,3 +24,9 @@ exports.db = {
   "mysql_pass" : "vertrigo",
   "mysql_db" : "rpcharts"
 };
+
+exports.s3 = {
+  "bucket": "ripple-data",
+  "key": "AKIAIQUYVAHE3GAW3H5Q",
+  "secret": "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"
+};

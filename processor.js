@@ -1,5 +1,6 @@
 var _ = require('lodash');
 var winston = require('winston');
+var knox = require('knox');
 
 var config = require('./config');
 var index = require('./indexes');
@@ -8,6 +9,13 @@ var model = require('./model');
 var Meta = require('ripple-lib').Meta;
 var Amount = require('ripple-lib').Amount;
 var utils = require('ripple-lib').utils;
+
+//Amazon S3
+var client = knox.createClient({
+  key: config.s3.key,
+  secret: config.s3.secret,
+  bucket: config.s3.bucket
+});
 
 var Processor = function (db, remote) {
   this.db = db;
@@ -102,16 +110,23 @@ Processor.prototype.processNextValidated = function (vrange, start)
   if (!vrange.is_member(start)) return;
 
   self.processing = true;
-
-  self.processLedger(start, function (err) {
-    self.processing = false;
-
-    if (err) {
-      winston.error(err.stack ? err.stack : err);
-    } else {
-      self.processNextValidated(vrange, start+1);
+  
+  var s3_filename = '/ledger/'+start+'.json';
+  client.get(s3_filename).on('response', function(res){
+    if (res.statusCode != 200) {
+      console.log(res.statusCode);
+      self.processLedger(start, function (err) {
+        self.processing = false;
+        if (err) {
+          winston.error(err.stack ? err.stack : err);
+        } else {
+          self.processNextValidated(vrange, start+1);
+        }
+      });
     }
-  });
+  }).end();
+     
+
 };
 
 Processor.prototype.processLedger = function (ledger_index, callback)
@@ -449,6 +464,20 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       function writeLedger(err)
       {
         if (err) return callback(err);
+
+        var s3_filename = '/ledger/'+ledger_index+'.json';
+        var ledger_string = JSON.stringify(ledger);
+        var req = client.put(s3_filename, {
+          'Content-Length': ledger_string.length,
+          'Content-Type': 'application/json',
+          'x-amz-acl': 'public-read' 
+        });
+        req.on('response', function(res){
+          if (200 == res.statusCode) {
+            console.log('saved to %s', req.url);
+          }
+        });
+        req.end(ledger_string);
 
         self.db.query("INSERT INTO ledgers " +
                       "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`, `time`, `txs_xrp_total`, `txs_cross`, `txs_trade`, " +
