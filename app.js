@@ -143,8 +143,7 @@ remote.on('transaction_all', function (e) {
   //interp.applyTransaction(model, e);
 });
 
-_.transaction = [];
-
+var MAX_TRANSACTIONS = 50;
 remote.on('transaction', function (e) {
   var transaction_ledger = e.ledger_index,
       transaction_account = e.transaction.Account,
@@ -174,8 +173,9 @@ remote.on('transaction', function (e) {
     default:
       transaction_desc = "";
   }
-  _.transaction.unshift([transaction_ledger, transaction_account, transaction_type, transaction_id, transaction_desc]);
-  model.apply({transaction:  _.transaction});
+  model.queue('transaction',
+              [transaction_ledger, transaction_account, transaction_type, transaction_id, transaction_desc],
+              MAX_TRANSACTIONS);
 });
 
 remote.on('ledger_closed', function (e) {

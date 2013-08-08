@@ -31,3 +31,19 @@ model.set = function (path_str, value) {
   winston.info("SET", path_str, value);
   model.broadcast('set', [path_str, value]);
 }
+
+model.queue = function (name, value, maxEntries) {
+  if (!Array.isArray(model.data[name])) {
+    model.data[name] = [];
+  }
+
+  var queue = model.data[name];
+
+  queue.unshift(value);
+
+  if (queue.length > maxEntries) {
+    model.data[name] = queue.slice(0, maxEntries);
+  }
+
+  model.broadcast('queue', [name, value, maxEntries]);
+};

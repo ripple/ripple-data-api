@@ -58,6 +58,23 @@ module.factory('socket', function ($rootScope) {
           }
         });
       });
+
+      on('queue', function (data) {
+        $scope.$apply(function () {
+          var name = data[0], value = data[1], maxEntries = data[2];
+          if (!Array.isArray(model[name])) {
+            model[name] = [];
+          }
+
+          var queue = model[name];
+
+          queue.unshift(value);
+
+          if (queue.length > maxEntries) {
+            model[name] = queue.slice(0, maxEntries);
+          }
+        });
+      });
     }
   };
 });
