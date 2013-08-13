@@ -119,19 +119,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   winston.info("Processing ledger "+ledger_index);
 
-  clearLedger();
-
-  function clearLedger() {
-    self.db.query("DELETE FROM trades WHERE ledger = ?; "+
-                  "DELETE FROM caps WHERE ledger = ?; "+
-                  "DELETE FROM ledgers WHERE id = ?",
-                  [ledger_index, ledger_index, ledger_index],
-                  function (err)
-    {
-      if (err) callback(err);
-      else requestLedger();
-    });
-  }
+  requestLedger();
 
   function requestLedger() {
     try {
@@ -147,7 +135,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         .on('success', function (m) {
           if (replied) return;
           replied = true;
-          processLedger(m);
+          clearLedger(m);
         })
         .request()
       ;
@@ -166,8 +154,22 @@ Processor.prototype.processLedger = function (ledger_index, callback)
     } catch(e) { callback(e); }
   }
 
-  function processLedger(e) {
+  function clearLedger(e) {
+    winston.debug("Clearing ledger "+ledger_index);
+    self.db.query("DELETE FROM trades WHERE ledger = ?; "+
+                  "DELETE FROM caps WHERE ledger = ?; "+
+                  "DELETE FROM ledgers WHERE id = ?",
+                  [ledger_index, ledger_index, ledger_index],
+                  function (err)
+    {
+      if (err) callback(err);
+      else analyzeLedger(e);
+    });
+  }
+
+  function analyzeLedger(e) {
     try {
+      winston.debug("Analyzing ledger "+ledger_index);
 
       var tradeRows = [],
           fees = Amount.from_json("0"),
@@ -428,6 +430,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       });
 
       if (tradeRows.length) {
+        winston.debug("Inserting "+tradeRows.length+" trade(s) for ledger "+ledger_index);
+
         self.db.query("INSERT INTO trades " +
                       "(`c1`, `i1`, `c2`, `i2`," +
                       " `time`, `ledger`, `price`, `amount`," +
@@ -449,6 +453,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       {
         if (err) return callback(err);
 
+        winston.debug("Inserting ledger "+ledger_index);
+
         self.db.query("INSERT INTO ledgers " +
                       "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`, `time`, `txs_xrp_total`, `txs_cross`, `txs_trade`, " +
                       "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
@@ -466,6 +472,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   function updateStatus(err) {
     if (err) return callback(err);
+
+    winston.debug("Updating process status to "+ledger_index);
 
     self.db.query("INSERT INTO config (`key`, `value`) VALUES (?, ?)" +
                   "ON DUPLICATE KEY UPDATE value = ?",

@@ -19,6 +19,8 @@ var Range = require('./range').Range;
 
 var app = module.exports = express();
 
+if (process.env.DEBUG) winston.level = 'debug';
+
 // Ripple client
 var ripple = require('ripple-lib');
 var remote = ripple.Remote.from_config(config.remote);
