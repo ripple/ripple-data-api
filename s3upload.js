@@ -62,19 +62,6 @@ var server = http_config.ssl ?
       require('https').createServer(http_config.ssl, app) :
       require('http').createServer(app);
 
-// Hook Socket.io into Express
-var io = require('socket.io').listen(server);
-
-// Start server
-
-model.broadcast = function (method, data) {
-  io.sockets.emit(method, data);
-};
-
-io.sockets.on('connection', function (socket) {
-  socket.emit('apply', model.data);
-});
-
 remote.on('error', function (err) {
   winston.error(err);
 });
@@ -129,7 +116,7 @@ function getLedgerIndex() {
     }
 
     var latest = Math.max(+(rows[0] && rows[0].value) || 0, config.net.genesis_ledger);
-    requestLedger(latest+1);
+    checkS3Upload(latest+1);
   });
 }
 
@@ -137,7 +124,7 @@ function checkS3Upload (ledger_index) {
   var s3_filename = '/ledger/'+ledger_index+'.json';
   winston.info(s3_filename);
   client.get(s3_filename).on('response', function(res){
-    if(res.statusCode != 200) 
+    if(res.statusCode != 200)
       requestLedger(ledger_index);
     else
       checkS3Upload(ledger_index+1);
@@ -174,21 +161,43 @@ function requestLedger(ledger_index) {
   } catch(e) { callback(e); }
 }
 
+//Upload each ledger data to the S3.
 function uploadToS3 (e, ledger_index) {
   var ledger = e.ledger;
   var s3_filename = '/ledger/'+ledger_index+'.json';
   var ledger_string = JSON.stringify(ledger);
   var req = client.put(s3_filename, {
     'Content-Length': ledger_string.length,
-    'Content-Type': 'application/json',
-    'x-amz-acl': 'public-read' 
+    'Content-Type': 'application/json'
   });
   req.on('response', function(res){
     if (200 == res.statusCode) {
       console.log('saved to %s', req.url);
+      uploadLastLedger(ledger_index);
+    } else {
+      checkS3Upload(ledger_index);
+    }
+  });
+
+  req.end(ledger_string);
+}
+
+//Upload the latest ledger index to the S3.
+function uploadLastLedger (ledger_index) {
+  var s3_filename = '/meta/ledger-manifest.json';
+  var last_ledger = {latest: ledger_index};
+  var str_last_ledger = JSON.stringify(last_ledger);
+  var req_last_ledger = client.put(s3_filename, {
+      'Content-Length': str_last_ledger.length,
+      'Content-Type': 'application/json'
+  });
+
+  req_last_ledger.on('response', function(res){
+    if (200 == res.statusCode) {
+      console.log('saved to %s', req_last_ledger.url);
     }
     checkS3Upload(ledger_index+1);
   });
 
-  req.end(ledger_string);
+  req_last_ledger.end(str_last_ledger);
 }
