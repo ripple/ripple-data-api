@@ -33,6 +33,7 @@ module.factory('socket', function ($rootScope) {
   }
 
   return {
+    on: on,
     bindChannel: function ($scope, model, channelName) {
       on('apply', function (data) {
         $scope.$apply(function () {
