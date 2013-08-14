@@ -9,6 +9,8 @@ var Meta = require('ripple-lib').Meta;
 var Amount = require('ripple-lib').Amount;
 var utils = require('ripple-lib').utils;
 
+var cleanCache = {};
+
 var Processor = function (db, remote) {
   this.db = db;
   this.remote = remote;
@@ -124,6 +126,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
   function requestLedger() {
     try {
       var replied = false;
+      winston.debug("Downloading ledger "+ledger_index);
       self.remote.request_ledger(undefined, { transactions: true, expand: true })
         .ledger_index(ledger_index)
         .on('error', function (err) {
@@ -422,6 +425,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
           winston.info("TRADE", price.to_text_full(), volume.to_text_full());
 
+          cleanCache[""+an.c1+":"+an.i1+":"+an.c2+":"+an.i2] = false;
+
           tradeRows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
                      price.is_native() ? price.to_number() / 1000000 : price.to_number(),
                      volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
@@ -487,9 +492,9 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
 Processor.prototype.updateAggregates = function () {
   var self = this;
-  
-  self.db.query("SELECT " + 
-                " accounts " + 
+
+  self.db.query("SELECT " +
+                " accounts " +
                 " FROM ledgers ORDER BY id DESC " +
                 " LIMIT 0,1", function(err, rows)
   {
@@ -509,7 +514,7 @@ Processor.prototype.updateAggregates = function () {
           c1 = index.currenciesByCode[key1.slice(0,3)].id,
      	  c2 = index.currenciesByCode[key2.slice(0,3)].id;
       if (c1 > c2 || (c1 === c2 && i1 > i2)) return;
-      
+
       self.db.query("SELECT * FROM trades WHERE c1 = ? AND i1 = ? AND c2 = ? AND i2 = ? " +
                     "ORDER BY `time` DESC, `tx` DESC, `order` DESC LIMIT 0,1",
                     [c1, i1, c2, i2],
@@ -528,6 +533,10 @@ Processor.prototype.updateAggregates = function () {
   });
 
   _.each(index.xrp, function (ticker, i) {
+    if (cleanCache["0:0:"+ticker.cur.id+":"+ticker.iss.id]) return;
+
+    winston.debug("Refreshing issuer "+ticker.first);
+
     self.db.query("SELECT * FROM trades WHERE c1 = 0 AND c2 = ? AND i2 = ? " +
                   "ORDER BY `time` DESC, `tx` DESC, `order` DESC LIMIT 0,1",
                   [ticker.cur.id, ticker.iss.id],
@@ -544,7 +553,7 @@ Processor.prototype.updateAggregates = function () {
     });
     //Caps
     self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 1 ORDER BY ledger DESC LIMIT 0,1", 
-                  [ticker.cur.id, ticker.iss.id], 
+                  [ticker.cur.id, ticker.iss.id],
                   function(err, rows) {
       if (err) winston.error(err);
 
@@ -554,7 +563,7 @@ Processor.prototype.updateAggregates = function () {
     });
     //Hots
     self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 0 ORDER BY ledger DESC LIMIT 0,1", 
-                  [ticker.cur.id, ticker.iss.id], 
+                  [ticker.cur.id, ticker.iss.id],
                   function(err, rows) {
       if (err) winston.error(err);
 
@@ -562,7 +571,7 @@ Processor.prototype.updateAggregates = function () {
         model.set("tickers."+ticker.first+".caps", rows[0].amount);
       }
     });
- 
+
     [1, 30].forEach(function (days) {
       var cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
@@ -593,6 +602,8 @@ Processor.prototype.updateAggregates = function () {
         }
       });
     });
+
+    cleanCache["0:0:"+ticker.cur.id+":"+ticker.iss.id] = true;
   });
 };
 
