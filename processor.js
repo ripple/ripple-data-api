@@ -399,28 +399,46 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           an.i1 = an.reverse ? ip.id : ig.id;
           an.i2 = an.reverse ? ig.id : ip.id;
 
-          an.sort = trade_gets.ratio_human(trade_pays).to_number();
+          var price = Amount.from_quality(an.fieldsFinal.BookDirectory, "1", "1");
+
+          var takerGets = Amount.from_json(an.fieldsPrev.TakerGets),
+              takerPays = Amount.from_json(an.fieldsPrev.TakerPays);
+
+          if (takerPays.is_native()) {
+            // Adjust for drops: The result would be a million times too large.
+            price = price.divide(Amount.from_json("1000000"));
+          }
+
+          if (takerGets.is_native()) {
+            // Adjust for drops: The result would be a million times too small.
+            price = price.multiply(Amount.from_json("1000000"));
+          }
+
+          an.price = price;
+          an.sort = price.to_number();
 
           return true;
         });
-        nodes.sort(function (a, b) { return b.sort - a.sort; });
 
-        nodes.forEach(function (an, i_an) {
+        _.each(nodes, function (an, i_an) {
           var price, volume;
+
+          price = an.price;
+
           if (an.reverse) {        // ASK
-            price = Amount.from_json(an.fieldsPrev.TakerPays)
-              .ratio_human(an.fieldsPrev.TakerGets);
             volume = Amount.from_json(an.fieldsPrev.TakerGets);
             if (an.diffType === 'ModifiedNode') {
               volume = volume.subtract(an.fieldsFinal.TakerGets);
             }
           } else { // BID
-            price = Amount.from_json(an.fieldsPrev.TakerGets)
-              .ratio_human(an.fieldsPrev.TakerPays);
             volume = Amount.from_json(an.fieldsPrev.TakerPays);
             if (an.diffType === 'ModifiedNode') {
               volume = volume.subtract(an.fieldsFinal.TakerPays);
             }
+
+            // It's confusing, but we need to invert the book price if an.reverse
+            // is *false*.
+            price = price.invert();
           }
 
           winston.info("TRADE", price.to_text_full(), volume.to_text_full());
@@ -428,10 +446,12 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           cleanCache[""+an.c1+":"+an.i1+":"+an.c2+":"+an.i2] = false;
 
           tradeRows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
-                     price.is_native() ? price.to_number() / 1000000 : price.to_number(),
-                     volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
-                     i_tx, i_an]);
+                          price.to_number(),
+                          volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
+                          i_tx, i_an]);
         });
+
+        nodes.sort(function (a, b) { return b.sort - a.sort; });
       });
 
       if (tradeRows.length) {
