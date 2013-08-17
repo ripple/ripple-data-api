@@ -485,7 +485,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                       "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
                       "SELECT ?, ?, ?, `accounts` + ?, ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
                       "FROM ledgers " +
-                      "ORDER BY `id` DESC LIMIT 0, 1",
+                      "WHERE `id` = (SELECT MAX(`id`) FROM `ledgers`)",
                       [ledger_index, ledger.ledger_hash, ledger.total_coins,
                        newAccounts, ledger.transactions.length, fees.to_number(), ledger_date,
                        txs_xrp_total, txs_cross_total, txs_trade, evt_trade, ledgerEntryCountDiff, offers_placed, offers_taken, offers_canceled],
