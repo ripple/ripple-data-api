@@ -420,6 +420,8 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           return true;
         });
 
+        nodes.sort(function (a, b) { return b.sort - a.sort; });
+
         _.each(nodes, function (an, i_an) {
           var price, volume;
 
@@ -450,8 +452,6 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                           volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
                           i_tx, i_an]);
         });
-
-        nodes.sort(function (a, b) { return b.sort - a.sort; });
       });
 
       if (tradeRows.length) {
