@@ -53,7 +53,19 @@ Processor.prototype.loadState = function ()
       ask: "0",
       last: "0",
       vol: Amount.from_json("0/"+data.first).to_json(),
-      hl: data.hl
+      hl: data.hl,
+      d1: {
+        avg: "0",
+        hi: "0",
+        lo: "0",
+        vol: "0"
+      },
+      d30: {
+        avg: "0",
+        hi: "0",
+        lo: "0",
+        vol: "0"
+      }
     };
   });
 
