@@ -28,6 +28,10 @@ Processor.prototype.loadState = function ()
   state.issuers = [];
   state.currencies = {};
 
+  // We need to clear the caching info, because all of the values have to be
+  // refreshed now.
+  cleanCache = {};
+
   self.db.query("SELECT * FROM ledgers ORDER BY `id` DESC LIMIT 0,1",
                 function (err, rows)
   {
