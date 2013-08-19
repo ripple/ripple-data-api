@@ -10,8 +10,7 @@ var express = require('express'),
     config = require('./config'),
     routes = require('./routes'),
     api = require('./routes/api'),
-    model = require('./model'),
-    interp = require('./interpreter');
+    model = require('./model');
 
 var _ = require('lodash');
 
