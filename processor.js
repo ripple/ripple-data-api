@@ -52,7 +52,7 @@ Processor.prototype.loadState = function ()
       bid: "0",
       ask: "0",
       last: "0",
-      vol: Amount.from_json("0/"+data.first).to_json(),
+      vol: 0,
       hl: data.hl,
       d1: {
         avg: "0",
