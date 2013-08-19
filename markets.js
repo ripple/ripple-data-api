@@ -121,5 +121,6 @@ exports.xrp = [
   "USD:Bitstamp",
   "BTC:Bitstamp",
   "USD:SnapSwap",
-  "CNY:RippleCN"
+  "CNY:RippleCN",
+  "CNY:RippleChina"
 ];
