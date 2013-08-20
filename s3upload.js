@@ -163,7 +163,7 @@ function requestLedger(ledger_index) {
 
 //Upload each ledger data to the S3.
 function uploadToS3 (e, ledger_index) {
-  var ledger = e.ledger;
+  var ledger = e;
   var s3_filename = '/ledger/'+ledger_index+'.json';
   var ledger_string = JSON.stringify(ledger);
   var req = client.put(s3_filename, {

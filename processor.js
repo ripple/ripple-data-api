@@ -9,6 +9,14 @@ var Meta = require('ripple-lib').Meta;
 var Amount = require('ripple-lib').Amount;
 var utils = require('ripple-lib').utils;
 
+//Amazon S3
+var knox = require('knox');
+var client = knox.createClient({
+    key: config.s3.key,
+    secret: config.s3.secret,
+    bucket: config.s3.bucket
+});
+
 var cleanCache = {};
 
 var Processor = function (db, remote) {
@@ -136,10 +144,75 @@ Processor.prototype.processLedger = function (ledger_index, callback)
   var self = this;
 
   winston.info("Processing ledger "+ledger_index);
+  checkLedgerIndex('/meta/chunk-manifest.json', function(s3_chunk_index) {
+    if(s3_chunk_index == 0 || ledger_index > s3_chunk_index) {
+      checkLedgerIndex('/meta/ledger-manifest.json', function(s3_ledger_index) {
+        if(s3_ledger_index == 0 || ledger_index > s3_ledger_index) requestRemoteLedger();
+          else requestS3Ledger();
+      });
+    } else {
+      requestS3Chunk();
+    }
+});
 
-  requestLedger();
+  //Request ledger data from S3 Chunk
+  function requestS3Chunk() {
+    console.log('Get from S3 chunk');
+    client.list({prefix: 'chunk'}, function(err, data){
+      if(data.Contents.length > 0) {
+        data.Contents.sort(function(a, b) {
+          return a.LastModified - b.LastModified;
+        });
 
-  function requestLedger() {
+        _.each(data.Contents, function(item) {
+          client.get(item.Key).on('response', function(res){
+            var data = '';
+            if(res.statusCode == 200) {
+              res.on('data', function(chunk) {
+                data += chunk.toString();
+              }).on('end', function() {
+                var ledger_data = JSON.parse(data);
+                if (ledger_data.ledgers.length > 0) {
+                  var ledger = _.find(ledger_data.ledgers, function(ledger_item) {
+                    if (parseInt(ledger_item.ledger.ledger_index) === parseInt(ledger_index)) {
+                      return ledger_item;
+                    }
+                  });
+                  clearLedger(ledger);
+                }
+              });
+            }
+          }).end();
+        });
+      } else {
+        requestS3Ledger();
+      }
+    });
+  }
+
+  //Request ledger data from S3 Ledger
+  function requestS3Ledger(){
+    console.log('Get from S3 ledger');
+    var read_file = '/ledger/'+ledger_index+'.json';
+    client.get(read_file).on('response', function(res){
+      var data = '';
+      console.log(res.statusCode);
+      if(res.statusCode == 200) {
+        res.on('data', function(ledger) {
+          data += ledger.toString();
+        }).on('end', function() {
+          var ledger_data = JSON.parse(data);
+          clearLedger(ledger_data);
+        });
+      } else {
+        requestRemoteLedger();
+      }
+    }).end();
+  }
+
+  //Request ledger data from Remote
+  function requestRemoteLedger() {
+    console.log('Get from remote');
     try {
       var replied = false;
       winston.debug("Downloading ledger "+ledger_index);
@@ -171,6 +244,24 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         callback(new Error("Ledger request timed out"));
       }, 10000);
     } catch(e) { callback(e); }
+  }
+
+  //Check ledger index
+  function checkLedgerIndex(fileName, callback) {
+    client.get(fileName).on('response', function(res){
+      var data = '';
+      if(res.statusCode == 200) {
+        res.on('data', function(chunk) {
+          data += chunk.toString();
+        }).on('end', function() {
+          var ledger_index_data = JSON.parse(data);
+          var latest = Math.max(+ledger_index_data.latest || 0, config.net.genesis_ledger);
+          callback(latest);
+        });
+      } else {
+        callback(0);
+      }
+    }).end();
   }
 
   function clearLedger(e) {
@@ -456,7 +547,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
             // It's confusing, but we need to invert the book price if an.reverse
             // is *false*.
-            price = price.invert();
+            //price = price.invert();
           }
 
           winston.info("TRADE", price.to_text_full(), volume.to_text_full());

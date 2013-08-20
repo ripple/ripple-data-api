@@ -44,16 +44,30 @@ remote.connect();
 
 //Get Ledger index from S3 ledger-manifest.json file.
 function getLedgerIndex() {
-  client.get('/meta/ledger-manifest.json').on('response', function(res){
+  client.get('/meta/chunk-manifest.json').on('response', function(res){
     var data = '';
-    res.on('data', function(chunk) {
-      data += chunk.toString();
-      //console.log(JSON.parse(data));
-    }).on('end', function() {
-      var ledger_index_data = JSON.parse(data);
-      var latest = Math.max(+ledger_index_data.latest || 0, config.net.genesis_ledger)
-      checkS3Chunk(latest+1);
-    });
+    if(res.statusCode == 200) {
+      res.on('data', function(chunk) {
+        data += chunk.toString();
+        //console.log(JSON.parse(data));
+      }).on('end', function() {
+        var ledger_index_data = JSON.parse(data);
+        var latest = Math.max(+ledger_index_data.latest || 0, config.net.genesis_ledger);
+        checkS3Chunk(latest+1);
+      });
+    } else {
+      client.list({prefix: 'ledger'}, function(err, data) {
+        if(data.Contents.length > 0) {
+          data.Contents.sort(function(a, b) {
+            return a.LastModified - b.LastModified;
+          });
+          var index = data.Contents[0].Key.replace(/^.*(\\|\/|\:)/, '').split('.')[0];
+          checkS3Chunk(parseInt(index));
+        } else {
+          console.log('No ledger data in S3 ledger directory');
+        }
+      })
+    }
   }).end();
 }
 
@@ -93,59 +107,49 @@ function createNewChunkFile(file_index, ledger_index) {
 function getLatestChunkContent(chunk_filename, ledger_index) {
   client.get(chunk_filename).on('response', function(res){
     var data = '';
-    res.on('data', function(chunk) {
-      data += chunk.toString();
-      //console.log(JSON.parse(data));
-    }).on('end', function() {
-      var ledger_data = JSON.parse(data);
-      var has_ledger = false;
-      if (ledger_data.ledgers.length > 0) {
-        _.each(ledger_data.ledgers, function(ledger_item) {
-          if (parseInt(ledger_item.ledger_index) === parseInt(ledger_index)) {
-            has_ledger = true;
-            return true;
-          }
-        });
-      }
-      if (has_ledger) checkS3Chunk(ledger_index+1);
-      else requestLedger(chunk_filename, ledger_index, ledger_data);
-    });
+    if(res.statusCode == 200){
+      res.on('data', function(chunk) {
+        data += chunk.toString();
+        //console.log(JSON.parse(data));
+      }).on('end', function() {
+        var ledger_data = JSON.parse(data);
+        var has_ledger = false;
+        if (ledger_data.ledgers.length > 0) {
+          _.each(ledger_data.ledgers, function(ledger_item) {
+            if (parseInt(ledger_item.ledger.ledger_index) === parseInt(ledger_index)) {
+              has_ledger = true;
+              return true;
+            }
+          });
+        }
+        if (has_ledger) checkS3Chunk(ledger_index+1);
+        else requestLedger(chunk_filename, ledger_index, ledger_data);
+      });
+    }
   }).end();
 }
 
 //Request ledger
 function requestLedger(chunk_filename, ledger_index, ledger_data) {
-  try {
-    var replied = false;
-    remote.request_ledger(undefined, { transactions: true, expand: true })
-	  .ledger_index(ledger_index)
-	  .on('error', function (err) {
-	    if (replied) return;
-	    console.log("REQUEST LEDGER ERROR");
-	  })
-      .on('success', function (m) {
-	    if (replied) return;
-	    replied = true;
-        ledger_data.ledgers.push(m.ledger);
+  var ledger_filename = '/ledger/'+ledger_index+'.json';
+  console.log(ledger_filename);
+  client.get(ledger_filename).on('response', function(res){
+    var data = '';
+    console.log(res.statusCode);
+    if(res.statusCode == 200) {
+      res.on('data', function(chunk) {
+        data += chunk.toString();
+        //console.log(JSON.parse(data));
+      }).on('end', function() {
+        ledger_data.ledgers.push(JSON.parse(data));
+        console.log(ledger_data);
         if(JSON.stringify(ledger_data).length > 10*1024*1024)
           uploadLedgerData(chunk_filename, ledger_data, ledger_index);
         else
           requestLedger(chunk_filename, ledger_index + 1, ledger_data);
-	  })
-	  .request()
-    ;
-
-    // As of writing this, ripple-lib does not handle the server connection
-    // being lost while waiting for a ledger request response.
-    //
-    // This can get the whole processing pipeline stuck, so we add a timeout
-    // so we can recover from this condition.
-    setTimeout(function () {
-	  if (replied) return;
-	  console.log("REQUEST LEDGER TIMEOUT");
-	  replied = true;
-    }, 10000);
-  } catch(e) { callback(e); }
+      });
+    }
+  }).end();
 }
 
 //Upload each ledger data to the S3.
@@ -164,7 +168,7 @@ function uploadLedgerData (chunk_filename, ledger_data, ledger_index) {
 
 //Upload the latest ledger index to the S3.
 function uploadLastLedger (ledger_index) {
-  var s3_filename = '/meta/ledger-manifest.json';
+  var s3_filename = '/meta/chunk-manifest.json';
   var last_ledger = {latest: ledger_index};
   var str_last_ledger = JSON.stringify(last_ledger);
   uploadS3File(s3_filename, str_last_ledger, function(req, res) {
