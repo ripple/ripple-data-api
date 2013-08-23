@@ -594,10 +594,14 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                       "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
                       "SELECT ?, ?, ?, `accounts` + ?, ?, `txs_sum` + ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
                       "FROM ledgers " +
-                      "WHERE `id` = (SELECT MAX(`id`) FROM `ledgers`)",
+                      "WHERE `id` = (SELECT MAX(`id`) FROM `ledgers` WHERE `id` < ?)",
                       [ledger_index, ledger.ledger_hash, ledger.total_coins,
                        newAccounts, ledger.transactions.length, ledger.transactions.length, fees.to_number(), ledger_date,
-                       txs_xrp_total, txs_cross_total, txs_trade, evt_trade, ledgerEntryCountDiff, offers_placed, offers_taken, offers_canceled],
+                       txs_xrp_total, txs_cross_total, txs_trade, evt_trade,
+                       ledgerEntryCountDiff,
+                       offers_placed, offers_taken, offers_canceled,
+                       ledger_index
+                      ],
                       updateStatus);
       }
     } catch (e) { callback(e); }
