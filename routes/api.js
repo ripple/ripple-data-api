@@ -6,6 +6,7 @@ var _ = require('lodash');
 
 var index = require('../indexes');
 var model = require('../model');
+var apidata = require('../internal_api_data');
 
 exports.name = function (req, res) {
   res.json({
@@ -357,3 +358,41 @@ exports.num_accounts = function(db) {
 	});
   };
 };
+
+exports.ripplecom_data = function(db) {
+  return function (req, res) {
+
+    var data = {};
+
+    // Total number of accounts
+    data.num_accounts = model.data.account_count;
+
+    // Exchange rates
+    data.exchange_rates = [{
+      "currency": "USD",
+      "rate": model.data.tickers["USD/rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"].last
+    }, {
+      "currency": "BTC",
+      "rate": model.data.tickers["BTC/rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"].last
+    }, {
+      "currency": "CNY",
+      "rate": model.data.tickers["CNY/rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"].last
+    }];
+
+    // Total number of transactions
+    data.num_transactions = model.data.tx_count;
+
+    // Recent transactions
+    data.recent_payments = apidata.payment_transactions;
+    data.recent_payments_and_offercreates = apidata.payment_and_offercreate_transactions;
+
+    // Volume traded in XRP
+    data.xrp_volume = _.reduce(model.data.tickers, function (total, ticker) {
+      return total + ticker.vol; 
+    }, 0);
+
+    res.json(data);
+
+
+  }
+}

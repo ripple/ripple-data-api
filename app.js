@@ -10,7 +10,8 @@ var express = require('express'),
     config = require('./config'),
     routes = require('./routes'),
     api = require('./routes/api'),
-    model = require('./model');
+    model = require('./model'),
+    apidata = require('./internal_api_data');
 
 var _ = require('lodash');
 
@@ -120,6 +121,9 @@ app.get('/api/transactions/:metric/transactions.json', api.transmetric_data(db))
 //Number of accounts
 app.get('/api/accounts.json', api.num_accounts(db));
 
+// Data for Ripple.com website
+app.get('/api/ripplecom.json', api.ripplecom_data(db));
+
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);
 
@@ -145,6 +149,8 @@ remote.on('transaction_all', function (e) {
 });
 
 var MAX_TRANSACTIONS = 50;
+var MAX_PAYMENTS = 50;
+var MAX_PAYMENTS_AND_OFFERS = 50;
 remote.on('transaction', function (e) {
   var transaction_ledger = e.ledger_index,
       transaction_account = e.transaction.Account,
@@ -177,6 +183,16 @@ remote.on('transaction', function (e) {
   model.queue('transaction',
               [transaction_ledger, transaction_account, transaction_type, transaction_id, transaction_desc],
               MAX_TRANSACTIONS);
+
+  if (e.transaction.TransactionType === "Payment") {
+    apidata.payment_transactions.unshift(e.transaction);
+    apidata.payment_transactions = apidata.payment_transactions.slice(0, MAX_PAYMENTS);
+  }
+  if (e.transaction.TransactionType === "Payment" || e.transaction.TransactionType === "OfferCreate") {
+    apidata.payment_and_offercreate_transactions.unshift(e.transaction);
+    apidata.payment_and_offercreate_transactions = apidata.payment_and_offercreate_transactions.slice(0, MAX_PAYMENTS_AND_OFFERS);
+  }
+
 });
 
 remote.on('ledger_closed', function (e) {

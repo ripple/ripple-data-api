@@ -48,6 +48,7 @@ Processor.prototype.loadState = function ()
     if (rows[0]) {
       var ledger = rows[0];
       state.account_count = ledger.accounts;
+      state.tx_count = ledger.txs;
     }
   });
 
