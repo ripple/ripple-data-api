@@ -548,10 +548,11 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
             // It's confusing, but we need to invert the book price if an.reverse
             // is *false*.
-            //price = price.invert();
+            price = price.invert();
           }
 
-          winston.info("TRADE", price.to_text_full(), volume.to_text_full());
+          winston.info("TRADE", price.to_text_full(), volume.to_text_full(),
+                       an.reverse ? "ASK" : "BID");
 
           cleanCache[""+an.c1+":"+an.i1+":"+an.c2+":"+an.i2] = false;
 
