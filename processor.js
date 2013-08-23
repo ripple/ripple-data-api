@@ -48,7 +48,7 @@ Processor.prototype.loadState = function ()
     if (rows[0]) {
       var ledger = rows[0];
       state.account_count = ledger.accounts;
-      state.tx_count = ledger.txs;
+      state.tx_count = ledger.txs_sum;
     }
   });
 
@@ -590,13 +590,13 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         winston.debug("Inserting ledger "+ledger_index);
 
         self.db.query("INSERT INTO ledgers " +
-                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `fees`, `time`, `txs_xrp_total`, `txs_cross`, `txs_trade`, " +
+                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `txs_sum`, `fees`, `time`, `txs_xrp_total`, `txs_cross`, `txs_trade`, " +
                       "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
-                      "SELECT ?, ?, ?, `accounts` + ?, ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
+                      "SELECT ?, ?, ?, `accounts` + ?, ?, `txs_sum` + ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
                       "FROM ledgers " +
                       "WHERE `id` = (SELECT MAX(`id`) FROM `ledgers`)",
                       [ledger_index, ledger.ledger_hash, ledger.total_coins,
-                       newAccounts, ledger.transactions.length, fees.to_number(), ledger_date,
+                       newAccounts, ledger.transactions.length, ledger.transactions.length, fees.to_number(), ledger_date,
                        txs_xrp_total, txs_cross_total, txs_trade, evt_trade, ledgerEntryCountDiff, offers_placed, offers_taken, offers_canceled],
                       updateStatus);
       }
@@ -623,7 +623,7 @@ Processor.prototype.updateAggregates = function () {
   var self = this;
 
   self.db.query("SELECT " +
-                " accounts, txs " +
+                " accounts, txs_sum " +
                 " FROM ledgers ORDER BY id DESC " +
                 " LIMIT 0,1", function(err, rows)
   {
@@ -631,7 +631,7 @@ Processor.prototype.updateAggregates = function () {
 
     if(rows && rows[0]) {
       var account_count = rows[0].accounts || 0;
-      var tx_count = rows[0].txs || 0;
+      var tx_count = rows[0].txs_sum || 0;
       model.set("account_count", account_count);
       model.set("tx_count", tx_count);
     }

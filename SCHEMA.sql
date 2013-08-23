@@ -119,3 +119,11 @@ CREATE TABLE `articles` (
   `url` tinytext NOT NULL,
   `publish_date` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+
+-- First ledger
+INSERT INTO `ledgers` (`id`, `hash`, `xrp`, `accounts`, `txs`, `txs_sum`, `fees`, `txs_xrp_total`, `time`, `txs_cross`, `txs_trade`, `evt_trade`, `txs_paytrade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) VALUES
+(32570, '4109C6F2045FC7EFF4CDE8F9905D19C28820D86304080FF886B299F0206E42B5', 99999999999996320, 136, 0, 0, 0, 0, '2012-12-31 19:21:20', 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- Add txs_sum column
+ALTER TABLE `ledgers` ADD `txs_sum` INT UNSIGNED NOT NULL AFTER `txs` ;
