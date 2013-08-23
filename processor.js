@@ -622,15 +622,17 @@ Processor.prototype.updateAggregates = function () {
   var self = this;
 
   self.db.query("SELECT " +
-                " accounts " +
+                " accounts, txs " +
                 " FROM ledgers ORDER BY id DESC " +
                 " LIMIT 0,1", function(err, rows)
   {
     if (err) winston.error(err);
 
     if(rows && rows[0]) {
-      var data = rows[0].accounts || 0;
-      model.set("account_count", data);
+      var account_count = rows[0].accounts || 0;
+      var tx_count = rows[0].txs || 0;
+      model.set("account_count", account_count);
+      model.set("tx_count", tx_count);
     }
   });
 
