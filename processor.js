@@ -1,9 +1,13 @@
 var _ = require('lodash');
 var winston = require('winston');
+var events = require('events');
+var util = require('util');
 
 var config = require('./config');
 var index = require('./indexes');
 var model = require('./model');
+
+var Classifier = require('./classifier').Classifier;
 
 var Meta = require('ripple-lib').Meta;
 var Amount = require('ripple-lib').Amount;
@@ -19,12 +23,20 @@ var client = knox.createClient({
 
 var cleanCache = {};
 
-var Processor = function (db, remote) {
+function logError(err) {
+  winston.error(err.stack ? err.stack : (err.message ? err.message : err));
+}
+
+var Processor = function (db, remote, aggregator) {
+  events.EventEmitter.call(this);
+
   this.db = db;
   this.remote = remote;
+  this.aggregator = aggregator;
 
   this.processing = false;
 };
+util.inherits(Processor, events.EventEmitter);
 
 Processor.prototype.loadState = function ()
 {
@@ -43,7 +55,7 @@ Processor.prototype.loadState = function ()
   self.db.query("SELECT * FROM ledgers ORDER BY `id` DESC LIMIT 0,1",
                 function (err, rows)
   {
-    if (err) winston.error(err);
+    if (err) logError(err);
 
     if (rows[0]) {
       var ledger = rows[0];
@@ -94,71 +106,38 @@ Processor.prototype.loadState = function ()
 };
 
 /**
- * Process old ledgers from the last processed until current.
- *
- * Looks up what the most recently processed ledger was, then starts processing
- * ledgers until it reaches the current one.
+ * Retrieve a specific ledger by index.
  */
-Processor.prototype.processValidated = function (vrange)
+Processor.prototype.getLedger = function (ledger_index, callback)
 {
   var self = this;
 
-  if (self.processing) return;
-  self.processing = true;
-
-  self.db.query('SELECT value FROM config WHERE `key` = ?', ['ledger_processed'],
-                function (err, rows)
-  {
-    self.processing = false;
-
-    if (err) {
-      winston.error(err);
-      return;
-    }
-
-    var latest = Math.max(+(rows[0] && rows[0].value) || 0, config.net.genesis_ledger);
-    self.processNextValidated(vrange, latest+1);
+  checkLedgerIndex('/meta/ledger-manifest.json', function (s3_ledger_index) {
+    if (s3_ledger_index == 0 || ledger_index > s3_ledger_index) {
+      requestRemoteLedger();
+    } else requestS3Ledger();
   });
-};
 
-Processor.prototype.processNextValidated = function (vrange, start)
-{
-  var self = this;
-
-  if (self.processing) return;
-  if (!vrange.is_member(start)) return;
-
-  self.processing = true;
-
-  self.processLedger(start, function (err) {
-    self.processing = false;
-    if (err) {
-      winston.error(err.stack ? err.stack : err);
-    } else {
-      self.processNextValidated(vrange, start+1);
-    }
-  });
-};
-
-Processor.prototype.processLedger = function (ledger_index, callback)
-{
-  var self = this;
-
-  winston.info("Processing ledger "+ledger_index);
-  checkLedgerIndex('/meta/chunk-manifest.json', function(s3_chunk_index) {
-    if(s3_chunk_index == 0 || ledger_index > s3_chunk_index) {
-      checkLedgerIndex('/meta/ledger-manifest.json', function(s3_ledger_index) {
-        if(s3_ledger_index == 0 || ledger_index > s3_ledger_index) requestRemoteLedger();
-          else requestS3Ledger();
-      });
-    } else {
-      requestS3Chunk();
-    }
-});
+  //Check ledger index
+  function checkLedgerIndex(fileName, callback) {
+    client.get(fileName).on('response', function(res){
+      var data = '';
+      if(res.statusCode == 200) {
+        res.on('data', function(chunk) {
+          data += chunk.toString();
+        }).on('end', function() {
+          var ledger_index_data = JSON.parse(data);
+          var latest = Math.max(+ledger_index_data.latest || 0, config.net.genesis_ledger);
+          callback(latest);
+        });
+      } else {
+        callback(0);
+      }
+    }).end();
+  }
 
   //Request ledger data from S3 Chunk
   function requestS3Chunk() {
-    console.log('Get from S3 chunk');
     client.list({prefix: 'chunk'}, function(err, data){
       if(data.Contents.length > 0) {
         data.Contents.sort(function(a, b) {
@@ -169,6 +148,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
           client.get(item.Key).on('response', function(res){
             var data = '';
             if(res.statusCode == 200) {
+              winston.info("Ledger found on S3 (chunk)");
               res.on('data', function(chunk) {
                 data += chunk.toString();
               }).on('end', function() {
@@ -179,7 +159,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                       return ledger_item;
                     }
                   });
-                  clearLedger(ledger);
+                  callback(null, ledger);
                 }
               });
             }
@@ -193,21 +173,23 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
   //Request ledger data from S3 Ledger
   function requestS3Ledger(){
-    console.log('Get from S3 ledger');
     var read_file = '/ledger/'+ledger_index+'.json';
     client.get(read_file).on('response', function(res){
       var data = '';
-      console.log(res.statusCode);
       if(res.statusCode == 200) {
+        winston.info("Ledger found on S3 (single)");
         res.on('data', function(ledger) {
           data += ledger.toString();
         }).on('end', function() {
           var ledger_data = JSON.parse(data);
-          clearLedger(ledger_data);
+          callback(null, {ledger: ledger_data});
         });
       } else {
         requestRemoteLedger();
       }
+    }).on('error', function (err) {
+      console.error(err);
+      process.exit(15);
     }).end();
   }
 
@@ -228,7 +210,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
         .on('success', function (m) {
           if (replied) return;
           replied = true;
-          clearLedger(m);
+          callback(null, m);
         })
         .request()
       ;
@@ -246,31 +228,94 @@ Processor.prototype.processLedger = function (ledger_index, callback)
       }, 10000);
     } catch(e) { callback(e); }
   }
+};
 
-  //Check ledger index
-  function checkLedgerIndex(fileName, callback) {
-    client.get(fileName).on('response', function(res){
-      var data = '';
-      if(res.statusCode == 200) {
-        res.on('data', function(chunk) {
-          data += chunk.toString();
-        }).on('end', function() {
-          var ledger_index_data = JSON.parse(data);
-          var latest = Math.max(+ledger_index_data.latest || 0, config.net.genesis_ledger);
-          callback(latest);
-        });
-      } else {
-        callback(0);
-      }
-    }).end();
+/**
+ * Process old ledgers from the last processed until current.
+ *
+ * Looks up what the most recently processed ledger was, then starts processing
+ * ledgers until it reaches the current one.
+ */
+Processor.prototype.processValidated = function (vrange)
+{
+  var self = this;
+
+  if (self.processing) return;
+
+  var start;
+
+  findNextLedger();
+
+  function findNextLedger() {
+    self.db.query('SELECT value FROM config WHERE `key` = ?',
+                  ['ledger_processed'],
+                  handleLedgerStatusResult);
   }
+
+  function handleLedgerStatusResult(err, rows) {
+    self.processing = false;
+    if (err) {
+      logError(err);
+      return;
+    }
+
+    var latest = Math.max(+(rows[0] && rows[0].value) || 0, config.net.genesis_ledger);
+    start = latest+1;
+
+    processLedger();
+  }
+
+  function processLedger() {
+    if (!vrange.is_member(start)) return;
+
+    self.processing = true;
+    self.processLedger(start, updateStatus);
+  }
+
+  function updateStatus(err) {
+    self.processing = false;
+    if (err) {
+      logError(err);
+      return;
+    }
+
+    winston.debug("Updating process status to "+start);
+
+    self.processing = true;
+    self.db.query("INSERT INTO config (`key`, `value`) VALUES (?, ?)" +
+                  "ON DUPLICATE KEY UPDATE value = ?",
+                  ['ledger_processed', start, start],
+                  continueProcessing);
+  }
+
+  function continueProcessing(err) {
+    self.processing = false;
+    if (err) {
+      logError(err);
+      return;
+    }
+
+    start++;
+    processLedger();
+  }
+};
+
+Processor.prototype.processLedger = function (ledger_index, callback)
+{
+  var self = this;
+
+  winston.info("Processing ledger "+ledger_index);
+
+  self.getLedger(ledger_index, function (err, e) {
+    if (err) callback(err);
+    else clearLedger(e);
+  });
 
   function clearLedger(e) {
     winston.debug("Clearing ledger "+ledger_index);
     self.db.query("DELETE FROM trades WHERE ledger = ?; "+
-                  "DELETE FROM caps WHERE ledger = ?; "+
-                  "DELETE FROM ledgers WHERE id = ?",
-                  [ledger_index, ledger_index, ledger_index],
+                  "DELETE FROM caps WHERE ledger = ?",
+                  [ledger_index, ledger_index],
                   function (err)
     {
       if (err) callback(err);
@@ -282,305 +327,55 @@ Processor.prototype.processLedger = function (ledger_index, callback)
     try {
       winston.debug("Analyzing ledger "+ledger_index);
 
-      var tradeRows = [],
-          fees = Amount.from_json("0"),
-          newAccounts = 0,
-          txs_xrp_total = 0,
-          txs_cross_total = 0,
-          txs_trade = 0, 
-          evt_trade = 0,
-          txs_paytrade = 0,
-          ledgerEntryCountDiff = 0,
-          offers_placed = 0, 
-          offers_taken = 0, 
-          offers_canceled = 0;
+      var processed = Classifier.classifyLedger(e.ledger);
 
-      var caps_amount = {},
-          hots_amount = {};
+      writeTrades();
 
-      var ledger = e.ledger;
+      function writeTrades()
+      {
+        if (processed.trades && processed.trades.length) {
+          winston.debug("Inserting "+processed.trades.length+" trade(s) for ledger "+ledger_index);
 
-      if (!ledger.close_time) {
-        callback(new Error("No ledger close time"));
-        return;
+          processed.trades.forEach(function (r) {
+            cleanCache[""+r[0]+":"+r[1]+":"+r[2]+":"+r[3]] = false;
+          });
+
+          self.db.query("INSERT INTO `trades` " +
+                        "(`c1`, `i1`, `c2`, `i2`," +
+                        " `time`, `ledger`, `price`, `amount`," +
+                        " `tx`, `order`) " +
+                        "VALUES ?",
+                        [processed.trades],
+                        function (err)
+                        {
+                          logError(err);
+                          model.set('reload', 'intraday');
+                          writeCaps();
+                        });
+        } else {
+          model.set('reload', 'none');
+          writeCaps();
+        }
       }
 
-      var ledger_date = new Date(utils.toTimestamp(ledger.close_time));
+      function writeCaps(err)
+      {
+        if (err) return callback(err);
 
-      // XXX Can be removed soon
-      ledger.transactions.forEach(function (tx) {
-        if (tx.metaData) {
-          tx.meta = tx.metaData;
-          delete tx.metaData;
-        }
-      });
+        if (processed.caps && processed.caps.length) {
+          winston.debug("Inserting "+processed.caps.length+" caps for ledger "+ledger_index);
 
-      // Sort transaction into processed order.
-      ledger.transactions.sort(function (a, b) {
-        return a.meta.TransactionIndex - b.meta.TransactionIndex;
-      });
-
-      // Other data processing
-      ledger.transactions.forEach(function (tx, i_tx) {
-        // Process metadata
-        tx.mmeta = new Meta(tx.meta);
-        if (tx.TransactionType === "Payment" && tx.meta.TransactionResult === "tesSUCCESS" && !tx.Paths && !tx.SendMax) {
-          txs_xrp_total += Amount.from_json(tx.Amount).to_number() * 1;
-		}else if (tx.TransactionType === "Payment" && tx.meta.TransactionResult === "tesSUCCESS" && tx.Paths && tx.Paths.length) {
-          //txs_cross_total += Amount.from_json(tx.Amount).to_number() * 1;
-          txs_cross_total++;
-        }
-        fees = fees.add(Amount.from_json(tx.Fee));
-        
-        var isTradingTx = false,
-            isTradingPay = false;
-
-        tx.mmeta.each(function (an) {
-          if (an.diffType === "CreatedNode") ledgerEntryCountDiff++;
-          else if (an.diffType === "DeletedNode") ledgerEntryCountDiff--;
-          if (an.nodeType === "Offer") {
-            if (an.diffType === "CreatedNode") offers_placed++;
-            else if (an.diffType === "DeletedNode" && tx.TransactionType === "OfferCancel") offers_canceled++;
-            else if (an.diffType === "DeletedNode") offers_taken++;
-          }
-          if (an.entryType === "Offer" && (an.diffType === "ModifiedNode" || (an.diffType === "DeletedNode" && tx.TransactionType !== "OfferCancel"))) {
-            evt_trade++;
-            isTradingTx = true;
-            if (tx.TransactionType === "Payment") isTradingPay = true;
-          }else if (an.entryType === "AccountRoot" && an.diffType === "CreatedNode") {
-            newAccounts++;
-          } else if (an.entryType === "RippleState") {
-            //Insert Capitalizations Data
-
-            var cur, cur_issuer, account, balance_new, balance_old, negate = false;
-            if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.LowLimit.currency + ":" + an.fields.LowLimit.issuer])) {
-              account = an.fields.LowLimit.issuer;
-              cur = an.fields.LowLimit.currency;
-              negate = true;
-            } else if ((cur_issuer = index.issuerByCurrencyAddress[an.fields.HighLimit.currency + ":" + an.fields.HighLimit.issuer])) {
-              account = an.fields.HighLimit.issuer;
-              cur = an.fields.HighLimit.currency;
-            } else return;
-
-            var gateway = cur_issuer;
-
-            balance_new = (an.diffType === "DeletedNode")
-              ? Amount.from_json("0/"+cur+"/"+account)
-              : Amount.from_json(an.fieldsFinal.Balance);
-            balance_old = (an.diffType === "CreatedNode")
-              ? Amount.from_json("0/"+cur+"/"+account)
-              : Amount.from_json(an.fieldsPrev.Balance);
-
-            if (negate) {
-              balance_new = balance_new.negate();
-              balance_old = balance_old.negate();
-            }
-
-            var balance_diff = balance_new.subtract(balance_old);
-            var currency_id = index.currenciesByCode[cur].id;
-            var issuer_id = cur_issuer.id;
-
-            var type = 0;
-            var hot_val = 0;
-            var cap_val = 0;
-
-            if (gateway.hotwallets && gateway.hotwallets[account]) {
-              if (hots_amount[cur + ":" + account]) {
-                hots_amount[cur + ":" + account] = hots_amount+[cur + ":" + account].add(balance_diff.to_number());
-              } else {
-                hots_amount[cur + ":" + account] = balance_diff;
-              }
-            } else {
-              if (caps_amount[cur + ":" + account]) {
-                caps_amount[cur + ":" + account] = caps_amount[cur + ":" + account].add(balance_diff.to_number());
-              } else {
-                caps_amount[cur + ":" + account] = balance_diff;
-              }
-            }
-          }
-        });
-        if (isTradingTx) txs_trade++;
-        if (isTradingPay) txs_paytrade++;
-      });
-
-      _.each(caps_amount, function(amount, key) {
-        var i = index.issuersByAddress[key.split(':')[1]].id, 
-            c = index.currenciesByCode[key.split(':')[0]].id;
-        var cap_val = 0,
-            type = 0;
-        self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 0 AND ledger < ? ORDER BY ledger DESC LIMIT 0,1", 
-                      [c, i, ledger_index], 
-                      function(err, rows) {
-          if (err) winston.error(err);
-          if(rows && rows[0]) {
-            cap_val = amount.to_number() + rows[0].amount;
-            write_caps(c, i, type, ledger_date, ledger_index, cap_val);
-          }
-        });
-      });
-
-      _.each(hots_amount, function(amount, key) {
-        var i = index.issuersByAddress[key.split(':')[1]].id, 
-            c = index.currenciesByCode[key.split(':')[0]].id;
-        var hot_val = 0,
-            type = 1;
-        self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 1 AND ledger < ? ORDER BY ledger DESC LIMIT 0,1", 
-                      [c, i, ledger_index], 
-                      function(err, rows) {
-          if (err) winston.error(err);
-          if(rows && rows[0]) {
-            hot_val = amount.to_number() + rows[0].amount;
-            write_caps(c, i, type, ledger_date, ledger_index, hot_val);
-          }
-        });
-      });
-
-      function write_caps(c, i, type, time, ledger, amount) {
-        self.db.query("INSERT INTO caps (c, i, type, time, ledger, amount) VALUES (?, ?, ?, ?, ?, ?)",
-                      [c, i, type, time, ledger, amount],
-          function (err) {
-            if (err) winston.error(err);
-        });
-      }
-
-      // Trade processing
-      ledger.transactions.forEach(function (tx, i_tx) {
-        if (tx.meta.TransactionResult !== 'tesSUCCESS' ||
-            tx.TransactionType !== "Payment" &&
-            tx.TransactionType !== "OfferCreate") return;
-
-        var nodes = tx.mmeta.nodes;
-
-        nodes = _.filter(nodes, function (an) {
-          return (an.entryType === 'Offer' &&
-                  (an.diffType === 'DeletedNode' ||
-                   an.diffType === 'ModifiedNode') &&
-                  an.fieldsPrev.TakerGets &&
-                  an.fieldsPrev.TakerPays);
-        });
-
-        nodes = _.filter(nodes, function (an) {
-          var trade_gets = Amount.from_json(an.fieldsPrev.TakerGets);
-          var trade_pays = Amount.from_json(an.fieldsPrev.TakerPays);
-
-          if (!trade_gets.is_valid() || !trade_pays.is_valid()) {
-            winston.error("TRADE ERR (INVALID AMNTS)");
-            return false;
-          }
-
-          //console.log("TRADE PREFILTER", trade_gets.to_text_full(), trade_pays.to_text_full());
-
-          // Make sure the gets currency is one we're tracking
-          var cg = index.currenciesByCode[trade_gets.currency().to_json()];
-          if (!cg) return false;
-
-          // Make sure the pays currency is one we're tracking
-          var cp = index.currenciesByCode[trade_pays.currency().to_json()];
-          if (!cp) return false;
-
-          // Make sure the gets issuer is one we're tracking
-          var ig = (cg.id === 0) ? {id: 0} :
-                index.issuersByAddress[trade_gets.issuer().to_json()];
-          if (!ig) return false;
-
-          // Make sure the pays issuer is one we're tracking
-          var ip = (cp.id === 0) ? {id: 0} :
-                index.issuersByAddress[trade_pays.issuer().to_json()];
-          if (!ip) return false;
-
-          //console.log("TRADE POSTFILTER");
-
-          if (cg.id === cp.id && ig.id === ip.id) {
-            winston.error("TRADE ERR (SAME FOR SAME)");
-            return false;
-          }
-
-          // Pair ordering determined by IDs
-          if (cg.id < cp.id || (cg.id === cp.id && ig.id < ip.id)) {
-            an.reverse = false;
-          } else {
-            an.reverse = true;
-          }
-
-          an.c1 = an.reverse ? cp.id : cg.id;
-          an.c2 = an.reverse ? cg.id : cp.id;
-          an.i1 = an.reverse ? ip.id : ig.id;
-          an.i2 = an.reverse ? ig.id : ip.id;
-
-          var price = Amount.from_quality(an.fieldsFinal.BookDirectory, "1", "1");
-
-          var takerGets = Amount.from_json(an.fieldsPrev.TakerGets),
-              takerPays = Amount.from_json(an.fieldsPrev.TakerPays);
-
-          if (takerPays.is_native()) {
-            // Adjust for drops: The result would be a million times too large.
-            price = price.divide(Amount.from_json("1000000"));
-          }
-
-          if (takerGets.is_native()) {
-            // Adjust for drops: The result would be a million times too small.
-            price = price.multiply(Amount.from_json("1000000"));
-          }
-
-          an.price = price;
-          an.sort = price.to_number();
-
-          return true;
-        });
-
-        nodes.sort(function (a, b) { return b.sort - a.sort; });
-
-        _.each(nodes, function (an, i_an) {
-          var price, volume;
-
-          price = an.price;
-
-          if (an.reverse) {        // ASK
-            volume = Amount.from_json(an.fieldsPrev.TakerGets);
-            if (an.diffType === 'ModifiedNode') {
-              volume = volume.subtract(an.fieldsFinal.TakerGets);
-            }
-          } else { // BID
-            volume = Amount.from_json(an.fieldsPrev.TakerPays);
-            if (an.diffType === 'ModifiedNode') {
-              volume = volume.subtract(an.fieldsFinal.TakerPays);
-            }
-
-            // It's confusing, but we need to invert the book price if an.reverse
-            // is *false*.
-            price = price.invert();
-          }
-
-          winston.info("TRADE", price.to_text_full(), volume.to_text_full(),
-                       an.reverse ? "ASK" : "BID");
-
-          cleanCache[""+an.c1+":"+an.i1+":"+an.c2+":"+an.i2] = false;
-
-          tradeRows.push([an.c1, an.i1, an.c2, an.i2, ledger_date, ledger_index,
-                          price.to_number(),
-                          volume.is_native() ? volume.to_number() / 1000000 : volume.to_number(),
-                          i_tx, i_an]);
-        });
-      });
-
-      if (tradeRows.length) {
-        winston.debug("Inserting "+tradeRows.length+" trade(s) for ledger "+ledger_index);
-
-        self.db.query("INSERT INTO trades " +
-                      "(`c1`, `i1`, `c2`, `i2`," +
-                      " `time`, `ledger`, `price`, `amount`," +
-                      " `tx`, `order`) " +
-                      "VALUES ?",
-                      [tradeRows],
-                      function (err)
-                      {
-                        if (err) winston.error(err);
-                        model.set('reload', 'intraday');
-                        writeLedger();
-                      });
-      } else {
-        model.set('reload', 'none');
-        writeLedger();
+          self.db.query("INSERT INTO `caps` " +
+                        "(`c`, `i`, `type`, " +
+                        " `time`, `ledger`, `amount`) " +
+                        "VALUES ?",
+                        [processed.trades],
+                        function (err)
+                        {
+                          logError(err);
+                          writeLedger();
+                        });
+        } else writeLedger();
       }
 
       function writeLedger(err)
@@ -589,49 +384,33 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 
         winston.debug("Inserting ledger "+ledger_index);
 
-        self.db.query("INSERT INTO ledgers " +
-                      "(`id`, `hash`, `xrp`, `accounts`, `txs`, `txs_sum`, `fees`, `time`, `txs_xrp_total`, `txs_cross`, `txs_trade`, " +
-                      "`evt_trade`, `entries`, `offers_placed`, `offers_taken`, `offers_canceled`) " +
-                      "SELECT ?, ?, ?, `accounts` + ?, ?, `txs_sum` + ?, ?, ?, ?, ?, ?, ?, `entries` + ?, ?, ?, ? " +
-                      "FROM ledgers " +
-                      "WHERE `id` = (SELECT MAX(`id`) FROM `ledgers` WHERE `id` < ?)",
-                      [ledger_index, ledger.ledger_hash, ledger.total_coins,
-                       newAccounts, ledger.transactions.length, ledger.transactions.length, fees.to_number(), ledger_date,
-                       txs_xrp_total, txs_cross_total, txs_trade, evt_trade,
-                       ledgerEntryCountDiff,
-                       offers_placed, offers_taken, offers_canceled,
-                       ledger_index
-                      ],
-                      updateStatus);
+        self.db.query("REPLACE ledgers SET ?",
+                      processed.ledger,
+                      finish);
+      }
+
+      function finish(err) {
+        if (err) return callback(err);
+
+        self.emit('ledger_processed', processed, e);
+
+        callback(null);
       }
     } catch (e) { callback(e); }
-  }
-
-
-  function updateStatus(err) {
-    if (err) return callback(err);
-
-    winston.debug("Updating process status to "+ledger_index);
-
-    self.db.query("INSERT INTO config (`key`, `value`) VALUES (?, ?)" +
-                  "ON DUPLICATE KEY UPDATE value = ?",
-                  ['ledger_processed', ledger_index, ledger_index],
-                  function (err)
-    {
-      callback(err);
-    });
   }
 };
 
 Processor.prototype.updateAggregates = function () {
   var self = this;
 
+  // XXX Re-add
+  /*
   self.db.query("SELECT " +
                 " accounts, txs_sum " +
                 " FROM ledgers ORDER BY id DESC " +
                 " LIMIT 0,1", function(err, rows)
   {
-    if (err) winston.error(err);
+    if (err) logError(err);
 
     if(rows && rows[0]) {
       var account_count = rows[0].accounts || 0;
@@ -639,7 +418,7 @@ Processor.prototype.updateAggregates = function () {
       model.set("account_count", account_count);
       model.set("tx_count", tx_count);
     }
-  });
+  });*/
 
   _.each(index.issuerByCurrencyAddress, function (issuer1, key1) {
     _.each(index.issuerByCurrencyAddress, function (issuer2, key2) {
@@ -656,7 +435,7 @@ Processor.prototype.updateAggregates = function () {
                     function (err, rows)
       {
         if (err) {
-          winston.error(err);
+          logError(err);
           return;
         }
 
@@ -678,7 +457,7 @@ Processor.prototype.updateAggregates = function () {
                   function (err, rows)
     {
       if (err) {
-        winston.error(err);
+        logError(err);
         return;
       }
 
@@ -690,7 +469,7 @@ Processor.prototype.updateAggregates = function () {
     self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 1 ORDER BY ledger DESC LIMIT 0,1", 
                   [ticker.cur.id, ticker.iss.id],
                   function(err, rows) {
-      if (err) winston.error(err);
+      if (err) logError(err);
 
       if(rows[0]) {
         model.set("tickers."+ticker.first+".hot", rows[0].amount);
@@ -700,7 +479,7 @@ Processor.prototype.updateAggregates = function () {
     self.db.query("SELECT amount FROM caps WHERE c = ? AND i = ? AND type = 0 ORDER BY ledger DESC LIMIT 0,1", 
                   [ticker.cur.id, ticker.iss.id],
                   function(err, rows) {
-      if (err) winston.error(err);
+      if (err) logError(err);
 
       if(rows[0]) {
         model.set("tickers."+ticker.first+".caps", rows[0].amount);
@@ -721,7 +500,7 @@ Processor.prototype.updateAggregates = function () {
                     [ticker.cur.id, ticker.iss.id, cutoff],
                     function (err, rows)
       {
-        if (err) winston.error(err);
+        if (err) logError(err);
 
         if (rows && rows[0]) {
           var data = {

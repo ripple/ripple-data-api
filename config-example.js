@@ -2,6 +2,29 @@ exports.net = {
   genesis_ledger: 32570
 };
 
+exports.perf = {
+  /**
+   * Number of parallel worker threads.
+   *
+   * This specifies the number of threads to use when bulk processing historic
+   * ledgers.
+   */
+  workers: 4
+};
+
+exports.stats = {
+  /**
+   * Ledger aggregation interval (in s).
+   *
+   * During statistical aggregation, data will be combined per this time period.
+   * A value that is too large will limit the resolution of the data. A value
+   * that is too small will impact performance.
+   *
+   * Default: 3600 seconds (= 1 hour)
+   */
+  aggregation_interval: 3600
+};
+
 exports.remote = {
 //  trace: true,
   "websocket_ip" : "127.0.0.1",

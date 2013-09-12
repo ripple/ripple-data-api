@@ -15,33 +15,21 @@ var express = require('express'),
 
 var _ = require('lodash');
 
-var Range = require('./range').Range;
+var Engine = require('./engine').Engine,
+    Range = require('./range').Range;
+
+var utils = require('ripple-lib').utils;
+var Amount = require('ripple-lib').Amount;
 
 var app = module.exports = express();
 
 if (process.env.DEBUG) winston.level = 'debug';
 
-// Ripple client
-var ripple = require('ripple-lib');
-var remote = ripple.Remote.from_config(config.remote);
-
-// MySQL
-var mysql = require('mysql');
-var db = mysql.createConnection({
-  host: config.db.mysql_ip,
-  user: config.db.mysql_user,
-  password: config.db.mysql_pass,
-  database: config.db.mysql_db,
-  multipleStatements: true
-});
-
-// Historic data processor
-var Processor = require('./processor').Processor;
-var processor = new Processor(db, remote);
+var engine = new Engine();
 
 // News data
 var News = require('./news').News;
-var news = new News(db, remote);
+var news = new News(engine.db, engine.remote);
 
 // Configuration
 var http_config = {}, pusher;
@@ -106,23 +94,23 @@ app.get('/partials/:name', routes.partials);
 
 app.get('/api/name', api.name);
 app.get('/api/model.json', api.model);
-app.get('/api/market/:first/:second/hourly.json', api.market_hourly(db));
-app.get('/api/market/:first/:second/daily.json', api.market_daily(db));
+app.get('/api/market/:first/:second/hourly.json', api.market_hourly(engine.db));
+app.get('/api/market/:first/:second/daily.json', api.market_daily(engine.db));
 //Intraday
-app.get('/api/intraday/:first/:second/intraday.json', api.intraday_trade(db));
+app.get('/api/intraday/:first/:second/intraday.json', api.intraday_trade(engine.db));
 //Caps
-app.get('/api/caps/:first/caps.json', api.caps_currency(db));
+app.get('/api/caps/:first/caps.json', api.caps_currency(engine.db));
 //News
-app.get('/api/news/:first/news.json', api.news_data(db));
+app.get('/api/news/:first/news.json', api.news_data(engine.db));
 //# of Transactions
-app.get('/api/transactions/transactions.json', api.transactions_data(db));
+app.get('/api/transactions/transactions.json', api.transactions_data(engine.db));
 //Number of cross, trade, paytrade
-app.get('/api/transactions/:metric/transactions.json', api.transmetric_data(db));
+app.get('/api/transactions/:metric/transactions.json', api.transmetric_data(engine.db));
 //Number of accounts
-app.get('/api/accounts.json', api.num_accounts(db));
+app.get('/api/accounts.json', api.num_accounts(engine.db));
 
 // Data for Ripple.com website
-app.get('/api/ripplecom.json', api.ripplecom_data(db));
+app.get('/api/ripplecom.json', api.ripplecom_data(engine.db));
 
 // redirect all others to the index (HTML5 history)
 app.get('*', routes.index);
@@ -140,37 +128,38 @@ io.sockets.on('connection', function (socket) {
   socket.emit('apply', model.data);
 });
 
-remote.on('error', function (err) {
+engine.remote.on('error', function (err) {
   winston.error(err);
 });
 
-remote.on('transaction_all', function (e) {
+engine.remote.on('transaction_all', function (e) {
   //interp.applyTransaction(model, e);
 });
 
 var MAX_TRANSACTIONS = 50;
 var MAX_PAYMENTS = 50;
 var MAX_PAYMENTS_AND_OFFERS = 50;
-remote.on('transaction', function (e) {
+engine.remote.on('transaction', function (e) {
   var transaction_ledger = e.ledger_index,
       transaction_account = e.transaction.Account,
       transaction_type = e.transaction.TransactionType,
-      transaction_id = e.transaction.hash;
+      transaction_id = e.transaction.hash,
+      transaction_desc;
   switch (e.transaction.TransactionType) {
     case 'Payment':
-      var amount = ripple.Amount.from_json(e.transaction.Amount);
+      var amount = Amount.from_json(e.transaction.Amount);
       transaction_desc = transaction_account + " sent " + (amount.to_number() / 1000000).toFixed(2) + " " + amount.currency().to_json() + " to " + e.transaction.Destination;
       break;
 
     case 'TrustSet':
-      transaction_desc = transaction_account + " trusts " + ripple.Amount.from_json(e.transaction.LimitAmount).to_number() + " " + e.transaction.LimitAmount.currency + " to " + e.transaction.LimitAmount.issuer;
+      transaction_desc = transaction_account + " trusts " + Amount.from_json(e.transaction.LimitAmount).to_number() + " " + e.transaction.LimitAmount.currency + " to " + e.transaction.LimitAmount.issuer;
       break;
 
     case 'OfferCreate':
       if (e.transaction.TakerGets.issuer !== undefined)
-        transaction_desc = transaction_account + " created an offer " + (ripple.Amount.from_json(e.transaction.TakerPays).to_number() / 1000000).toFixed(2) + " " + ripple.Amount.from_json(e.transaction.TakerPays).currency().to_json() + " for " + ripple.Amount.from_json(e.transaction.TakerGets).to_number() + " " + e.transaction.TakerGets.currency;
+        transaction_desc = transaction_account + " created an offer " + (Amount.from_json(e.transaction.TakerPays).to_number() / 1000000).toFixed(2) + " " + Amount.from_json(e.transaction.TakerPays).currency().to_json() + " for " + Amount.from_json(e.transaction.TakerGets).to_number() + " " + e.transaction.TakerGets.currency;
       else
-        transaction_desc = transaction_account + " created an offer " + ripple.Amount.from_json(e.transaction.TakerPays).to_number() + " " + e.transaction.TakerPays.currency + " for " + (ripple.Amount.from_json(e.transaction.TakerGets).to_number() / 1000000).toFixed(2) + " " + ripple.Amount.from_json(e.transaction.TakerGets).currency().to_json();
+        transaction_desc = transaction_account + " created an offer " + Amount.from_json(e.transaction.TakerPays).to_number() + " " + e.transaction.TakerPays.currency + " for " + (Amount.from_json(e.transaction.TakerGets).to_number() / 1000000).toFixed(2) + " " + Amount.from_json(e.transaction.TakerGets).currency().to_json();
       break;
 
     case 'OfferCancel':
@@ -195,7 +184,7 @@ remote.on('transaction', function (e) {
 
 });
 
-remote.on('ledger_closed', function (e) {
+engine.remote.on('ledger_closed', function (e) {
   winston.info('LEDGER CLOSE ' + e.ledger_index + ' ' + e.validated_ledgers);
 
   var status_ledger = false, vrange;
@@ -207,15 +196,15 @@ remote.on('ledger_closed', function (e) {
   model.apply({
     ledger_hash: e.ledger_hash,
     ledger_index: e.ledger_index,
-    ledger_time: ripple.utils.toTimestamp(e.ledger_time),
+    ledger_time: utils.toTimestamp(e.ledger_time),
     status_ledger: status_ledger
   });
 
-  if (vrange instanceof Range) processor.processValidated(vrange);
-  processor.updateAggregates();
+  if (vrange instanceof Range) engine.processor.processValidated(vrange);
+  //engine.processor.updateAggregates();
 });
 
-remote.on('connected', function(connection) {
+engine.remote.on('connected', function(connection) {
   winston.info('WebSocket client connected');
 
   model.apply({
@@ -224,7 +213,7 @@ remote.on('connected', function(connection) {
 
   news.getRss();
   news.getLatestNews();
-  processor.loadState();
+  //engine.processor.loadState();
 
   /*
   remote.request_ledger(32570, "full")
@@ -240,10 +229,15 @@ remote.on('connected', function(connection) {
   */
 });
 
-remote.on('disconnected', function(connection) {
+engine.remote.on('disconnected', function(connection) {
   model.apply({
     status_connected: false
   });
+});
+
+// When we are processing in real-time, always update aggregates
+engine.processor.on('ledger_processed', function (e) {
+  engine.aggregator.process(e.ledger.time);
 });
 
 startupHttp();
@@ -254,24 +248,7 @@ function startupHttp()
     winston.info("Express server listening on port %d in %s mode",
                 this.address().port, app.settings.env);
 
-    startupMysql();
+    engine.startup();
   });
 }
 
-function startupMysql()
-{
-  db.connect(function (err) {
-    if (err) {
-      winston.error(err);
-      process.exit(1);
-    }
-
-    winston.info("Connected to MySQL server");
-    startupRipple();
-  });
-}
-
-function startupRipple()
-{
-  remote.connect();
-}
