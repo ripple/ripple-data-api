@@ -25,6 +25,9 @@ var cleanCache = {};
 
 function logError(err) {
   winston.error(err.stack ? err.stack : (err.message ? err.message : err));
+  if (err.query) {
+    winston.info("Related to query: "+err.query.sql);
+  }
 }
 
 var Processor = function (db, remote, aggregator) {
@@ -348,7 +351,7 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                         [processed.trades],
                         function (err)
                         {
-                          logError(err);
+                          if (err) logError(err);
                           model.set('reload', 'intraday');
                           writeCaps();
                         });
@@ -369,10 +372,10 @@ Processor.prototype.processLedger = function (ledger_index, callback)
                         "(`c`, `i`, `type`, " +
                         " `time`, `ledger`, `amount`) " +
                         "VALUES ?",
-                        [processed.trades],
+                        [processed.caps],
                         function (err)
                         {
-                          logError(err);
+                          if (err) logError(err);
                           writeLedger();
                         });
         } else writeLedger();
