@@ -80,7 +80,64 @@ Classifier.classifyLedger = function (ledger)
     var isTradingTx = false,
         isTradingPay = false;
 
+    // XXX: Temporary. Won't be needed once the S3 JSONs are fixed.
+    var TRANSACTION_TYPES = {
+      0:    "Payment",
+      3:    "AccountSet",
+      5:    "SetRegularKey",
+      7:    "OfferCreate",
+      8:    "OfferCancel",
+      9:    "Contract",
+      10:   "RemoveContract",
+      20:   "TrustSet",
+      100:  "EnableFeature",
+      101:  "SetFee"
+    };
+
+    var LEDGER_ENTRY_TYPES = {
+      97:   "AccountRoot",
+      99:   "Contract",
+      100:  "DirectoryNode",
+      102:  "Features",
+      103:  "GeneratorMap",
+      104:  "LedgerHashes",
+      110:  "Nickname",
+      111:  "Offer",
+      114:  "RippleState",
+      115:  "FeeSettings"
+    };
+
+    var TRANSACTION_RESULTS = {
+      0  :  "tesSUCCESS",
+      100:  "tecCLAIM",
+      101:  "tecPATH_PARTIAL",
+      102:  "tecUNFUNDED_ADD",
+      103:  "tecUNFUNDED_OFFER",
+      104:  "tecUNFUNDED_PAYMENT",
+      105:  "tecFAILED_PROCESSING",
+      121:  "tecDIR_FULL",
+      122:  "tecINSUF_RESERVE_LINE",
+      123:  "tecINSUF_RESERVE_OFFER",
+      124:  "tecNO_DST",
+      125:  "tecNO_DST_INSUF_XRP",
+      126:  "tecNO_LINE_INSUF_RESERVE",
+      127:  "tecNO_LINE_REDUNDANT",
+      128:  "tecPATH_DRY",
+      129:  "tecUNFUNDED", // Deprecated, old ambiguous unfunded.
+      130:  "tecMASTER_DISABLED",
+      131:  "tecNO_REGULAR_KEY",
+      132:  "tecOWNERS"
+    };
+
+    if ("number" === typeof tx.meta.TransactionResult) {
+      tx.meta.TransactionResult = TRANSACTION_RESULTS[tx.meta.TransactionResult];
+    }
+
     tx.mmeta.each(function (an) {
+      if ("number" === typeof an.entryType) {
+        an.entryType = LEDGER_ENTRY_TYPES[an.entryType];
+      }
+
       // Ledger entry count
       if (an.diffType === "CreatedNode") processed.ledger.entries_delta++;
       else if (an.diffType === "DeletedNode") processed.ledger.entries_delta--;
