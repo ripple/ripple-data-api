@@ -69,7 +69,7 @@ module.filter('rpamount', function () {
 
 module.filter('rpdate', [function() {
   return function(text) {
-    return text && moment(+text).format('MMMM Do YYYY, h:mm:ss a');
+    return text && moment(+text).format('MMM Do YYYY, h:mm:ss a');
   };
 }]);
 
