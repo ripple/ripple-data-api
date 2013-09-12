@@ -201,7 +201,7 @@ engine.remote.on('ledger_closed', function (e) {
   });
 
   if (vrange instanceof Range) engine.processor.processValidated(vrange);
-  //engine.processor.updateAggregates();
+  engine.processor.updateAggregates();
 });
 
 engine.remote.on('connected', function(connection) {
@@ -213,7 +213,7 @@ engine.remote.on('connected', function(connection) {
 
   news.getRss();
   news.getLatestNews();
-  //engine.processor.loadState();
+  engine.processor.loadState();
 
   /*
   remote.request_ledger(32570, "full")
