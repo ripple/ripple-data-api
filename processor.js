@@ -406,22 +406,21 @@ Processor.prototype.processLedger = function (ledger_index, callback)
 Processor.prototype.updateAggregates = function () {
   var self = this;
 
-  // XXX Re-add
-  /*
   self.db.query("SELECT " +
-                " accounts, txs_sum " +
-                " FROM ledgers ORDER BY id DESC " +
-                " LIMIT 0,1", function(err, rows)
+                " SUM(accounts_delta) AS accounts, " +
+                " SUM(txs) AS txs " +
+                " FROM ledgers_aggregate ",
+                function(err, rows)
   {
     if (err) logError(err);
 
     if(rows && rows[0]) {
       var account_count = rows[0].accounts || 0;
-      var tx_count = rows[0].txs_sum || 0;
+      var tx_count = rows[0].txs || 0;
       model.set("account_count", account_count);
       model.set("tx_count", tx_count);
     }
-  });*/
+  });
 
   _.each(index.issuerByCurrencyAddress, function (issuer1, key1) {
     _.each(index.issuerByCurrencyAddress, function (issuer2, key2) {

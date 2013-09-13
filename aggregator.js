@@ -46,8 +46,8 @@ Aggregator.prototype.process = function (timestamp, lastTimestamp, callback)
 
   function updateLedgersAggregate() {
     self.db.query("REPLACE INTO ledgers_aggregate "+
-                  "(time, ledger_first, ledger_last, txs_count) "+
-                  "SELECT ? AS srctime, MIN(id), MAX(id), SUM(txs) "+
+                  "(time, ledger_first, ledger_last, txs, accounts_delta) "+
+                  "SELECT ? AS srctime, MIN(id), MAX(id), SUM(txs), SUM(accounts_delta) "+
                   "FROM ledgers "+
                   "WHERE time >= ? AND time <= ? ",
                   [periodStart, periodStart, periodEnd],
