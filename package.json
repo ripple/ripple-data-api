@@ -1,0 +1,25 @@
+{
+  "name": "ripplecharts",
+  "version": "0.2.0",
+  "description": "Version 2.0 of the RippleCharts data collection and graphing service",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ripple/ripplecharts/tree/v2.0"
+  },
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.1"
+  },
+  "dependencies": {
+    "winston": "~0.7.2",
+    "moment": "~2.1.0",
+    "lodash": "~1.3.1",
+    "async": "~0.2.9",
+    "nano": "4.1.3"
+  },
+  "engines": {
+    "node": ">=0.10"
+  }
+}
