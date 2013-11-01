@@ -9,59 +9,104 @@ var db = require('nano')('http://' + config.couchdb.username + ':' + config.couc
 
 getXrpBalances();
 
-function getXrpBalances () {
+function getXrpBalances() {
     var filename = "xrp_balances_" + moment().format("YYYY-MM-DD") + ".csv";
 
-    fs.readFile("32570_full.json", {encoding: 'utf8'}, function(err, res){
+    fs.readFile("32570_full.json", {
+        encoding: 'utf8'
+    }, function(err, res) {
         if (err) {
             winston.error("Error getting 32570_full.json");
             return;
         }
 
         var ledger = JSON.parse(res).result.ledger;
-    
-        var genesis_accounts = {};
-        _.each(ledger.accountState, function(acct){
-            if (typeof acct.Account === "string" && typeof acct.Balance === "string")
-                genesis_accounts[acct.Account] = {in_later_ledgers: false, balance: parseInt(acct.Balance)};
-        });
-        
 
-        db.view("rphist", "xrp_totals", {group_level: 1}, function(err, res){
+        var genesis_accounts = {};
+        _.each(ledger.accountState, function(acct) {
+            if (typeof acct.Account === "string" && typeof acct.Balance === "string")
+                genesis_accounts[acct.Account] = {
+                    in_later_ledgers: false,
+                    balance: parseInt(acct.Balance)
+                };
+        });
+
+        var header = ["account", "xrp"].join(',') + '\n';
+        fs.writeFileSync(filename, header);
+
+        function writeRow (row) {
+            if (typeof row === "object" && row.length === 2) {
+                // winston.info(row);
+                var key = row[0],
+                    value = row[1];
+                var csv_row = [key[0], value[0]].join(',') + '\n';
+                fs.appendFile(filename, csv_row, function(err) {
+                    if (err) {
+                        winston.error("Error writing to file:", err);
+                        return;
+                    }
+                    if (typeof genesis_accounts[key[0]] !== "undefined")
+                        genesis_accounts[key[0]].in_later_ledgers = true;
+                });
+            } else {
+                winston.error("Error, row must be an array of length 2");
+                return;
+            }
+        }
+
+        var req = db.view_with_list("rphist", "xrp_totals", "streamRows", {
+            group_level: 1
+        });
+        var incomplete_chunks = "";
+        req.on("data", function(chunk) {
+            try {
+                var row = JSON.parse(chunk);
+                writeRow(row);
+            } catch (e) {
+                incomplete_chunks += chunk;
+            }
+
+        });
+
+        req.on("error", function(err) {
             if (err) {
                 winston.error("Error getting xrp_totals:", err);
                 return;
             }
-            
-            var header = ["account", "xrp"].join(',') + '\n';
-            fs.writeFileSync(filename, header);
+        });
 
-            res.rows.forEach(function(row){
-                var csv_row = [row.key[0], row.value[0]].join(',') + '\n'; 
-                fs.appendFileSync(filename, csv_row);
-                if (typeof genesis_accounts[row.key[0]] !== "undefined")
-                     genesis_accounts[row.key[0]].in_later_ledgers = true;
+        req.on("end", function() {
+            // winston.info("incomplete_chunks:", incomplete_chunks);
+            var rows = incomplete_chunks.split("\n");
+            _.each(rows, function(row){
+                try {
+                    var parsed_row = JSON.parse(row);
+                    writeRow(parsed_row);
+                } catch (e) {
+                    winston.error("could not parse", parsed_row);
+                }
+
             });
 
-            fs.appendFileSync(filename, "\n");
-
-            _.each(Object.keys(genesis_accounts), function(acct_addr){
+            _.each(Object.keys(genesis_accounts), function(acct_addr) {
                 if (genesis_accounts[acct_addr].in_later_ledgers === false) {
                     var bal = genesis_accounts[acct_addr].balance;
-                    fs.appendFileSync(filename, ("" + acct_addr + "," + bal + "\n"));
+                    fs.appendFile(filename, ("" + acct_addr + "," + bal + "\n"));
                 }
-            });            
+            });
 
             winston.info("Wrote to file:", filename);
+
         });
 
     });
+
 }
 
 
 // getTrades(["USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"], ["XRP"], "2013-10-1", "2013-10-31", "hour");
 
-function getTrades (curr1, curr2, start, end, time_period) {
+function getTrades(curr1, curr2, start, end, time_period) {
     // curr1 and curr2 should be arrays of the form ["CUR", "r...issuer"]
 
     var filename = "trades_" + curr1[0] + (curr1.length === 2 ? curr1[1] : "") + "_for_" + curr2[0] + (curr2.length === 2 ? curr2[1] : "") + "_" + start + "_to_" + end + ".csv";
@@ -110,34 +155,68 @@ function getTrades (curr1, curr2, start, end, time_period) {
         group_level: group_level
     };
 
-    db.view("offers", "offersExercised", params, function(err, res){
-        if (err) {
-            winston.error("Error getting offersExercised:", err);
-            return;
-        }
-
-        // var time_periods = ["year", "month", "day", "hour", "minute", "second"].slice(0, res.rows[0].key.slice(2).length);
-        var csv_header = ["timestamp", "open", "high", "low", "close", "vwav", "volume"].join(',') + "\n";
-        fs.writeFileSync(filename, csv_header);
-
-        res.rows.forEach(function(row){
-            var time = moment(row.key.slice(2)).utc().format();
-
-            var csv_row = [
-                time,
-                row.value.start,
-                row.value.high,
-                row.value.low,
-                row.value.end,
-                row.value.volume_weighted_avg,
-                row.value.vwav_denominator
-            ].join(',') + "\n";
-
-            fs.appendFileSync(filename, csv_row);
-        });
-
-        winston.info("Wrote to file:", filename);
+    var req = db.view_with_list("offers", "offersExercised", "trades", params);
+    req.on("data", function(chunk) {
+        winston.info(JSON.parse(chunk));
     });
+
+    // {
+    //     if (err) {
+    //         winston.error("Error getting offersExercised:", err);
+    //         return;
+    //     }
+
+    //     // var time_periods = ["year", "month", "day", "hour", "minute", "second"].slice(0, res.rows[0].key.slice(2).length);
+    //     var csv_header = ["timestamp", "open", "high", "low", "close", "vwav", "volume"].join(',') + "\n";
+    //     fs.writeFileSync(filename, csv_header);
+
+    //     res.rows.forEach(function(row){
+    //         var time = moment(row.key.slice(2)).utc().format();
+
+    //         var csv_row = [
+    //             time,
+    //             row.value.start,
+    //             row.value.high,
+    //             row.value.low,
+    //             row.value.end,
+    //             row.value.volume_weighted_avg,
+    //             row.value.vwav_denominator
+    //         ].join(',') + "\n";
+
+    //         fs.appendFileSync(filename, csv_row);
+    //     });
+
+    //     winston.info("Wrote to file:", filename);
+    // });
+
+    // db.view("offers", "offersExercised", params, function(err, res){
+    //     if (err) {
+    //         winston.error("Error getting offersExercised:", err);
+    //         return;
+    //     }
+
+    //     // var time_periods = ["year", "month", "day", "hour", "minute", "second"].slice(0, res.rows[0].key.slice(2).length);
+    //     var csv_header = ["timestamp", "open", "high", "low", "close", "vwav", "volume"].join(',') + "\n";
+    //     fs.writeFileSync(filename, csv_header);
+
+    //     res.rows.forEach(function(row){
+    //         var time = moment(row.key.slice(2)).utc().format();
+
+    //         var csv_row = [
+    //             time,
+    //             row.value.start,
+    //             row.value.high,
+    //             row.value.low,
+    //             row.value.end,
+    //             row.value.volume_weighted_avg,
+    //             row.value.vwav_denominator
+    //         ].join(',') + "\n";
+
+    //         fs.appendFileSync(filename, csv_row);
+    //     });
+
+    //     winston.info("Wrote to file:", filename);
+    // });
 
 }
 
@@ -178,7 +257,7 @@ function getTrades (curr1, curr2, start, end, time_period) {
 //                     paginateView(db, ddoc, view, params, pagefn, callback);
 //                 });
 //             });
-            
+
 //         } else {
 
 //             // last page
