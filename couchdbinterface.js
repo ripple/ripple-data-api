@@ -7,10 +7,10 @@ var winston = require('winston'),
 var config = require('./config');
 var db = require('nano')('http://' + config.couchdb.username + ':' + config.couchdb.password + '@' + config.couchdb.host + ':' + config.couchdb.port + '/' + config.couchdb.database);
 
-getXrpBalances();
+
 
 function getXrpBalances() {
-    var filename = "xrp_balances_" + moment().format("YYYY-MM-DD") + ".csv";
+    var filename = "./spreadsheets/xrp_balances_" + moment().format("YYYY-MM-DD") + ".csv";
 
     fs.readFile("32570_full.json", {
         encoding: 'utf8'
@@ -61,7 +61,7 @@ function getXrpBalances() {
         req.on("data", function(chunk) {
             try {
                 var row = JSON.parse(chunk);
-                writeRow(row);
+                writeRow(filename, row);
             } catch (e) {
                 incomplete_chunks += chunk;
             }
@@ -81,7 +81,7 @@ function getXrpBalances() {
             _.each(rows, function(row){
                 try {
                     var parsed_row = JSON.parse(row);
-                    writeRow(parsed_row);
+                    writeRow(filename, parsed_row);
                 } catch (e) {
                     winston.error("could not parse", parsed_row);
                 }
@@ -104,46 +104,24 @@ function getXrpBalances() {
 }
 
 
-// getTrades(["USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"], ["XRP"], "2013-10-1", "2013-10-31", "hour");
+getTrades(["USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"], ["XRP"], "2013-10-1", "2013-11-1", "month");
 
 function getTrades(curr1, curr2, start, end, time_period) {
     // curr1 and curr2 should be arrays of the form ["CUR", "r...issuer"]
 
-    var filename = "trades_" + curr1[0] + (curr1.length === 2 ? curr1[1] : "") + "_for_" + curr2[0] + (curr2.length === 2 ? curr2[1] : "") + "_" + start + "_to_" + end + ".csv";
+    var filename = "./spreadsheets/trades_" + 
+                    curr1[0] + (curr1.length === 2 ? curr1[1] : "") + 
+                    "_for_" + 
+                    curr2[0] + (curr2.length === 2 ? curr2[1] : "") + "_" + 
+                    start + "_to_" + end + 
+                    "_by_" + time_period + 
+                    ".csv";
 
-    var start_moment = moment(start).utc(),
-        end_moment = moment(end).utc(),
-        start_array = start_moment.toArray(),
-        end_array = end_moment.toArray(),
-        group_level;
-
-    if (time_period === "year" || time_period === "yearly") {
-        start_array = start_array.slice(0, 1);
-        end_array = end_array.slice(0, 1);
-        group_level = 3;
-    } else if (time_period === "month" || time_period === "monthly") {
-        start_array = start_array.slice(0, 2);
-        end_array = end_array.slice(0, 2);
-        group_level = 4;
-    } else if (time_period === "day" || time_period === "daily") {
-        start_array = start_array.slice(0, 3);
-        end_array = end_array.slice(0, 3);
-        group_level = 5;
-    } else if (time_period === "hour" || time_period === "hourly") {
-        start_array = start_array.slice(0, 4);
-        end_array = end_array.slice(0, 4);
-        group_level = 6;
-    } else if (time_period === "minute") {
-        start_array = start_array.slice(0, 5);
-        end_array = end_array.slice(0, 5);
-        group_level = 7;
-    } else if (time_period === "second") {
-        start_array = start_array.slice(0, 6);
-        end_array = end_array.slice(0, 6);
-        group_level = 8;
-    } else {
-        callback(new Error("Error: time_period option not valid"));
-    }
+    var time_periods = ["year", "month", "day", "hour", "minute", "second"],
+        period_index = (time_periods.indexOf(time_period) >= 0 ? time_periods.indexOf(time_period) : 3),
+        start_array = moment(start).utc().toArray().slice(0, period_index + 1),
+        end_array = moment(end).utc().toArray().slice(0, period_index + 1),
+        group_level = period_index + 3;
 
     var startkey = [curr1, curr2].concat(end_array),
         endkey = [curr1, curr2].concat(start_array);
@@ -155,129 +133,67 @@ function getTrades(curr1, curr2, start, end, time_period) {
         group_level: group_level
     };
 
-    var req = db.view_with_list("offers", "offersExercised", "trades", params);
+    var csv_header = ["timestamp", "open", "high", "low", "close", "vwav", "curr1_volume", "curr2_volume"].join(',') + "\n";
+    fs.writeFileSync(filename, csv_header);
+
+    function writeRow (filename, row) {
+        var key = row[0],
+            value = row[1];
+            var time = moment(key.slice(2)).utc().format();
+
+            var csv_row = [
+                time,
+                value.open,
+                value.high,
+                value.low,
+                value.close,
+                value.volume_weighted_avg,
+                value.curr1_volume,
+                value.curr2_volume
+            ].join(',') + "\n";
+
+            fs.appendFile(filename, csv_row);
+        }
+
+    var req = db.view_with_list("offers", "offersExercised", "streamRows", params);
+    var incomplete_chunks = "";
     req.on("data", function(chunk) {
-        winston.info(JSON.parse(chunk));
+        try {
+            var parsed_row = JSON.parse(chunk);
+            writeRow(filename, parsed_row);
+        } catch (e) {
+            incomplete_chunks += chunk;
+        }
+
     });
 
-    // {
-    //     if (err) {
-    //         winston.error("Error getting offersExercised:", err);
-    //         return;
-    //     }
+    req.on("error", function(err) {
+        if (err) {
+            winston.error("Error getting xrp_totals:", err);
+            return;
+        }
+    });
 
-    //     // var time_periods = ["year", "month", "day", "hour", "minute", "second"].slice(0, res.rows[0].key.slice(2).length);
-    //     var csv_header = ["timestamp", "open", "high", "low", "close", "vwav", "volume"].join(',') + "\n";
-    //     fs.writeFileSync(filename, csv_header);
+    req.on("end", function() {
+        // winston.info("incomplete_chunks:", incomplete_chunks);
+        var rows = incomplete_chunks.split("\n");
+        _.each(rows, function(row){
+            if (row === "")
+                return;
+            try {
+                var parsed_row = JSON.parse(row);
+                if (typeof parsed_row === "object")
+                    writeRow(filename, parsed_row);
+            } catch (e) {
+                winston.error("could not parse", JSON.stringify(parsed_row));
+            }
+        });
 
-    //     res.rows.forEach(function(row){
-    //         var time = moment(row.key.slice(2)).utc().format();
-
-    //         var csv_row = [
-    //             time,
-    //             row.value.start,
-    //             row.value.high,
-    //             row.value.low,
-    //             row.value.end,
-    //             row.value.volume_weighted_avg,
-    //             row.value.vwav_denominator
-    //         ].join(',') + "\n";
-
-    //         fs.appendFileSync(filename, csv_row);
-    //     });
-
-    //     winston.info("Wrote to file:", filename);
-    // });
-
-    // db.view("offers", "offersExercised", params, function(err, res){
-    //     if (err) {
-    //         winston.error("Error getting offersExercised:", err);
-    //         return;
-    //     }
-
-    //     // var time_periods = ["year", "month", "day", "hour", "minute", "second"].slice(0, res.rows[0].key.slice(2).length);
-    //     var csv_header = ["timestamp", "open", "high", "low", "close", "vwav", "volume"].join(',') + "\n";
-    //     fs.writeFileSync(filename, csv_header);
-
-    //     res.rows.forEach(function(row){
-    //         var time = moment(row.key.slice(2)).utc().format();
-
-    //         var csv_row = [
-    //             time,
-    //             row.value.start,
-    //             row.value.high,
-    //             row.value.low,
-    //             row.value.end,
-    //             row.value.volume_weighted_avg,
-    //             row.value.vwav_denominator
-    //         ].join(',') + "\n";
-
-    //         fs.appendFileSync(filename, csv_row);
-    //     });
-
-    //     winston.info("Wrote to file:", filename);
-    // });
+        winston.info("Wrote to file:", filename);
+    });
 
 }
 
-// function getGateways (callback) {
-//     function perPageFn (rows, page_callback) {
-
-//     }
-
-//     paginateView(db, "rphistory", "trustlinesByAccount", {group_level: 2}, perPageFn, callback);
-
-// }
-
-// function paginateView (db, ddoc, view, params, pagefn, callback) {
-//     var page_size = 1000 + 1;
-//     if (!params.limit || params.limit < page_size)
-//         params.limit = page_size;
-
-//     db.view(ddoc, view, params, function(err, rows){
-//         if (err) {
-//             winston.error("Error getting view", view, "err:", err);
-//             return;
-//         }
-
-//         if (rows.length === page_size) {
-//             // not last page
-
-//             setImmediate(function(){
-//                 pagefn(rows, function(err, results){
-//                     if (err) {
-//                         if (callback) {
-//                             callback(err);
-//                         } else {
-//                             winston.error("Error paginating view", view, "err:", err);
-//                             return;
-//                         }
-//                     }
-//                     params.startkey = results.last_key;
-//                     paginateView(db, ddoc, view, params, pagefn, callback);
-//                 });
-//             });
-
-//         } else {
-
-//             // last page
-//             pagefn(rows, function(err, last_key){
-//                 if (err) {
-//                     if (callback) {
-//                         callback(err);
-//                     } else {
-//                         winston.error("Error paginating view", view, "err:", err);
-//                         return;
-//                     }
-//                 }
-
-//                 callback(last_key);
-//             })
-
-//         }
-
-//     });
-// }
 
 // function getGateways (startkey) {
 
