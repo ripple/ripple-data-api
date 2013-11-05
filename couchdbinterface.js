@@ -10,36 +10,43 @@ var db = require('nano')('http://' + config.couchdb.username + ':' + config.couc
 var GENESIS_LEDGER = require('./32570_full.json').result.ledger,
     GENESIS_ACCOUNTS = GENESIS_LEDGER.accountState;
 
-var gateways = require('./spreadsheets/gateways_2013-11-04.json'),
+
+
+getXrpBalances();
+
+function getAllOrderBooks() {
+    // run getGateways first
+    var gateways = require('./spreadsheets/gateways_2013-11-04.json'),
     gateway_accts = Object.keys(gateways);
 
-for (var g1 = 0; g1 < gateway_accts.length; g1++) {
-    var g1_acct = gateway_accts[g1],
-        g1_currs = Object.keys(gateways[g1_acct]);
-
-    g1_currs.forEach(function(g1_curr){
-            getTrades(
-                [g1_curr, g1_acct], 
-                ["XRP"],
-                "2013-05-01",
-                "2013-11-04",
-                "day");
-        });
-
-    for (var g2 = g1; g2 < gateway_accts.length; g2++) {
-        var g2_acct = gateway_accts[g2],
-            g2_currs = Object.keys(gateways[g2_acct]);
+    for (var g1 = 0; g1 < gateway_accts.length; g1++) {
+        var g1_acct = gateway_accts[g1],
+            g1_currs = Object.keys(gateways[g1_acct]);
 
         g1_currs.forEach(function(g1_curr){
-            g2_currs.forEach(function(g2_curr){
                 getTrades(
                     [g1_curr, g1_acct], 
-                    [g2_curr, g2_acct],
+                    ["XRP"],
                     "2013-05-01",
                     "2013-11-04",
                     "day");
-            })
-        });
+            });
+
+        for (var g2 = g1; g2 < gateway_accts.length; g2++) {
+            var g2_acct = gateway_accts[g2],
+                g2_currs = Object.keys(gateways[g2_acct]);
+
+            g1_currs.forEach(function(g1_curr){
+                g2_currs.forEach(function(g2_curr){
+                    getTrades(
+                        [g1_curr, g1_acct], 
+                        [g2_curr, g2_acct],
+                        "2013-05-01",
+                        "2013-11-04",
+                        "day");
+                })
+            });
+        }
     }
 }
 
