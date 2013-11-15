@@ -99,7 +99,7 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", [ ledgerIndex ],
     function( err, rows ) {
       if ( err ) {
-        winston.error( "Error getting raw ledger:", ledgerIndex, rows );
+        winston.error( "Error getting raw ledger:", ledgerIndex, err );
         callback( err );
         return;
       }
