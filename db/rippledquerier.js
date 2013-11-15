@@ -5,7 +5,7 @@ var sqlite3 = require( 'sqlite3' ).verbose( ),
   _ = require( 'lodash' ),
   async = require( 'async' ),
   ripple = require( 'ripple-lib' ),
-  Ledger = require( './node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
+  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
   Remote = ripple.Remote;
 
 var config = require( '../config' );
