@@ -8,7 +8,7 @@ var sqlite3 = require( 'sqlite3' ).verbose( ),
   Ledger = require( './node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
   Remote = ripple.Remote;
 
-var config = require( './config' );
+var config = require( '../config' );
 
 var FIRSTLEDGER = 32570;
 var FIRSTCLOSETIME = 410325670;

@@ -1,7 +1,7 @@
 var winston = require('winston'),
   async = require('async'),
   _ = require('lodash'),
-  config = require('./config'),
+  config = require('../config'),
   db = require('nano')('http://' + config.couchdb.username + 
             ':' + config.couchdb.password + 
             '@' + config.couchdb.host + 
