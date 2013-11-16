@@ -145,7 +145,7 @@ function verifyAndSelectHeader( dbs, ledgerIndex, possibleHeaders, callback ) {
 
       if ( nextRows.length === 1 ) {
 
-        findCorrectHeader( possibleHeaders, nextRows, callback );
+        findCorrectHeader( possibleHeaders, nextRows[ 0 ], callback );
 
       } else {
 
