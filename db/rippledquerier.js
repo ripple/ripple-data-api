@@ -105,6 +105,7 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex ],
     function( err, rows ) {
+      
       if ( err ) {
         winston.error( "Error getting raw ledger:" + 
           ledgerIndex + " err: " + err );
@@ -182,9 +183,9 @@ function verifyAndSelectHeader( dbs, ledgerIndex, possibleHeaders, callback ) {
 // for the one 
 function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
 
-  winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
-    JSON.stringify(possibleHeaders) + 
-    "\n nextHeader.PrevHash:" + nextHeader.PrevHash );
+  // winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
+  //   JSON.stringify(possibleHeaders) + 
+  //   "\n nextHeader.PrevHash:" + nextHeader.PrevHash );
 
   var correctHeader = _.find( possibleHeaders, 
           function( header ) {
@@ -194,8 +195,8 @@ function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
   // query another rippled if the correct header is 
   // not in the set of possible headers
   if (!correctHeader) {
-    winston.info("Could not find " + nextHeader.PrevHash + 
-      " among " + possibleHeaders);
+  //   winston.info("Could not find " + nextHeader.PrevHash + 
+  //     " among " + possibleHeaders);
     getLedgerFromApi( nextHeader.PrevHash, callback );
     return;
   }
