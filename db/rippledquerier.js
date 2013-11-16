@@ -148,7 +148,7 @@ function verifyAndSelectHeader( dbs, ledgerIndex, possibleHeaders, callback ) {
         findCorrectHeader( possibleHeaders, nextRows, callback );
 
       } else {
-        
+
         verifyAndSelectHeader(
           dbs, 
           ledgerIndex + 1, 
@@ -194,6 +194,7 @@ function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
   // not in the set of possible headers
   if (!correctHeader) {
     getLedgerFromApi( nextHeader.PrevHash, callback );
+    return;
   }
 
   // if there are multiple possibleHeaders,
