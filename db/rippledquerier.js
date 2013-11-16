@@ -132,7 +132,7 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
 function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callback ) {
 
   winston.info( "resolveConflictingHeaders called with ledgerIndex: " + 
-    ledgerIndex + "\n conflictingHeaders: " + conflictingHeaders );
+    ledgerIndex + "\n conflictingHeaders: " + JSON.stringify(conflictingHeaders) );
 
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex + 1 ],
@@ -184,7 +184,8 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 function findCorrectHeader( conflictingHeaders, nextHeader, callback ) {
 
   winston.info( "findCorrectHeader called with\n conflictingHeaders:" + 
-    conflictingHeaders + "\n nextHeader:" + nextHeader );
+    JSON.stringify(conflictingHeaders) + 
+    "\n nextHeader:" + JSON.stringif(nextHeader) );
 
   var correctHeader = _.find( conflictingHeaders, 
           function( header ) {
