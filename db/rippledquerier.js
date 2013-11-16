@@ -120,7 +120,7 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
 
       } else if ( rows.length > 1 ) {
 
-        resolveConflictingHeaders( ledgerIndex, rows, callback );
+        resolveConflictingHeaders( dbs, ledgerIndex, rows, callback );
       }
     } );
 }
@@ -129,7 +129,7 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
 // entries in the ledger db for a given ledgerIndex
 // it uses the ledger hashes to (recursively) determine the correct header
 // for this ledgerIndex
-function resolveConflictingHeaders( ledgerIndex, conflictingHeaders, callback ) {
+function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callback ) {
 
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex + 1 ],
