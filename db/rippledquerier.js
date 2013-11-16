@@ -148,6 +148,7 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
       } else {
         
         resolveConflictingHeaders(
+          dbs, 
           ledgerIndex + 1, 
           nextRows, 
           function(err, nextNextHeader) {
