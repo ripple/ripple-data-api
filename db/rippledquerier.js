@@ -155,15 +155,14 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 
             findCorrectHeader( nextRows, nextNextHeader, function( err, nextHeader ) {
               if (err) {
-                console.log(err);
-                winston.error("Error resolving the nextNextHeader:", err);
+                winston.error("Error resolving the nextNextHeader:" + err);
                 callback(err);
                 return;
               }
 
               findCorrectHeader( conflictingHeaders, nextHeader, function( err, correctHeader ) {
                 if (err) {
-                  winston.error("Error resolving the nextHeader:", err);
+                  winston.error("Error resolving the nextHeader:" + err);
                   callback(err);
                   return;
                 }
