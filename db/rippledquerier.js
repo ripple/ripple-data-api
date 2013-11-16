@@ -36,8 +36,6 @@ function RippledQuerier( maxIterators ) {
   rq.FIRSTCLOSETIME = FIRSTCLOSETIME;
 
 
-  // RippledQuerier functions
-
   rq.getLatestLedgerIndex = function( callback ) {
     getLatestLedgerIndex( dbs, callback );
   };
@@ -65,7 +63,13 @@ function RippledQuerier( maxIterators ) {
     var startEpoch = rpEpochFromTimestamp( moment( start ).valueOf( ) );
     var endEpoch = rpEpochFromTimestamp( moment( end ).valueOf( ) );
 
-    getLedgersForRpEpochRange( dbs, startEpoch, endEpoch, maxIterators, callback );
+    getLedgersForRpEpochRange( 
+      dbs, 
+      startEpoch, 
+      endEpoch, 
+      maxIterators, 
+      callback 
+      );
   };
 
   return rq;
@@ -73,8 +77,6 @@ function RippledQuerier( maxIterators ) {
 }
 
 
-
-// PRIVATE FUNCTIONS
 
 
 // printCallback is used as the default callback function
@@ -93,16 +95,18 @@ function rpEpochFromTimestamp( timestamp ) {
 }
 
 
-// getRawLedger gets the raw ledger ledb database 
+// getRawLedger gets the raw ledger header from ledb database 
 function getRawLedger( dbs, ledgerIndex, callback ) {
   if ( !callback ) callback = printCallback;
   if ( !dbs ) winston.error( "dbs is not defined in getRawLedger" );
 
 
-  dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", [ ledgerIndex ],
+  dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
+    [ ledgerIndex ],
     function( err, rows ) {
       if ( err ) {
-        winston.error( "Error getting raw ledger:", ledgerIndex, err );
+        winston.error( "Error getting raw ledger:" + 
+          ledgerIndex + " err: " + err );
         callback( err );
         return;
       }
@@ -113,26 +117,21 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
           ledgerIndex )) );
         return;
 
-      } else if ( rows.length === 1 ) {
+      } 
 
-        // this is the ideal case
-        callback( null, rows[ 0 ] );
-
-      } else if ( rows.length > 1 ) {
-
-        resolveConflictingHeaders( dbs, ledgerIndex, rows, callback );
-      }
+      verifyAndSelectHeader( dbs, ledgerIndex, rows, callback );
     } );
 }
 
-// resolveConflictingHeaders handles the case where there are multiple
+
+// verifyAndSelectHeader handles the case where there are multiple
 // entries in the ledger db for a given ledgerIndex
 // it uses the ledger hashes to (recursively) determine the correct header
 // for this ledgerIndex
-function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callback ) {
+function verifyAndSelectHeader( dbs, ledgerIndex, possibleHeaders, callback ) {
 
-  // winston.info( "resolveConflictingHeaders called with ledgerIndex: " + 
-  //   ledgerIndex + "\n conflictingHeaders: " + JSON.stringify(conflictingHeaders) );
+  // winston.info( "verifyAndSelectHeader called with ledgerIndex: " + 
+  //   ledgerIndex + "\n possibleHeaders: " + JSON.stringify(possibleHeaders) );
 
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex + 1 ],
@@ -146,22 +145,24 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 
       if ( nextRows.length === 1 ) {
 
-        findCorrectHeader( conflictingHeaders, nextRows[ 0 ], callback );
+        findCorrectHeader( possibleHeaders, nextRows, callback );
 
       } else {
         
-        resolveConflictingHeaders(
+        verifyAndSelectHeader(
           dbs, 
           ledgerIndex + 1, 
           nextRows, 
             function(err, nextHeader) {
             if (err) {
-              winston.error("Error with resolveConflictingHeaders for ledgerIndex:" + (ledgerIndex + 1) + err);
+              winston.error("Error with verifyAndSelectHeader for ledgerIndex:" + 
+                (ledgerIndex + 1) + err);
               callback(err);
               return;
             }
 
-              findCorrectHeader( conflictingHeaders, nextHeader, function( err, correctHeader ) {
+              findCorrectHeader( possibleHeaders, nextHeader, 
+                function( err, correctHeader ) {
                 if (err) {
                   winston.error("Error resolving the nextHeader:" + err);
                   callback(err);
@@ -176,28 +177,28 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 }
 
 
-// findCorrectHeader searches through the given conflictingHeaders
+// findCorrectHeader searches through the given possibleHeaders
 // for the one 
-function findCorrectHeader( conflictingHeaders, nextHeader, callback ) {
+function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
 
-  // winston.info( "findCorrectHeader called with\n conflictingHeaders:" + 
-  //   JSON.stringify(conflictingHeaders) + 
+  // winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
+  //   JSON.stringify(possibleHeaders) + 
   //   "\n nextHeader:" + JSON.stringify(nextHeader) );
 
-  var correctHeader = _.find( conflictingHeaders, 
+  var correctHeader = _.find( possibleHeaders, 
           function( header ) {
           return header.LedgerHash === nextHeader.PrevHash;
         });
 
+  // query another rippled if the correct header is 
+  // not in the set of possible headers
   if (!correctHeader) {
-    callback( (new Error( "Error in findCorrectHeader: " + 
-      "nextHeader.PrevHash does not refer to any headers in this set of conflictingHeaders\n" +
-      "nextHeader: " + JSON.stringify(nextHeader) + "\n" +
-      "conflictingHeaders: " + JSON.stringify(conflictingHeaders) )) );
-    return;
+    getLedgerFromApi( nextHeader.PrevHash, callback );
   }
 
-  correctHeader.conflicting_ledger_headers = _.filter( conflictingHeaders, 
+  // if there are multiple possibleHeaders,
+  // save the others in conflicting_ledger_headers
+  correctHeader.conflicting_ledger_headers = _.filter( possibleHeaders, 
     function( header ) {
     return header.LedgerHash !== nextHeader.PrevHash;
   });
