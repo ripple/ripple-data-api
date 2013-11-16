@@ -391,7 +391,7 @@ function getLedgerFromApi( ledgerHash, callback ) {
       var ledgerJsonTxHash = Ledger.from_json( ledger ).calc_tx_hash( ).to_hex( );
       if ( ledgerJsonTxHash === ledger.transaction_hash ) {
 
-        winston.info("Got ledger " + ledger.ledger_index + " from rippled api: " + ledger);
+        winston.info("Got ledger " + ledger.ledger_index + " from rippled api: " + JSON.stringify(ledger));
         callback( null, ledger );
 
       } else {
