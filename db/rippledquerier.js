@@ -109,8 +109,8 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
 
       if ( rows.length === 0 ) {
 
-        callback( new Error( "dbs.ledb has no ledger of index: " + 
-          ledgerIndex ) );
+        callback( (new Error( "dbs.ledb has no ledger of index: " + 
+          ledgerIndex )) );
         return;
 
       } else if ( rows.length === 1 ) {
@@ -155,6 +155,7 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 
             findCorrectHeader( nextRows, nextNextHeader, function( err, nextHeader ) {
               if (err) {
+                console.log(err);
                 winston.error("Error resolving the nextNextHeader:", err);
                 callback(err);
                 return;
@@ -601,7 +602,7 @@ function dbRecursiveSearch( db, table, index, start, end, key, val, callback ) {
         return;
       }
     }
-    callback( new Error( "Error in recursive search" ) );
+    callback( (new Error( "Error in recursive search" )) );
   } );
 }
 
