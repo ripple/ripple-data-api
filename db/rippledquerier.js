@@ -143,9 +143,7 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 
       if ( nextRows.length === 1 ) {
 
-        var correctHeader = findCorrectHeader( conflictingHeaders, nextRows[ 0 ] );
-
-        callback( null, correctHeader );
+        findCorrectHeader( conflictingHeaders, nextRows[ 0 ], callback );
 
       } else {
         
