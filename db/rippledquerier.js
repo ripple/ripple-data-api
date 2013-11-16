@@ -131,8 +131,8 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
 // for this ledgerIndex
 function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callback ) {
 
-  winston.info( "resolveConflictingHeaders called with ledgerIndex: " + 
-    ledgerIndex + "\n conflictingHeaders: " + JSON.stringify(conflictingHeaders) );
+  // winston.info( "resolveConflictingHeaders called with ledgerIndex: " + 
+  //   ledgerIndex + "\n conflictingHeaders: " + JSON.stringify(conflictingHeaders) );
 
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex + 1 ],
@@ -154,20 +154,12 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
           dbs, 
           ledgerIndex + 1, 
           nextRows, 
-          // function(err, nextNextHeader) {
             function(err, nextHeader) {
             if (err) {
               winston.error("Error with resolveConflictingHeaders for ledgerIndex:" + (ledgerIndex + 1) + err);
               callback(err);
               return;
             }
-
-            // findCorrectHeader( nextRows, nextNextHeader, function( err, nextHeader ) {
-            //   if (err) {
-            //     winston.error("Error resolving the nextNextHeader:" + err);
-            //     callback(err);
-            //     return;
-            //   }
 
               findCorrectHeader( conflictingHeaders, nextHeader, function( err, correctHeader ) {
                 if (err) {
@@ -178,7 +170,6 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 
                 callback( null, correctHeader );
               });
-            // });
         });
       }
     });
@@ -189,9 +180,9 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 // for the one 
 function findCorrectHeader( conflictingHeaders, nextHeader, callback ) {
 
-  winston.info( "findCorrectHeader called with\n conflictingHeaders:" + 
-    JSON.stringify(conflictingHeaders) + 
-    "\n nextHeader:" + JSON.stringify(nextHeader) );
+  // winston.info( "findCorrectHeader called with\n conflictingHeaders:" + 
+  //   JSON.stringify(conflictingHeaders) + 
+  //   "\n nextHeader:" + JSON.stringify(nextHeader) );
 
   var correctHeader = _.find( conflictingHeaders, 
           function( header ) {
