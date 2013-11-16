@@ -154,19 +154,20 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
           dbs, 
           ledgerIndex + 1, 
           nextRows, 
-          function(err, nextNextHeader) {
+          // function(err, nextNextHeader) {
+            function(err, nextHeader) {
             if (err) {
               winston.error("Error with resolveConflictingHeaders for ledgerIndex:" + (ledgerIndex + 1) + err);
               callback(err);
               return;
             }
 
-            findCorrectHeader( nextRows, nextNextHeader, function( err, nextHeader ) {
-              if (err) {
-                winston.error("Error resolving the nextNextHeader:" + err);
-                callback(err);
-                return;
-              }
+            // findCorrectHeader( nextRows, nextNextHeader, function( err, nextHeader ) {
+            //   if (err) {
+            //     winston.error("Error resolving the nextNextHeader:" + err);
+            //     callback(err);
+            //     return;
+            //   }
 
               findCorrectHeader( conflictingHeaders, nextHeader, function( err, correctHeader ) {
                 if (err) {
@@ -177,7 +178,7 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
 
                 callback( null, correctHeader );
               });
-            });
+            // });
         });
       }
     });
