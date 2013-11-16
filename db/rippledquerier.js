@@ -184,7 +184,7 @@ function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
 
   winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
     JSON.stringify(possibleHeaders) + 
-    "\n nextHeader:" + JSON.stringify(nextHeader) );
+    "\n nextHeader.PrevHash:" + nextHeader.PrevHash );
 
   var correctHeader = _.find( possibleHeaders, 
           function( header ) {
