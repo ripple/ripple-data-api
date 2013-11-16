@@ -322,10 +322,12 @@ function getLedgerFromApi( ledgerHash, callback ) {
     servers: [ {
       host: 's_west.ripple.com',
       port: 443
-    }, {
-      host: 's_east.ripple.com',
-      port: 443
-    } ]
+    }
+    // , {
+    //   host: 's_east.ripple.com',
+    //   port: 443
+    // } 
+    ]
   } );
 
   remote.connect( function( ) {
