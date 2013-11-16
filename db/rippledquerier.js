@@ -325,8 +325,8 @@ function parseLedger( rawLedger, rawTxs, callback ) {
 // used in case the local sqlite db's do not have the correct data
 function getLedgerFromApi( ledgerHash, callback ) {
 
-  winston.info("Getting ledger " + ledgerHash +
-    " from rippled api");
+  // winston.info("Getting ledger " + ledgerHash +
+  //   " from rippled api");
 
   var remote = new Remote( {
     servers: [ {
@@ -399,7 +399,7 @@ function getLedgerFromApi( ledgerHash, callback ) {
       var ledgerJsonTxHash = Ledger.from_json( ledger ).calc_tx_hash( ).to_hex( );
       if ( ledgerJsonTxHash === ledger.transaction_hash ) {
 
-        winston.info("Got ledger " + ledger.ledger_index + " from rippled api: " + JSON.stringify(ledger));
+        winston.info("Got ledger " + ledger.ledger_index + " from rippled api (hash: " + ledger.ledger_hash + ")");
         callback( null, ledger );
 
       } else {
