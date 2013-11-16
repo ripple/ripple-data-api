@@ -100,12 +100,10 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
   if ( !callback ) callback = printCallback;
   if ( !dbs ) winston.error( "dbs is not defined in getRawLedger" );
 
-  winston.info("Getting ledger: " + ledgerIndex);
-
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex ],
     function( err, rows ) {
-      
+
       if ( err ) {
         winston.error( "Error getting raw ledger:" + 
           ledgerIndex + " err: " + err );
