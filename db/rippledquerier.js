@@ -185,7 +185,7 @@ function findCorrectHeader( conflictingHeaders, nextHeader, callback ) {
 
   winston.info( "findCorrectHeader called with\n conflictingHeaders:" + 
     JSON.stringify(conflictingHeaders) + 
-    "\n nextHeader:" + JSON.stringif(nextHeader) );
+    "\n nextHeader:" + JSON.stringify(nextHeader) );
 
   var correctHeader = _.find( conflictingHeaders, 
           function( header ) {
