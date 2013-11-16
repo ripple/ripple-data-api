@@ -182,9 +182,9 @@ function verifyAndSelectHeader( dbs, ledgerIndex, possibleHeaders, callback ) {
 // for the one 
 function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
 
-  // winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
-  //   JSON.stringify(possibleHeaders) + 
-  //   "\n nextHeader:" + JSON.stringify(nextHeader) );
+  winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
+    JSON.stringify(possibleHeaders) + 
+    "\n nextHeader:" + JSON.stringify(nextHeader) );
 
   var correctHeader = _.find( possibleHeaders, 
           function( header ) {
@@ -194,6 +194,8 @@ function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
   // query another rippled if the correct header is 
   // not in the set of possible headers
   if (!correctHeader) {
+    winston.info("Could not find " + nextHeader.PrevHash + 
+      " among " + possibleHeaders);
     getLedgerFromApi( nextHeader.PrevHash, callback );
     return;
   }
