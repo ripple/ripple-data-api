@@ -306,7 +306,7 @@ function parseLedger( rawLedger, rawTxs, callback ) {
 
   } else {
 
-    winston.info("Getting ledger from API because", "\n  ledgerJsonTxHash:" + ledgerJsonTxHash + "\n  ledger.transaction_hash:" + ledger.transaction_hash + "\n\n  Incorrect ledger:" + JSON.stringify(ledger));
+    winston.info("Getting ledger " + ledger.ledger_index + "from API because", "\n  ledgerJsonTxHash:" + ledgerJsonTxHash + "\n  ledger.transaction_hash:" + ledger.transaction_hash + "\n\n  Incorrect ledger:" + JSON.stringify(ledger));
     getLedgerFromApi( ledger.ledger_hash, callback );
 
   }
@@ -322,11 +322,11 @@ function getLedgerFromApi( ledgerHash, callback ) {
 
   var remote = new Remote( {
     servers: [ {
-      host: 's1.ripple.com',
+      host: 's_west.ripple.com',
       port: 443,
       secure: true
     }, {
-      host: 's_west.ripple.com',
+      host: 's1.ripple.com',
       port: 443,
       secure: true
     }, {
@@ -391,7 +391,7 @@ function getLedgerFromApi( ledgerHash, callback ) {
       var ledgerJsonTxHash = Ledger.from_json( ledger ).calc_tx_hash( ).to_hex( );
       if ( ledgerJsonTxHash === ledger.transaction_hash ) {
 
-        winston.info("Got ledger " + ledger.ledger_index + " (ledger_hash: " + ledger.ledger_hash + ") from rippled api");
+        winston.info("Got ledger " + ledger.ledger_index + " from rippled api: " + ledger);
         callback( null, ledger );
 
       } else {
