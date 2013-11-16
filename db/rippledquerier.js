@@ -100,6 +100,7 @@ function getRawLedger( dbs, ledgerIndex, callback ) {
   if ( !callback ) callback = printCallback;
   if ( !dbs ) winston.error( "dbs is not defined in getRawLedger" );
 
+  winston.info("Getting ledger: " + ledgerIndex);
 
   dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
     [ ledgerIndex ],
@@ -333,7 +334,7 @@ function getLedgerFromApi( ledgerHash, callback ) {
     }, function( err, res ) {
 
       if ( err ) {
-        winston.error( "Error getting ledger from rippled:", err );
+        winston.error( "Error getting ledger from rippled: " + err );
         callback( err );
         return;
       }
@@ -405,7 +406,7 @@ function getLedger( dbs, ledgerIndex, callback ) {
 
   getRawLedger( dbs, ledgerIndex, function( err, rawLedger ) {
     if ( err ) {
-      winston.error( "Error getting raw ledger:", ledgerIndex, "err:", err );
+      winston.error( "Error getting raw ledger:", ledgerIndex, "err: " + err );
       callback( err );
       return;
     }
@@ -419,7 +420,7 @@ function getLedger( dbs, ledgerIndex, callback ) {
 
       parseLedger( rawLedger, rawTxs, function( err, parsedLedger ) {
         if ( err ) {
-          winston.error( "Error parsing ledger:", err );
+          winston.error( "Error parsing ledger: " + err );
           callback( err );
           return;
         }
@@ -444,7 +445,7 @@ function getLedgerRange( dbs, start, end, maxIterators, callback ) {
     getLedger( dbs, ledgerIndex, asyncCallback );
   }, function( err, ledgers ) {
     if ( err ) {
-      winston.error( "Error getting ledger range:", err );
+      winston.error( "Error getting ledger range: " + err );
       callback( err );
       return;
     }
