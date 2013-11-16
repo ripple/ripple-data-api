@@ -186,10 +186,10 @@ function findCorrectHeader( conflictingHeaders, nextHeader, callback ) {
         });
 
   if (!correctHeader) {
-    callback(new Error( "Error in findCorrectHeader: " + 
+    callback( (new Error( "Error in findCorrectHeader: " + 
       "nextHeader.PrevHash does not refer to any headers in this set of conflictingHeaders\n" +
       "nextHeader: " + JSON.stringify(nextHeader) + "\n" +
-      "conflictingHeaders: " + JSON.stringify(conflictingHeaders) ));
+      "conflictingHeaders: " + JSON.stringify(conflictingHeaders) )) );
     return;
   }
 
@@ -377,11 +377,11 @@ function getLedgerFromApi( ledgerHash, callback ) {
 
       } else {
 
-        callback( new Error( "Error with ledger from rippled api call, " +  
+        callback( (new Error( "Error with ledger from rippled api call, " +  
           "transactions do not hash to expected value" +
           "\n  Actual:   " + ledgerJsonTxHash +
           "\n  Expected: " + ledger.transaction_hash +
-          "\n\n  Ledger: " + JSON.stringify( ledger ) + "\n\n" ) );
+          "\n\n  Ledger: " + JSON.stringify( ledger ) + "\n\n" )) );
 
       }
     } );
