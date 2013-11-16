@@ -307,7 +307,7 @@ function parseLedger( rawLedger, rawTxs, callback ) {
 
   } else {
 
-    // winston.info("Getting ledger from API because", "\n  ledgerJsonTxHash:", ledgerJsonTxHash, "\n  ledger.transaction_hash:", ledger.transaction_hash, "\n\n  Incorrect ledger:", JSON.stringify(ledger));
+    winston.info("Getting ledger from API because", "\n  ledgerJsonTxHash:" + ledgerJsonTxHash + "\n  ledger.transaction_hash:" + ledger.transaction_hash + "\n\n  Incorrect ledger:" + JSON.stringify(ledger));
     getLedgerFromApi( ledger.ledger_hash, callback );
 
   }
