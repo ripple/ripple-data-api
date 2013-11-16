@@ -231,7 +231,14 @@ function getRawTxForLedger( dbs, ledgerIndex, callback ) {
 // parseRawLedgerHeader renames ledger header field names
 function parseRawLedgerHeader( rawHeader ) {
 
-  return {
+  if (rawHeader.ledger_index) {
+
+    // ledger has already been parsed
+    return rawHeader;
+
+  } else {
+
+    return {
     account_hash: rawHeader.AccountSetHash,
     close_time_rpepoch: rawHeader.ClosingTime,
     close_time_timestamp: ripple.utils.toTimestamp( rawHeader.ClosingTime ),
@@ -244,6 +251,7 @@ function parseRawLedgerHeader( rawHeader ) {
     total_coins: rawHeader.TotalCoins,
     transaction_hash: rawHeader.TransSetHash
   };
+  }
 
 }
 
