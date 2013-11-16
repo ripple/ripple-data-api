@@ -152,7 +152,7 @@ function resolveConflictingHeaders( dbs, ledgerIndex, conflictingHeaders, callba
         
         resolveConflictingHeaders(
           dbs, 
-          ledgerIndex + 1, 
+          ledgerIndex + 2, 
           nextRows, 
           function(err, nextNextHeader) {
 
