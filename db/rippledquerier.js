@@ -315,7 +315,7 @@ function parseLedger( rawLedger, rawTxs, callback ) {
 // used in case the local sqlite db's do not have the correct data
 function getLedgerFromApi( ledgerHash, callback ) {
 
-  winston.info("Getting ledger " + ledger.ledger_index +
+  winston.info("Getting ledger " + ledgerHash +
     " from rippled api");
 
   var remote = new Remote( {
