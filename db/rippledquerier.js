@@ -321,7 +321,8 @@ function getLedgerFromApi( ledgerHash, callback ) {
   var remote = new Remote( {
     servers: [ {
       host: 's1.ripple.com',
-      port: 443
+      port: 443,
+      secure: true
     } ]
   } );
 
