@@ -12,10 +12,7 @@ var ripple = require( 'ripple-lib' ),
   Remote = ripple.Remote;
 
 /* config options */
-var config = require( '../config' ),
-  FIRSTLEDGER = 32570,
-  FIRSTCLOSETIME = 410325670;
-
+var config = require( '../config' );
 
 /**
  *  RippledQuerier provides functionality to query a local rippled
@@ -38,10 +35,6 @@ var config = require( '../config' ),
 
   var rq = {};
 
-  rq.FIRSTLEDGER = FIRSTLEDGER;
-  rq.FIRSTCLOSETIME = FIRSTCLOSETIME;
-
-
   rq.getLatestLedgerIndex = function( callback ) {
     getLatestLedgerIndex( dbs, callback );
   };
@@ -50,33 +43,9 @@ var config = require( '../config' ),
     getLedger( dbs, ledgerIndex, callback );
   };
 
-  // rq.searchLedgerByClosingTime = function( rpepoch, callback ) {
-  //   searchLedgerByClosingTime( dbs, rpepoch, callback );
-  // };
-
   rq.getLedgerRange = function( startIndex, endIndex, callback ) {
     getLedgerRange( dbs, startIndex, endIndex, maxIterators, callback );
   };
-
-  // rq.getLedgersForRpEpochRange = function( rpStart, rpEnd, callback ) {
-  //   getLedgersForRpEpochRange( dbs, rpStart, rpEnd, maxIterators, callback );
-  // };
-
-  // // rq.getLedgersForTimeRange gets the PARSED ledgers 
-  // // between the two given momentjs-readable times
-  // rq.getLedgersForTimeRange = function( start, end, callback ) {
-
-  //   var startEpoch = rpEpochFromTimestamp( moment( start ).valueOf( ) );
-  //   var endEpoch = rpEpochFromTimestamp( moment( end ).valueOf( ) );
-
-  //   getLedgersForRpEpochRange( 
-  //     dbs, 
-  //     startEpoch, 
-  //     endEpoch, 
-  //     maxIterators, 
-  //     callback 
-  //     );
-  // };
 
   return rq;
 
