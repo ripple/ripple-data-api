@@ -1,24 +1,30 @@
+/* Node.js imports */
 var sqlite3 = require( 'sqlite3' ).verbose( ),
   winston = require( 'winston' ),
   path = require( 'path' ),
   moment = require( 'moment' ),
   _ = require( 'lodash' ),
-  async = require( 'async' ),
-  ripple = require( 'ripple-lib' ),
+  async = require( 'async' );
+
+/* ripple-lib imports */
+var ripple = require( 'ripple-lib' ),
   Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
   Remote = ripple.Remote;
 
-var config = require( '../config' );
+/* config options */
+var config = require( '../config' ),
+  FIRSTLEDGER = 32570,
+  FIRSTCLOSETIME = 410325670;
 
-var FIRSTLEDGER = 32570;
-var FIRSTCLOSETIME = 410325670;
 
-
-/** RippledQuerier is a constructor for an object that provides
- *  functionality to query a local rippled for a specific ledger
- *  or ledger range
+/**
+ *  RippledQuerier provides functionality to query a local rippled
+ *  server for a specific ledger or a range of ledgers
  */
-function RippledQuerier( maxIterators ) {
+
+ module.exports = RippledQuerier;
+
+ function RippledQuerier( maxIterators ) {
 
   if ( !maxIterators )
     maxIterators = 1000;
@@ -44,473 +50,43 @@ function RippledQuerier( maxIterators ) {
     getLedger( dbs, ledgerIndex, callback );
   };
 
-  rq.searchLedgerByClosingTime = function( rpepoch, callback ) {
-    searchLedgerByClosingTime( dbs, rpepoch, callback );
+  // rq.searchLedgerByClosingTime = function( rpepoch, callback ) {
+  //   searchLedgerByClosingTime( dbs, rpepoch, callback );
+  // };
+
+  rq.getLedgerRange = function( startIndex, endIndex, callback ) {
+    getLedgerRange( dbs, startIndex, endIndex, maxIterators, callback );
   };
 
-  rq.getLedgerRange = function( start, end, callback ) {
-    getLedgerRange( dbs, start, end, maxIterators, callback );
-  };
+  // rq.getLedgersForRpEpochRange = function( rpStart, rpEnd, callback ) {
+  //   getLedgersForRpEpochRange( dbs, rpStart, rpEnd, maxIterators, callback );
+  // };
 
-  rq.getLedgersForRpEpochRange = function( rpStart, rpEnd, callback ) {
-    getLedgersForRpEpochRange( dbs, rpStart, rpEnd, maxIterators, callback );
-  };
+  // // rq.getLedgersForTimeRange gets the PARSED ledgers 
+  // // between the two given momentjs-readable times
+  // rq.getLedgersForTimeRange = function( start, end, callback ) {
 
-  // rq.getLedgersForTimeRange gets the PARSED ledgers 
-  // between the two given momentjs-readable times
-  rq.getLedgersForTimeRange = function( start, end, callback ) {
+  //   var startEpoch = rpEpochFromTimestamp( moment( start ).valueOf( ) );
+  //   var endEpoch = rpEpochFromTimestamp( moment( end ).valueOf( ) );
 
-    var startEpoch = rpEpochFromTimestamp( moment( start ).valueOf( ) );
-    var endEpoch = rpEpochFromTimestamp( moment( end ).valueOf( ) );
-
-    getLedgersForRpEpochRange( 
-      dbs, 
-      startEpoch, 
-      endEpoch, 
-      maxIterators, 
-      callback 
-      );
-  };
+  //   getLedgersForRpEpochRange( 
+  //     dbs, 
+  //     startEpoch, 
+  //     endEpoch, 
+  //     maxIterators, 
+  //     callback 
+  //     );
+  // };
 
   return rq;
 
 }
 
 
-
-
-// printCallback is used as the default callback function
-function printCallback( err, result ) {
-  if ( err ) {
-    winston.error( err );
-  } else {
-    winston.info( result );
-  }
-}
-
-
-// rpEpochFromTimestamp converts the ripple epochs to a javascript timestamp
-function rpEpochFromTimestamp( timestamp ) {
-  return timestamp / 1000 - 0x386D4380;
-}
-
-
-// getRawLedger gets the raw ledger header from ledb database 
-function getRawLedger( dbs, ledgerIndex, callback ) {
-  if ( !callback ) callback = printCallback;
-  if ( !dbs ) winston.error( "dbs is not defined in getRawLedger" );
-
-  dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
-    [ ledgerIndex ],
-    function( err, rows ) {
-
-      if ( err ) {
-        winston.error( "Error getting raw ledger:" + 
-          ledgerIndex + " err: " + err );
-        callback( err );
-        return;
-      }
-
-      if ( rows.length === 0 ) {
-
-        callback( (new Error( "dbs.ledb has no ledger of index: " + 
-          ledgerIndex )) );
-        return;
-
-      } 
-
-      verifyAndSelectHeader( dbs, ledgerIndex, rows, callback );
-    } );
-}
-
-
-// verifyAndSelectHeader handles the case where there are multiple
-// entries in the ledger db for a given ledgerIndex
-// it uses the ledger hashes to (recursively) determine the correct header
-// for this ledgerIndex
-function verifyAndSelectHeader( dbs, ledgerIndex, possibleHeaders, callback ) {
-
-  // winston.info( "verifyAndSelectHeader called with ledgerIndex: " + 
-  //   ledgerIndex + "\n possibleHeaders: " + JSON.stringify(possibleHeaders) );
-
-  dbs.ledb.all( "SELECT * FROM Ledgers WHERE LedgerSeq = ?;", 
-    [ ledgerIndex + 1 ],
-    function( err, nextRows ) {
-      if ( err ) {
-        winston.error( "Error getting raw ledgers to resolve conflicting headers:", 
-          ledgerIndex, nextRows );
-        callback( err );
-        return;
-      }
-
-      if ( nextRows.length === 1 ) {
-
-        findCorrectHeader( possibleHeaders, nextRows[ 0 ], callback );
-
-      } else {
-
-        verifyAndSelectHeader(
-          dbs, 
-          ledgerIndex + 1, 
-          nextRows, 
-            function(err, nextHeader) {
-            if (err) {
-              winston.error("Error with verifyAndSelectHeader for ledgerIndex:" + 
-                (ledgerIndex + 1) + err);
-              callback(err);
-              return;
-            }
-
-              findCorrectHeader( possibleHeaders, nextHeader, 
-                function( err, correctHeader ) {
-                if (err) {
-                  winston.error("Error resolving the nextHeader:" + err);
-                  callback(err);
-                  return;
-                }
-
-                callback( null, correctHeader );
-              });
-        });
-      }
-    });
-}
-
-
-// findCorrectHeader searches through the given possibleHeaders
-// for the one 
-function findCorrectHeader( possibleHeaders, nextHeader, callback ) {
-
-  // winston.info( "findCorrectHeader called with\n possibleHeaders:" + 
-  //   JSON.stringify(possibleHeaders) + 
-  //   "\n nextHeader.PrevHash:" + nextHeader.PrevHash );
-
-  var correctHeader = _.find( possibleHeaders, 
-          function( header ) {
-          return header.LedgerHash === nextHeader.PrevHash;
-        });
-
-  // query another rippled if the correct header is 
-  // not in the set of possible headers
-  if (!correctHeader) {
-  //   winston.info("Could not find " + nextHeader.PrevHash + 
-  //     " among " + possibleHeaders);
-    getLedgerFromApi( nextHeader.PrevHash, callback );
-    return;
-  }
-
-  // if there are multiple possibleHeaders,
-  // save the others in conflicting_ledger_headers
-  correctHeader.conflicting_ledger_headers = _.filter( possibleHeaders, 
-    function( header ) {
-    return header.LedgerHash !== nextHeader.PrevHash;
-  });
-
-  callback( null, correctHeader );
-
-}
-
-
-// getRawTxForLedger gets the raw tx blobs from the txdb database
-function getRawTxForLedger( dbs, ledgerIndex, callback ) {
-  if ( !callback ) callback = printCallback;
-
-  dbs.txdb.all( "SELECT * FROM Transactions WHERE LedgerSeq = ?;", [ ledgerIndex ],
-    function( err, rows ) {
-      if ( err ) {
-        winston.error( "Error getting raw txs for ledger:", ledgerIndex );
-        callback( err );
-        return;
-      }
-
-      callback( null, rows );
-    } );
-}
-
-
-// parseRawLedgerHeader renames ledger header field names
-function parseRawLedgerHeader( rawHeader ) {
-
-  if (rawHeader.ledger_index) {
-
-    // ledger has already been parsed
-    return rawHeader;
-
-  } else {
-
-    return {
-    account_hash: rawHeader.AccountSetHash,
-    close_time_rpepoch: rawHeader.ClosingTime,
-    close_time_timestamp: ripple.utils.toTimestamp( rawHeader.ClosingTime ),
-    close_time_human: moment( ripple.utils.toTimestamp( rawHeader.ClosingTime ) )
-      .utc( ).format( "YYYY-MM-DD HH:mm:ss Z" ),
-    close_time_resolution: rawHeader.CloseTimeRes,
-    ledger_hash: rawHeader.LedgerHash,
-    ledger_index: rawHeader.LedgerSeq,
-    parent_hash: rawHeader.PrevHash,
-    total_coins: rawHeader.TotalCoins,
-    transaction_hash: rawHeader.TransSetHash
-  };
-  }
-
-}
-
-
-// blobToJSON converts encoded blob objects to their deserialized json form
-function blobToJSON( blob ) {
-
-  var buff = new Buffer( blob );
-  var buffArray = [ ];
-  for ( var i = 0, len = buff.length; i < len; i++ ) {
-    buffArray.push( buff[ i ] );
-  }
-
-  return (new ripple.SerializedObject( buffArray ).to_json( ));
-}
-
-
-// parseLedger parses the raw ledger and associated raw txs into a single json ledger
-function parseLedger( rawLedger, rawTxs, callback ) {
-
-  var ledger = parseRawLedgerHeader( rawLedger );
-
-  // store conflicting headers if there are multiple headers for a given ledger_index
-  if ( rawLedger.conflicting_ledger_headers 
-    && rawLedger.conflicting_ledger_headers.length > 0 ) {
-    ledger.conflicting_ledger_headers = _.map( rawLedger.conflicting_ledger_headers, 
-      parseRawLedgerHeader );
-  }
-
-  ledger.transactions = _.map( rawTxs, function( rawTx ) {
-
-    var parsedTx = blobToJSON( rawTx.RawTxn );
-    parsedTx.metaData = blobToJSON( rawTx.TxnMeta );
-
-    // add exchange_rate to Offer nodes in the metaData
-    for ( var n = 0, nlen = parsedTx.metaData.AffectedNodes.length; n < nlen; n++ ) {
-      var node = parsedTx.metaData.AffectedNodes[ n ].CreatedNode 
-      || parsedTx.metaData.AffectedNodes[ n ].ModifiedNode 
-      || parsedTx.metaData.AffectedNodes[ n ].DeletedNode;
-      if ( node.LedgerEntryType === "Offer" ) {
-
-        var fields = node.FinalFields || node.NewFields;
-
-        if ( typeof fields.BookDirectory === "string" ) {
-          node.exchange_rate = ripple.Amount.from_quality( fields.BookDirectory )
-            .to_json( ).value;
-        }
-      }
-    }
-    return parsedTx;
-
-  } );
-
-
-  // check that transaction hash is correct
-  var ledgerJsonTxHash = Ledger.from_json( ledger ).calc_tx_hash( ).to_hex( );
-  if ( ledgerJsonTxHash === ledger.transaction_hash ) {
-
-    callback( null, ledger );
-
-  } else {
-
-    winston.info("Getting ledger " + ledger.ledger_index + "from API because", "\n  ledgerJsonTxHash:" + ledgerJsonTxHash + "\n  ledger.transaction_hash:" + ledger.transaction_hash + "\n\n  Incorrect ledger:" + JSON.stringify(ledger));
-    getLedgerFromApi( ledger.ledger_hash, callback );
-
-  }
-}
-
-
-// getLedgerFromApi gets a ledger by its hash from a remote rippled
-// used in case the local sqlite db's do not have the correct data
-function getLedgerFromApi( ledgerHash, callback ) {
-
-  // winston.info("Getting ledger " + ledgerHash +
-  //   " from rippled api");
-
-  var remote = new Remote( {
-    servers: [ {
-      host: 's_west.ripple.com',
-      port: 443,
-      secure: true
-    }, {
-      host: 's1.ripple.com',
-      port: 443,
-      secure: true
-    }, {
-      host: 's_east.ripple.com',
-      port: 443,
-      secure: true
-    } ]
-  } );
-
-  remote.connect( function( ) {
-    remote.request_ledger( ledgerHash, {
-      transactions: true,
-      expand: true
-    }, function( err, res ) {
-
-      if ( err ) {
-        winston.error( "Error getting ledger from rippled: " + err );
-        callback( err );
-        return;
-      }
-
-      // add/edit fields that aren't in rippled's json format
-      var ledger = res.ledger;
-      ledger.close_time_rpepoch = ledger.close_time;
-      ledger.close_time_timestamp = ripple.utils.toTimestamp( ledger.close_time );
-      ledger.close_time_human = moment( ripple.utils.toTimestamp( ledger.close_time ) )
-        .utc( ).format( "YYYY-MM-DD HH:mm:ss Z" );
-      ledger.from_rippled_api = true;
-
-      // remove fields that do not appear in format defined above in parseLedger
-      delete ledger.close_time;
-      delete ledger.hash;
-      delete ledger.accepted;
-      delete ledger.totalCoins;
-      delete ledger.closed;
-      delete ledger.seqNum;
-
-      // parse ints from strings
-      ledger.ledger_index = parseInt(ledger.ledger_index, 10);
-      ledger.total_coins = parseInt(ledger.total_coins, 10);
-
-      // add exchange rate field to metadata entries
-      ledger.transactions.forEach( function( transaction ) {
-        transaction.metaData.AffectedNodes.forEach( function( affNode ) {
-          var node = affNode.CreatedNode 
-          || affNode.ModifiedNode 
-          || affNode.DeletedNode;
-
-          if ( node.LedgerEntryType === "Offer" ) {
-
-            var fields = node.FinalFields || node.NewFields;
-
-            if ( typeof fields.BookDirectory === "string" ) {
-              node.exchange_rate = ripple.Amount.from_quality( fields.BookDirectory )
-                .to_json( ).value;
-            }
-          }
-        } );
-      } );
-
-      // check the transaction hash of the ledger we got from the api call
-      var ledgerJsonTxHash = Ledger.from_json( ledger ).calc_tx_hash( ).to_hex( );
-      if ( ledgerJsonTxHash === ledger.transaction_hash ) {
-
-        winston.info("Got ledger " + ledger.ledger_index + " from rippled api (hash: " + ledger.ledger_hash + ")");
-        callback( null, ledger );
-
-      } else {
-
-        callback( (new Error( "Error with ledger from rippled api call, " +  
-          "transactions do not hash to expected value" +
-          "\n  Actual:   " + ledgerJsonTxHash +
-          "\n  Expected: " + ledger.transaction_hash +
-          "\n\n  Ledger: " + JSON.stringify( ledger ) + "\n\n" )) );
-
-      }
-    } );
-  } );
-}
-
-
-// getLedger gets the PARSED ledger (and associated transactions) 
-// corresponding to the ledger_index
-function getLedger( dbs, ledgerIndex, callback ) {
-  if ( !callback ) callback = printCallback;
-  if ( !dbs ) winston.error( "dbs is not defined in getLedger" );
-
-  getRawLedger( dbs, ledgerIndex, function( err, rawLedger ) {
-    if ( err ) {
-      winston.error( "Error getting raw ledger:", ledgerIndex, "err: " + err );
-      callback( err );
-      return;
-    }
-
-    getRawTxForLedger( dbs, ledgerIndex, function( err, rawTxs ) {
-      if ( err ) {
-        winston.error( "Error getting raw tx for ledger", ledgerIndex );
-        callback( err );
-        return;
-      }
-
-      parseLedger( rawLedger, rawTxs, function( err, parsedLedger ) {
-        if ( err ) {
-          winston.error( "Error parsing ledger: " + err );
-          callback( err );
-          return;
-        }
-        callback( null, parsedLedger );
-      } );
-    } );
-  } );
-}
-
-
-// getLedgerRange gets the PARSED ledgers for the given range of indices
-function getLedgerRange( dbs, start, end, maxIterators, callback ) {
-  if ( !callback ) callback = printCallback;
-  if ( !dbs ) {
-    winston.error( "dbs is not defined in getLedgerRange" );
-    return;
-  }
-
-  async.mapLimit( _.range( start, end ), 
-    maxIterators, 
-    function( ledgerIndex, asyncCallback ) {
-    getLedger( dbs, ledgerIndex, asyncCallback );
-  }, function( err, ledgers ) {
-    if ( err ) {
-      winston.error( "Error getting ledger range: " + err );
-      callback( err );
-      return;
-    }
-
-    if ( ledgers.length === 0 )
-      winston.info( "getLedgerRange got 0 ledgers for range", start, end );
-
-    callback( null, ledgers );
-  } );
-
-}
-
-
-// getLedgersForRpEpochRange gets the PARSED ledgers that closed between the given ripple epoch times
-function getLedgersForRpEpochRange( dbs, startEpoch, endEpoch, maxIterators, callback ) {
-  if ( !callback ) callback = printCallback;
-
-  if ( endEpoch < startEpoch ) {
-    var temp = endEpoch;
-    endEpoch = startEpoch;
-    startEpoch = temp;
-  }
-
-  if ( startEpoch < FIRSTCLOSETIME ) {
-    startEpoch = FIRSTCLOSETIME;
-  }
-
-  searchLedgerByClosingTime( dbs, startEpoch, function( err, startIndex ) {
-    if ( err ) {
-      callback( err );
-      return;
-    }
-
-    searchLedgerByClosingTime( dbs, endEpoch, function( err, endIndex ) {
-      if ( err ) {
-        callback( err );
-        return;
-      }
-
-      getLedgerRange( dbs, startIndex, endIndex + 1, maxIterators, callback );
-
-    } );
-  } );
-}
-
-
-// getLatestLedgerIndex gets the most recent ledger index in the ledger db
+/**
+ *  getLatestLedgerIndex gets the most recent ledger index in the
+ *  local rippled ledger db
+ */
 function getLatestLedgerIndex( dbs, callback ) {
   if ( !callback ) callback = printCallback;
 
@@ -527,110 +103,438 @@ function getLatestLedgerIndex( dbs, callback ) {
 }
 
 
-// searchLedgerByClosingTime finds the ledger index of the ledger that 
-// closed nearest to the given rpepoch
-function searchLedgerByClosingTime( dbs, rpepoch, callback ) {
-  if ( !callback ) callback = printCallback;
+/**
+ *  getLedger gets, parses, and verifies the ledger entry
+ *  corresponding to the given ledger sequence/index number
+ *  or ledger hash
+ */
+ function getLedger( dbs, ledgerIdentifier, callback ) {
 
-  if ( rpepoch < FIRSTCLOSETIME ) {
-    callback( null, FIRSTLEDGER );
-    return;
-  }
-
-  getLatestLedgerIndex( dbs, function( err, latestIndex ) {
+  getLedgerFromLocalRippled( dbs, ledgerIdentifier, function( err, ledger ) {
+    
     if ( err ) {
+      winston.error("Error getting ledger: " + ledgerIdentifier + 
+        "from local rippled, err: " + err);
+      callback(err);
+      return;
+    }
+
+    if ( ledger ) {
+
+      callback( null, ledger );
+
+    } else {
+
+      getLedgerFromRemoteRippled( ledgerIdentifier, callback );
+
+    }
+  });
+ }
+
+
+ /**
+  * getLedgerFromLocalRippled queries the local sqlite3 ledgers.db
+  * for the given ledgerIdentifier, parses, and verifies it
+  * 
+  * if there is no error the callback will be called with null
+  * and either the verified ledger or null if the local db
+  * does not contain a valid entry for that ledgerIdentifier
+  */
+function getLedgerFromLocalRippled( dbs, ledgerIdentifier, callback ) {
+
+  dbs.ledb.all( "SELECT * FROM Ledgers WHERE " + 
+    (typeof ledgerIdentifier === "number" ? "LedgerSeq" : "LedgerHash") +
+    " = ?;",
+    [ ledgerIdentifier ],
+    function( err, rows ) {
+
+      if (err) {
+        winston.error( "Error getting ledger from local rippled: " + err);
+        callback(err);
+        return;
+      }
+
+      if ( rows.length === 0 ) {
+        callback( null, null );
+        return;
+      }
+
+      // if there are 1 or more rows returned, verify that
+      // the correct header is among them
+      verifyAndSelectHeader( dbs, rows, function( err, correctHeader ) {
+
+        if ( err ) {
+          winston.error( "Error with verifyAndSelectHeader for rows:\n  " +
+            JSON.stringify( rows ) + "\n  err:" + err);
+          callback( err );
+          return;
+        }
+
+        if ( !correctHeader ) {
+          callback( null, null );
+          return;
+        }
+
+        attachTransactionsToRawHeader( dbs, correctHeader, function( err, fullRawLedger ) {
+
+          if ( err ) {
+            winston.error( "Error with attachTransactionsToRawHeader for correctHeader:\n  " +
+              JSON.stringify(correctHeader) + "\n  err:" + err);
+            callback( err );
+            return;
+          }
+
+          parseAndVerifyRawLedger( fullRawLedger, callback );
+
+        });
+      });
+    });
+}
+
+
+/**
+ *  verifyAndSelectHeader looks ahead in the ledger hash chain
+ *  to verify the given header or select which of the given
+ *  conflicting headers is the correct one
+ *
+ *  if the headers cannot be verified locally, then the
+ *  callback will be called with (null, null)
+ */
+function verifyAndSelectHeader( dbs, rows, callback ) {
+
+  dbs.ledb.all( "SELECT PrevHash FROM Ledgers WHERE LedgerSeq = ?",
+  [ rows[0].LedgerSeq + 1 ],
+  function( err, nextRows ) {
+
+    if (err) {
+      winston.error( "Error in verifyAndSelectHeader, trying to get header for ledger: " +
+        (rows[0].LedgerSeq + 1) + ", err: " + err);
       callback( err );
       return;
     }
 
-    getRawLedger( dbs, latestIndex, function( err, latestLedger ) {
+    if ( nextRows.length === 0 ) {
+
+      // header cannot be verified locally
+      callback( null, null );
+      return;
+
+    } else if ( nextRows.length === 1 ) {
+
+      selectCorrectHeader( rows, nextRows[ 0 ], callback );
+
+    } else if ( nextRows.length > 1 ) {
+
+      // step forward in the ledger chain to try to identify
+      // which of the headers in nextRows is the correct one
+      verifyAndSelectHeader( dbs, nextRows, function( err, nextHeader ){
+
+        if ( err ) {
+          callback( err );
+          return;
+        }
+
+        if ( !nextHeader ) {
+          callback( null, null );
+          return;
+        }
+
+        selectCorrectHeader( rows, nextHeader, callback );
+
+      });
+    }
+  });
+}
+
+
+/**
+ *  selectCorrectHeader takes an array of possible headers
+ *  and the correct next header and finds the correct
+ *  header in the set of possible ones based on the PrevHash of the next header
+ *
+ *  if none of the possible headers are correct the callback
+ *  will be called with (null, null)
+ */
+ function selectCorrectHeader( possibleHeaders, nextHeader, callback ) {
+
+  var correctHeader = _.find( possibleHeaders, function( header ) {
+          return header.LedgerHash === nextHeader.PrevHash;
+        });
+
+  if ( !correctHeader ) {
+    callback( null, null );
+    return;
+  }
+
+  if ( possibleHeaders.length > 1 ) {
+    correctHeader.conflicting_ledger_headers = _.filter( possibleHeaders, function( header ) {
+      return header.LedgerHash !== nextHeader.PrevHash;
+    });
+  }
+
+  callback( null, correctHeader );
+
+ }
+
+
+/**
+ *  attachTransactionsToRawHeader pulls the transactions associated 
+ *  with the given ledger header from the local rippled and verifies
+ *  that they match the header's TransSetHash
+ *
+ *  if the hash of the transactions do not match the TransSetHash
+ *  the callback will be called with (null, null)
+ */
+function attachTransactionsToRawHeader ( dbs, header, callback ) {
+
+  dbs.txdb.all( "SELECT * FROM Transactions WHERE LedgerSeq = ?;",
+    [ header.LedgerSeq ],
+    function( err, rows ) {
+
       if ( err ) {
+        winston.error( "Error getting transactions for ledger: " + header.LedgerSeq +
+          ", err: " + err);
         callback( err );
         return;
       }
 
-      if ( rpepoch >= latestLedger.ClosingTime ) {
-        callback( null, latestIndex );
-        return;
-      }
+      header.transactions = rows;
+      callback( null, header );
 
-      dbRecursiveSearch( 
-        dbs.ledb, 
-        "Ledgers", 
-        "LedgerSeq", 
-        FIRSTLEDGER, 
-        latestIndex, 
-        "ClosingTime", 
-        rpepoch, 
-        callback 
-        );
-
-    } );
-  } );
+    });
 }
 
 
-// dbRecursiveSearch searches through the sqlite db for the given key, val pair
-// and returns the index of the row with the closest value for the given key
-function dbRecursiveSearch( db, table, index, start, end, key, val, callback ) {
-  if ( !callback ) callback = printCallback;
+/**
+ *  parseAndVerifyRawLedger parses the fields and
+ *  verifies that the parsed transactions match the transaction_hash
+ *  
+ *  if the transactions do not hash to the transaction_hash
+ *  the callback will be called with (null, null)
+ */
+function parseAndVerifyRawLedger( rawLedger, callback ) {
 
-  var numQueries = 20;
-
-  if ( end - start <= numQueries ) {
-
-    var queryStrFinal = "SELECT " + index + " FROM " + table + " " +
-      "WHERE (" + index + ">=" + start + " " +
-      "and " + index + "<" + end + " " +
-      "and " + key + "<=" + val + ") " +
-      "ORDER BY ABS(" + key + "-" + val + ") ASC;";
-
-    db.all( queryStrFinal, function( err, rows ) {
-      // winston.info("search got:", rows[0]);
-      callback( err, rows[ 0 ][ index ] );
-    } );
-
-    return;
+  var ledger = {
+    account_hash: rawLedger.AccountSetHash,
+    close_time_rpepoch: rawLedger.ClosingTime,
+    close_time_timestamp: ripple.utils.toTimestamp( rawLedger.ClosingTime ),
+    close_time_human: moment( ripple.utils.toTimestamp( rawLedger.ClosingTime ) )
+      .utc( ).format( "YYYY-MM-DD HH:mm:ss Z" ),
+    close_time_resolution: rawLedger.CloseTimeRes,
+    ledger_hash: rawLedger.LedgerHash,
+    ledger_index: rawLedger.LedgerSeq,
+    parent_hash: rawLedger.PrevHash,
+    total_coins: rawLedger.TotalCoins,
+    transaction_hash: rawLedger.TransSetHash
   }
 
-  var indices = _.map( _.range( numQueries ), function( segment ) {
-    return start + segment * Math.floor( ( end - start ) / numQueries );
-  } );
-  indices.push( end );
+  ledger.transactions = _.map( rawLedger.transactions, function( rawTx ) {
 
-  var indexStr = indices.join( ", " ),
-    queryStrRecur = "SELECT * FROM " + table + " " +
-      "WHERE " + index + " IN (" + indexStr + ") " +
-      "ORDER BY " + index + " ASC;";
+    var parsedTx = blobToJSON( rawTx.RawTxn );
+    parsedTx.metaData = blobToJSON( rawTx.TxnMeta );
 
-  db.all( queryStrRecur, function( err, rows ) {
+    // add exchange_rate to Offer nodes in the metaData
+    parsedTx.metaData.AffectedNodes.forEach(function( affNode ){
 
-    if ( err ) {
-      callback( err );
-      return;
-    }
+      var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode,
+        fields = node.FinalFields || node.NewFields;
 
-    for ( var i = 0; i < rows.length - 1; i++ ) {
-      // winston.info("rows[i][index]",rows[i][index], "rows[i][key]", rows[i][key], "val", val, "rows[i][index]", rows[i][index], "rows[i + 1][key]", rows[i + 1][key]);
-      if ( rows[ i ][ key ] <= val && val < rows[ i + 1 ][ key ] ) {
-        setImmediate( function( ) {
-          dbRecursiveSearch( 
-            db, 
-            table, 
-            index, 
-            rows[ i ][ index ], 
-            rows[ i + 1 ][ index ], 
-            key, 
-            val, 
-            callback 
-            );
-        } );
-        return;
+      if ( typeof fields.BookDirectory === "string" ) {
+          node.exchange_rate = ripple.Amount.from_quality( fields.BookDirectory )
+            .to_json( ).value;
       }
-    }
-    callback( (new Error( "Error in recursive search" )) );
-  } );
+
+    });
+
+    return parsedTx;
+  });
+
+  if ( verifyLedgerTransactions( ledger ) ) {
+    callback( null, ledger );
+  } else {
+    callback( null, null );
+  }
+
 }
 
 
-module.exports = RippledQuerier;
+/**
+ *  blobToJSON deserializes encoded blob objects and returns
+ *  their JSON representation
+ */
+function blobToJSON( blob ) {
+
+  var buff = new Buffer( blob ),
+    buffArray = [ ];
+
+  for ( var i = 0, len = buff.length; i < len; i++ ) {
+    buffArray.push( buff[ i ] );
+  }
+
+  return (new ripple.SerializedObject( buffArray ).to_json( ));
+}
+
+
+/**
+ *  verifyLedgerTransactions checks that the hash of a ledger's
+ *  transactions match its transaction_hash field
+ *  returns true or false
+ */
+function verifyLedgerTransactions( ledger ) {
+
+  var ledgerJsonTxHash = Ledger.from_json( ledger )
+    .calc_tx_hash( ).to_hex( );
+
+  return ledgerJsonTxHash === ledger.transaction_hash;
+}
+
+
+/**
+ *  getLedgerFromRemoteRippled queries a remote for the ledger
+ *  corresponding to the given ledgerIdentifier, verifies that
+ *  the header matches the next ledger's PrevHash, and verifies
+ *  that the transactions hash to the transaction_hash
+ */
+function getLedgerFromRemoteRippled ( ledgerIdentifier, callback ) {
+
+  var remote = new Remote( {
+    servers: [ {
+      host: 's_west.ripple.com',
+      port: 443,
+      secure: true
+    }]
+  });
+
+  remote.connect( function( ) {
+
+    remote.request_ledger( ledgerIdentifier, {
+      transactions: true,
+      expand: true
+    }, function( err, res ) {
+
+      if ( err ) {
+        winston.error( "Error getting ledger from rippled: " + err );
+        callback( err );
+        return;
+      }
+
+      var ledger = formatRemoteLedger( res.ledger );
+
+      // compare ledger.ledger_hash to the next ledger's parent_hash
+      remote.request_ledger( ledger.ledger_index + 1, function( err, res ) {
+
+        if ( err ) {
+          winston.error( "Error getting ledger from rippled: " + err );
+          callback( err );
+          return;
+        }
+
+        if ( res.ledger.parent_hash !== ledger.ledger_hash ) {
+          // TODO how do you handle if the remote has two incorrect ledgers in a row?
+
+          callback( new Error( "Error: remote rippled's ledger chain is broken:\n" +
+            "ledger: " + res.ledger.ledger_index + 
+            ", ledger_hash: " + res.ledger.ledger_hash + 
+            ", parent_hash: " + res.ledger.parent_hash +
+            "\nledger: " + ledger.ledger_index + ", ledger_hash: " + ledger.ledger_hash ) );
+          return;
+        }
+
+        if ( verifyLedgerTransactions( ledger ) ) {
+
+          callback( null, ledger );
+
+        } else {
+
+          callback( (new Error( "Error with ledger from rippled api call, " +  
+            "transactions do not hash to expected value\n" +
+            "Ledger: " + JSON.stringify( ledger ) + "\n\n" )) );
+
+        }
+      });
+    });
+  });
+}
+
+
+/**
+ *  formatRemoteLedger edits fields in the JSON format of the ledger
+ *  from the remote rippled to match the local format
+ */
+function formatRemoteLedger( ledger ) {
+
+  ledger.close_time_rpepoch = ledger.close_time;
+  ledger.close_time_timestamp = ripple.utils.toTimestamp( ledger.close_time );
+  ledger.close_time_human = moment( ripple.utils.toTimestamp( ledger.close_time ) )
+    .utc( ).format( "YYYY-MM-DD HH:mm:ss Z" );
+  ledger.from_rippled_api = true;
+
+  // remove fields that do not appear in format defined above in parseLedger
+  delete ledger.close_time;
+  delete ledger.hash;
+  delete ledger.accepted;
+  delete ledger.totalCoins;
+  delete ledger.closed;
+  delete ledger.seqNum;
+
+  // parse ints from strings
+  ledger.ledger_index = parseInt(ledger.ledger_index, 10);
+  ledger.total_coins = parseInt(ledger.total_coins, 10);
+
+  // add exchange rate field to metadata entries
+  ledger.transactions.forEach( function( transaction ) {
+    transaction.metaData.AffectedNodes.forEach( function( affNode ) {
+      var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
+
+      if ( node.LedgerEntryType === "Offer" ) {
+
+        var fields = node.FinalFields || node.NewFields;
+
+        if ( typeof fields.BookDirectory === "string" ) {
+          node.exchange_rate = ripple.Amount.from_quality( fields.BookDirectory )
+            .to_json( ).value;
+        }
+      }
+    });
+  });
+
+  return ledger;
+}
+
+
+/**
+ * getLedgerRange queries the db (or remote) for the given ledger range
+ */
+function getLedgerRange( dbs, startIndex, endIndex, maxIterators, callback ) {
+
+  async.mapLimit( _.range( startIndex, endIndex ), 
+    maxIterators, 
+    function( ledgerIndex, asyncCallback ) {
+      getLedger( dbs, ledgerIndex, asyncCallback );
+    }, 
+    function( err, ledgers ) {
+
+      if ( err ) {
+        winston.error( "Error getting ledger range: " + err );
+        callback( err );
+        return;
+      }
+
+      if ( ledgers.length === 0 ) {
+        winston.info( "getLedgerRange got 0 ledgers for range", startIndex, endIndex );
+      }
+
+      callback( null, ledgers );
+
+    }
+  );
+}
+
+/**
+ *  rpEpochFromTimestamp converts a javascript timestamp
+ *  to a ripple epoch time (Number of seconds since the 
+ *  Ripple epoch: January 1st, 2000 (00:00 UTC))
+ */
+function rpEpochFromTimestamp( timestamp ) {
+  return timestamp / 1000 - 0x386D4380;
+}
