@@ -36,7 +36,6 @@ var config = require( '../config' );
   var rq = {};
 
   rq.getLatestLedgerIndex = function( callback ) {
-    winston.info(JSON.stringify(dbs));
     getLatestLedgerIndex( dbs, callback );
   };
 
