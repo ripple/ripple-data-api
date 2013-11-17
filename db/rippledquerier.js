@@ -304,8 +304,13 @@ function parseAndVerifyRawLedger( rawLedger, callback ) {
     // add exchange_rate to Offer nodes in the metaData
     parsedTx.metaData.AffectedNodes.forEach(function( affNode ){
 
-      var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode,
-        fields = node.FinalFields || node.NewFields;
+      var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
+
+      if (node.LedgerEntryType !== "Offer") {
+        return;
+      }
+
+      var fields = node.FinalFields || node.NewFields;
 
       if ( typeof fields.BookDirectory === "string" ) {
           node.exchange_rate = ripple.Amount.from_quality( fields.BookDirectory )
@@ -451,18 +456,21 @@ function formatRemoteLedger( ledger ) {
 
   // add exchange rate field to metadata entries
   ledger.transactions.forEach( function( transaction ) {
-    transaction.metaData.AffectedNodes.forEach( function( affNode ) {
+    transaction.metaData.AffectedNodes.forEach(function( affNode ){
+
       var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
 
-      if ( node.LedgerEntryType === "Offer" ) {
+      if (node.LedgerEntryType !== "Offer") {
+        return;
+      }
 
-        var fields = node.FinalFields || node.NewFields;
+      var fields = node.FinalFields || node.NewFields;
 
-        if ( typeof fields.BookDirectory === "string" ) {
+      if ( typeof fields.BookDirectory === "string" ) {
           node.exchange_rate = ripple.Amount.from_quality( fields.BookDirectory )
             .to_json( ).value;
-        }
       }
+
     });
   });
 
