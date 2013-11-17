@@ -183,7 +183,8 @@ function saveNextBatch(batchStart, prevLedgerHash) {
 
         });
 
-        if (err || res && res.rows && res.rows.length > 0) {
+
+        if (res && res.rows && res.rows.length > 0) {
 
           _.each(res.rows, function(row){
 
