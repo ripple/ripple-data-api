@@ -88,7 +88,6 @@ var config = require( '../config' ),
  *  local rippled ledger db
  */
 function getLatestLedgerIndex( dbs, callback ) {
-  if ( !callback ) callback = printCallback;
 
   dbs.ledb.all( "SELECT LedgerSeq FROM Ledgers ORDER BY LedgerSeq DESC LIMIT 1;", 
     function( err, rows ) {
