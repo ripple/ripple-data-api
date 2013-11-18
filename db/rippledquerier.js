@@ -409,7 +409,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         if ( err ) {
           winston.error( "Error in getLedgerFromRemoteRippled: " + err );
 
-          tryServer( server_num++ );
+          tryServer( ++server_num );
           return;
         }
 
@@ -424,9 +424,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
               winston.error( "Error in getLedgerFromRemoteRippled: " + err );
 
               // try another server
-              tryServer( server_num++ );
-              // getLedgerFromRemoteRippled( ledgerIdentifier, callback, server_num++ );
-
+              tryServer( ++server_num );
               return;
             }
 
@@ -442,9 +440,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
                 "ledger: " + ledger.ledger_index +
                 " ledger_hash: " + ledger.ledger_hash );
 
-              // try another server
-              tryServer( server_num++ );
-              // getLedgerFromRemoteRippled( ledgerIdentifier, callback, server_num++ );
+              tryServer( ++server_num );
               return;
 
             }
@@ -461,9 +457,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
                 "do not hash to the expected value\n" +
                 JSON.stringify( ledger ) );
 
-              // try another server
-              tryServer( server_num++ );
-              // getLedgerFromRemoteRippled( ledgerIdentifier, callback, server_num++ );
+              tryServer( ++server_num );
               return;
 
             }
