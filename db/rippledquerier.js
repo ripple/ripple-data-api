@@ -370,6 +370,9 @@ function verifyLedgerTransactions( ledger ) {
  */
 function getLedgerFromRemoteRippled ( ledgerIdentifier, callback, attempt_num ) {
 
+  winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " + 
+    ledgerIdentifier + " attempt_num: " + attempt_num );
+
   var server_addresses = [
     's_west.ripple.com', 
     's_east.ripple.com', 
@@ -377,10 +380,10 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback, attempt_num ) 
   ];
 
   if ( !attempt_num ) {
-    attempt_num = 1;
+    attempt_num = 0;
   }
 
-  if ( attempt_num > server_addresses.length ) {
+  if ( attempt_num > server_addresses.length - 1 ) {
     callback( new Error( "Error in getLedgerFromRemoteRippled," +
       " no servers queried had the correct ledger for ledgerIdentifier: " + 
       ledgerIdentifier ) );
@@ -390,7 +393,7 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback, attempt_num ) 
   // connect to rippled through ripple-lib
   var remote = new Remote( {
     servers: [ {
-      host: server_addresses[ attempt_num - 1 ],
+      host: server_addresses[ attempt_num ],
       port: 443,
       secure: true
     }]
