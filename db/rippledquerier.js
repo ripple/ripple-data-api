@@ -416,6 +416,8 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         var ledger = formatRemoteLedger( res.ledger );
 
         // compare ledger.ledger_hash to the next ledger's parent_hash
+
+        winston.info(serverAddresses[ server_num ]);
         remote.request_ledger( ledger.ledger_index + 1 )
           .set_server( serverAddresses[ server_num ] )
           .callback( function( err, res ) {
@@ -436,7 +438,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
                 " has a broken ledger chain:\n" +
                 "ledger: " + res.ledger.ledger_index +
                 ", ledger_hash: " + res.ledger.ledger_hash +
-                ", parent_hash: " + res.ledger.parent_hash +
+                ", parent_hash: " + res.ledger.parent_hash + "\n" +
                 "ledger: " + ledger.ledger_index +
                 " ledger_hash: " + ledger.ledger_hash );
 
