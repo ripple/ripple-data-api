@@ -11,6 +11,7 @@ var ripple = require( 'ripple-lib' ),
   Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
   serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ],
   remote = new ripple.Remote( {
+    trace: true,
     servers: _.map( serverAddresses, function( addr ) {
       return {
         host: addr,
@@ -401,8 +402,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
     remote.request_ledger( ledgerIdentifier, {
       transactions: true,
-      expand: true,
-      trace: true
+      expand: true
     } )
       .set_server( serverAddresses[ server_num ] )
       .callback( function( err, res ) {
@@ -417,7 +417,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         var ledger = formatRemoteLedger( res.ledger );
 
         // compare ledger.ledger_hash to the next ledger's parent_hash
-        remote.request_ledger( ledger.ledger_index + 1, { trace: true } )
+        remote.request_ledger( ledger.ledger_index + 1 )
           .set_server( serverAddresses[ server_num ] )
           .callback( function( err, res ) {
 
