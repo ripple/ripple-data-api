@@ -13,7 +13,7 @@ var ripple = require( 'ripple-lib' ),
   remote = new ripple.Remote({
     servers: _.map(serverAddresses, function( addr ) { 
       return { host: addr, port: 443 }; 
-    });
+    })
   });
 
 /* config options */
