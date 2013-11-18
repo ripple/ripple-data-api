@@ -416,8 +416,6 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         var ledger = formatRemoteLedger( res.ledger );
 
         // compare ledger.ledger_hash to the next ledger's parent_hash
-
-        winston.info(serverAddresses[ server_num ]);
         remote.request_ledger( ledger.ledger_index + 1 )
           .set_server( serverAddresses[ server_num ] )
           .callback( function( err, res ) {
