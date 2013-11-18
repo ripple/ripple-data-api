@@ -384,7 +384,7 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback ) {
     remote.request_ledger( ledgerIdentifier, {
       transactions: true,
       expand: true
-    }).set_server( serverAddresses[ (server_num || 0) ] ).callback(function( err, res ) {
+    }).set_server( serverAddresses[ server_num ] ).callback(function( err, res ) {
 
       if ( err ) {
         winston.error( "Error getting ledger from rippled: " + err );
@@ -446,7 +446,7 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback ) {
     });
 
 
-})(attempt_num);
+})(0);
 }
 
 
