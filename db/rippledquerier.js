@@ -377,20 +377,20 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback, attempt_num ) 
   ];
 
   if ( !attempt_num ) {
-    attempt_num = 0;
+    attempt_num = 1;
   }
 
-  if ( attempt_num > server_addresses.length - 1 ) {
+  if ( attempt_num > server_addresses.length ) {
     callback( new Error( "Error in getLedgerFromRemoteRippled," +
       " no servers queried had the correct ledger for ledgerIdentifier: " + 
       ledgerIdentifier ) );
     return;
   }
 
-
+  // connect to rippled through ripple-lib
   var remote = new Remote( {
     servers: [ {
-      host: server_addresses[ attempt_num ],
+      host: server_addresses[ attempt_num - 1 ],
       port: 443,
       secure: true
     }]
@@ -426,11 +426,12 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback, attempt_num ) 
         if ( res.ledger.parent_hash !== ledger.ledger_hash ) {
           // TODO how do you handle if the remote has two incorrect ledgers in a row?
 
-          winston.error( server_addresses[attempt_num] + 
+          winston.error( server_addresses[ attempt_num ] + 
             " has a broken ledger chain:\n" +
             "ledger: " + res.ledger.ledger_index + 
             ", ledger_hash: " + res.ledger.ledger_hash + 
-            ", parent_hash: " + res.ledger.parent_hash );
+            ", parent_hash: " + res.ledger.parent_hash +
+            "ledger: " + ledger.ledger_index + " ledger_hash: " + ledger.ledger_hash );
 
           // try another server
           getLedgerFromRemoteRippled( ledgerIdentifier, callback, attempt_num++ );
@@ -444,7 +445,7 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback, attempt_num ) 
 
         } else {
 
-          winston.error( server_addresses[attempt_num] +
+          winston.error( server_addresses[ attempt_num ] +
             " is returning a ledger whose transactions do not hash to the expected value\n" +
              JSON.stringify( ledger ));
 
