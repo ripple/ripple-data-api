@@ -394,8 +394,10 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
       return;
     }
 
+    
     winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
-      ledgerIdentifier + " server_num: " + server_num );
+      ledgerIdentifier + " server " + serverAddresses[server_num] );
+
 
     remote.request_ledger( ledgerIdentifier, {
       transactions: true,
