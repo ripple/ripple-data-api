@@ -388,7 +388,8 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback ) {
 
       if ( err ) {
         winston.error( "Error getting ledger from rippled: " + err );
-        callback( err );
+        
+        tryServer( server_num + 1 );
         return;
       }
 
@@ -416,7 +417,8 @@ function getLedgerFromRemoteRippled ( ledgerIdentifier, callback ) {
             "ledger: " + res.ledger.ledger_index + 
             ", ledger_hash: " + res.ledger.ledger_hash + 
             ", parent_hash: " + res.ledger.parent_hash +
-            "ledger: " + ledger.ledger_index + " ledger_hash: " + ledger.ledger_hash );
+            "ledger: " + ledger.ledger_index + 
+            " ledger_hash: " + ledger.ledger_hash );
 
           // try another server
           tryServer( server_num + 1 );
