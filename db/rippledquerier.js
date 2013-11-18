@@ -15,6 +15,7 @@ var ripple = require( 'ripple-lib' ),
       return { host: addr, port: 443 }; 
     })
   });
+remote.connect();
 
 /* config options */
 var config = require( '../config' );
