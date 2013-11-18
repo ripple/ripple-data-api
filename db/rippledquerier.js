@@ -401,7 +401,8 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
     remote.request_ledger( ledgerIdentifier, {
       transactions: true,
-      expand: true
+      expand: true,
+      trace: true
     } )
       .set_server( serverAddresses[ server_num ] )
       .callback( function( err, res ) {
@@ -416,7 +417,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         var ledger = formatRemoteLedger( res.ledger );
 
         // compare ledger.ledger_hash to the next ledger's parent_hash
-        remote.request_ledger( ledger.ledger_index + 1 )
+        remote.request_ledger( ledger.ledger_index + 1, { trace: true } )
           .set_server( serverAddresses[ server_num ] )
           .callback( function( err, res ) {
 
