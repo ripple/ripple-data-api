@@ -386,8 +386,13 @@ function verifyLedgerTransactions( ledger ) {
 
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
-  ;
-  ( function tryServer( server_num ) {
+  ;( function tryServer( server_num ) {
+
+    if ( server_num > serverAddresses.length - 1 ) {
+      callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
+        "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
+      return;
+    }
 
     winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
       ledgerIdentifier + " server_num: " + server_num );
