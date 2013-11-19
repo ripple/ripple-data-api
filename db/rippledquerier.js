@@ -406,20 +406,12 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
   function tryServer( server_num ) {
 
-    if (!ledgerIdentifier) {
-      winston.error("ledgerIdentifier is undefined");
-    }
-
-    if (!callback) {
-      winston.error("callback is undefined");
-    }
-
     if ( server_num > serverAddresses.length - 1 ) {
       callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
         "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
 
-      remote.disconnect();
-      remote = null;
+      // remote.disconnect();
+      // remote = null;
 
       return;
     }
@@ -489,8 +481,8 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
               callback( null, ledger );
 
-              remote.disconnect();
-              remote = null;
+              // remote.disconnect();
+              // remote = null;
 
               return;
 
