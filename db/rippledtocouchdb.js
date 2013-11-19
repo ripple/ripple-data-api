@@ -10,8 +10,8 @@ var winston = require('winston'),
   RippledQuerier = require('./rippledquerier'),
   rq = new RippledQuerier();
 
-var MAX_ITERATORS = 1000,
-  BATCH_SIZE = 1000;
+var MAX_ITERATORS = 10,
+  BATCH_SIZE = 100;
 
 
 
