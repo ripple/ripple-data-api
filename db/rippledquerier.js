@@ -412,9 +412,9 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         if ( err ) {
           winston.error( "Error in getLedgerFromRemoteRippled: " + err );
 
-          setImmediate(function(){
+          setTimeout(function(){
             tryServer( ++server_num );
-          });
+          }, 1000);
           return;
         }
 
