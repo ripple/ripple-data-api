@@ -487,12 +487,6 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
             // check hash of transactions
             if ( verifyLedgerTransactions( ledger ) ) {
 
-              winston.error("Transactions for ledger " + ledger.ledger_index + 
-                " hash " + ledger.ledger_hash + 
-                " from " + serverAddresses[ server_num ] +
-                " don't hash properly\n" +
-                " ledger: " + JSON.stringify(ledger));
-
               callback( null, ledger );
 
               remote.disconnect();
