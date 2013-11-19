@@ -400,7 +400,9 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   } );
   remote.connect( );
 
-  remote.on('ready', tryServer);
+  remote.on('ready', function(){
+    tryServer(0)
+  });
 
   function tryServer( server_num ) {
 
