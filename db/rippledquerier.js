@@ -389,7 +389,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
   var servers = _.shuffle(serverAddresses);
 
-  remote = new ripple.Remote( {
+  var remote = new ripple.Remote( {
     // trace: true,
     servers: _.map( serverAddresses, function( addr ) {
       return {
