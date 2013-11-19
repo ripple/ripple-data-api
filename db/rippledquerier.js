@@ -11,7 +11,7 @@ var ripple = require( 'ripple-lib' ),
   Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
   serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ],
   remote = new ripple.Remote( {
-    trace: true,
+    // trace: true,
     servers: _.map( serverAddresses, function( addr ) {
       return {
         host: addr,
@@ -388,6 +388,14 @@ function verifyLedgerTransactions( ledger ) {
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
   ;( function tryServer( server_num ) {
+
+    if (!ledgerIdentifier) {
+      winston.error("ledgerIdentifier is undefined");
+    }
+
+    if (!callback) {
+      winston.error("callback is undefined");
+    }
 
     if ( server_num > serverAddresses.length - 1 ) {
       callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
