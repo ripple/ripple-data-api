@@ -11,7 +11,7 @@ var ripple = require( 'ripple-lib' ),
   Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
   serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ],
   remote = new ripple.Remote( {
-    // trace: true,
+    trace: true,
     servers: _.map( serverAddresses, function( addr ) {
       return {
         host: addr,
