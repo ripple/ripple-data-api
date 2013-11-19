@@ -387,7 +387,7 @@ function verifyLedgerTransactions( ledger ) {
 
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
-  var servers = _.shuffle(serverAddresses);
+  // var servers = _.shuffle(serverAddresses);
 
   var remote = new ripple.Remote( {
     // trace: true,
@@ -417,18 +417,22 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
     if ( server_num > serverAddresses.length - 1 ) {
       callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
         "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
+
+      remote.disconnect();
+      remote = null;
+
       return;
     }
 
     
     winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
-      ledgerIdentifier + " server " + servers[ server_num ] );
+      ledgerIdentifier + " server " + serverAddresses[ server_num ] );
 
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
     } )
-      .setServer( servers[ server_num ] )
+      .setServer( serverAddresses[ server_num ] )
       .callback( function( err, res ) {
 
         // winston.info("res 1: " + JSON.stringify(res));
@@ -438,7 +442,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
           setTimeout(function(){
             tryServer( ++server_num );
-          }, 1000);
+          }, 5000);
           return;
         }
 
@@ -457,7 +461,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
               // try another server
               setTimeout(function(){
                 tryServer( ++server_num );
-              }, 1000);
+              }, 5000);
               return;
             }
 
@@ -484,6 +488,10 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
             if ( verifyLedgerTransactions( ledger ) ) {
 
               callback( null, ledger );
+
+              remote.disconnect();
+              remote = null;
+
               return;
 
             } else {
