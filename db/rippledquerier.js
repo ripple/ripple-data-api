@@ -400,11 +400,11 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
       ledgerIdentifier + " server " + serverAddresses[server_num] );
 
 
-    remote.request_ledger( ledgerIdentifier, {
+    remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
     } )
-      .set_server( serverAddresses[ server_num ] )
+      .setServer( serverAddresses[ server_num ] )
       .callback( function( err, res ) {
 
         // winston.info("res 1: " + JSON.stringify(res));
@@ -421,7 +421,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
         var ledger = formatRemoteLedger( res.ledger );
 
         // compare ledger.ledger_hash to the next ledger's parent_hash
-        remote.request_ledger( ledger.ledger_index + 1 )
+        remote.requestLedger( ledger.ledger_index + 1 )
           // .set_server( serverAddresses[ server_num ] )
           .callback( function( err, res ) {
 
