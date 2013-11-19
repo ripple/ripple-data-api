@@ -387,6 +387,8 @@ function verifyLedgerTransactions( ledger ) {
 
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
+  var servers = _.shuffle(serverAddresses);
+
   ;( function tryServer( server_num ) {
 
     if (!ledgerIdentifier) {
@@ -407,12 +409,11 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
     winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
       ledgerIdentifier + " server " + serverAddresses[server_num] );
 
-
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
     } )
-      .setServer( serverAddresses[ server_num ] )
+      .setServer( servers[ server_num ] )
       .callback( function( err, res ) {
 
         // winston.info("res 1: " + JSON.stringify(res));
