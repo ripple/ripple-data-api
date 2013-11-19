@@ -9,17 +9,17 @@ var sqlite3 = require( 'sqlite3' ).verbose( ),
 /* ripple-lib imports */
 var ripple = require( 'ripple-lib' ),
   Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
-  serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ],
-  remote = new ripple.Remote( {
-    // trace: true,
-    servers: _.map( serverAddresses, function( addr ) {
-      return {
-        host: addr,
-        port: 443
-      };
-    } )
-  } );
-remote.connect( );
+  serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
+//   remote = new ripple.Remote( {
+//     // trace: true,
+//     servers: _.map( serverAddresses, function( addr ) {
+//       return {
+//         host: addr,
+//         port: 443
+//       };
+//     } )
+//   } );
+// remote.connect( );
 
 /* config options */
 var config = require( '../config' );
@@ -389,7 +389,20 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
   var servers = _.shuffle(serverAddresses);
 
-  ;( function tryServer( server_num ) {
+  remote = new ripple.Remote( {
+    // trace: true,
+    servers: _.map( serverAddresses, function( addr ) {
+      return {
+        host: addr,
+        port: 443
+      };
+    } )
+  } );
+  remote.connect( );
+
+  remote.on('ready', tryServer);
+
+  function tryServer( server_num ) {
 
     if (!ledgerIdentifier) {
       winston.error("ledgerIdentifier is undefined");
@@ -488,7 +501,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
       } );
 
 
-  } )( 0 );
+  }
 }
 
 
