@@ -1,46 +1,66 @@
-function(doc) {
-    var time = new Date(doc.close_time_timestamp),
-        timestamp = [time.getUTCFullYear(), time.getUTCMonth(), time.getUTCDate(), 
-                     time.getUTCHours(), time.getUTCMinutes(), time.getUTCSeconds()];
+function( doc ) {
 
-    for (var t = 0, txs = doc.transactions.length; t < txs; t++) {
-        var tx = doc.transactions[t];
+  var time = new Date( doc.close_time_timestamp ),
+    timestamp = [ time.getUTCFullYear( ), time.getUTCMonth( ), time.getUTCDate( ),
+      time.getUTCHours( ), time.getUTCMinutes( ), time.getUTCSeconds( )
+    ];
 
-        if (tx.metaData.TransactionResult !== "tesSUCCESS") 
-                continue;
+  doc.transactions.forEach( function( tx ) {
 
-        for (var n = 0, nodes = tx.metaData.AffectedNodes.length; n < nodes; n++) {
+    if ( tx.metaData.TransactionResult !== "tesSUCCESS" )
+      return;
 
-            if (tx.metaData.AffectedNodes[n].hasOwnProperty("CreatedNode") && tx.metaData.AffectedNodes[n].CreatedNode.LedgerEntryType === "RippleState") {
-                var cnode = tx.metaData.AffectedNodes[n].CreatedNode;
+    tx.metaData.AffectedNodes.forEach( function( affNode ) {
 
-                var currency = cnode.NewFields.Balance.currency,
-                    high_party = cnode.NewFields.HighLimit.issuer,
-                    low_party = cnode.NewFields.LowLimit.issuer;
+      var node = affNode.CreatedNode || affNode.ModifiedNode;
 
-                if (parseFloat(cnode.NewFields.Balance.value) !== 0) {
-                    emit([high_party, currency, low_party].concat(timestamp), [(0 - parseFloat(cnode.NewFields.Balance.value)), (0 - parseFloat(cnode.NewFields.Balance.value))]);
-                    emit([low_party, currency, high_party].concat(timestamp), [parseFloat(cnode.NewFields.Balance.value), parseFloat(cnode.NewFields.Balance.value)]);
-                }
+      if ( !node || node.LedgerEntryType !== "RippleState" ) {
+        return;
+      }
 
-            } else if (tx.metaData.AffectedNodes[n].hasOwnProperty("ModifiedNode") && tx.metaData.AffectedNodes[n].ModifiedNode.LedgerEntryType === "RippleState") {
-                var mnode = tx.metaData.AffectedNodes[n].ModifiedNode;
+      var currency,
+        highParty,
+        lowParty,
+        prevBal,
+        finalBal,
+        balChange;
 
-                // balance changed
-                if (mnode.PreviousFields.hasOwnProperty("Balance")) {
+      if ( node.NewFields ) {
 
-                    var currency = mnode.FinalFields.Balance.currency,
-                        low_party = mnode.FinalFields.LowLimit.issuer,
-                        high_party = mnode.FinalFields.HighLimit.issuer;
+        // trustline created with non-negative balance
 
-                    var final_bal = parseFloat(mnode.FinalFields.Balance.value),
-                        prev_bal = parseFloat(mnode.PreviousFields.Balance.value);
-
-                    emit([low_party, currency, high_party].concat(timestamp), [(final_bal - prev_bal), final_bal]);
-                    emit([high_party, currency, low_party].concat(timestamp), [(0 - (final_bal - prev_bal)), (0 - final_bal)]);
-
-                }
-            }
+        if ( parseFloat( node.NewFields.Balance.value ) === 0 ) {
+          return;
         }
-    }
+
+        currency = node.NewFields.Balance.currency;
+        highParty = node.NewFields.HighLimit.issuer;
+        lowParty = node.NewFields.LowLimit.issuer;
+
+        prevBal = 0;
+        finalBal = parseFloat( node.NewFields.Balance.value );
+        balChange = finalBal - prevBal;
+
+      } else if ( node.PreviousFields && node.PreviousFields.Balance ) {
+
+        // trustline balance modified
+
+        currency = node.FinalFields.Balance.currency;
+        lowParty = node.FinalFields.LowLimit.issuer;
+        highParty = node.FinalFields.HighLimit.issuer;
+
+        prevBal = parseFloat( node.PreviousFields.Balance.value );
+        finalBal = parseFloat( node.FinalFields.Balance.value );
+        balChange = finalBal - prevBal;
+
+      } else {
+
+        return;
+      }
+
+      emit( [ lowParty, currency, highParty ].concat( timestamp ), [ balChange, finalBal ] );
+      emit( [ highParty, currency, lowParty ].concat( timestamp ), [ ( 0 - balChange ), ( 0 - finalBal ) ] );
+
+    } );
+  } );
 }
