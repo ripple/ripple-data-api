@@ -58,7 +58,7 @@ if (process.argv.length < 3) {
 
     }
 
-    winston.info("Starting from last saved index:", lastSavedIndex + 1);
+    winston.info("Starting from last saved index: " + (lastSavedIndex + 1) + " (" + (new Date().toString()) + ")");
 
     saveNextBatch(lastSavedIndex + 1);
 
