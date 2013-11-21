@@ -218,11 +218,11 @@ function saveNextBatch(batchStart, prevLedgerHash) {
 
           if (batchEnd - batchStart === 1) {
 
-            winston.info("Saved ledger", batchStart, "to CouchDB");
+            winston.info("Saved ledger", batchStart, "to CouchDB (" + (new Date().toString()) + ")");
 
           } else {
 
-            winston.info("Saved ledgers", batchStart, "to", (batchEnd - 1), "to CouchDB");
+            winston.info("Saved ledgers", batchStart, "to", (batchEnd - 1), "to CouchDB (" + (new Date().toString()) + ")";
           
           }
 
