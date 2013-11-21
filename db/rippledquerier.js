@@ -8,18 +8,9 @@ var sqlite3 = require( 'sqlite3' ).verbose( ),
 
 /* ripple-lib imports */
 var ripple = require( 'ripple-lib' ),
-  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
-  serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
-//   remote = new ripple.Remote( {
-//     // trace: true,
-//     servers: _.map( serverAddresses, function( addr ) {
-//       return {
-//         host: addr,
-//         port: 443
-//       };
-//     } )
-//   } );
-// remote.connect( );
+  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger;
+  // serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
+
 
 /* config options */
 var config = require( '../config' );
@@ -103,7 +94,8 @@ function getLedger( dbs, ledgerIdentifier, callback ) {
 
     } else {
 
-      getLedgerFromRemoteRippled( ledgerIdentifier, callback );
+      winston.error("Error with ledger " + ledgerIdentifier + " in local db");
+      // getLedgerFromRemoteRippled( ledgerIdentifier, callback );
 
     }
   } );
@@ -133,8 +125,13 @@ function getLedgerFromLocalRippled( dbs, ledgerIdentifier, callback ) {
       }
 
       if ( rows.length === 0 ) {
+        winston.error("Local rippled has no entry for ledgerIdentifier: " + ledgerIdentifier);
         callback( null, null );
         return;
+      }
+
+      if (rows.length > 1) {
+        winston.error("Local rippled has multiple entries for ledgerIdentifier: " + ledgerIdentifier);
       }
 
       // if there are 1 or more rows returned, verify that
