@@ -10,10 +10,6 @@ var winston = require('winston'),
   RippledQuerier = require('./rippledquerier'),
   rq = new RippledQuerier();
 
-var MAX_ITERATORS = 10,
-  BATCH_SIZE = 100;
-
-
 
 
 /**
@@ -46,7 +42,7 @@ if (process.argv.length < 3) {
 
           // go back beyond the last apparent saved index
           // in case there were ledgers that weren't saved
-          lastSavedIndex = parseInt(res.results[r].id, 10) - BATCH_SIZE * 5;  
+          lastSavedIndex = parseInt(res.results[r].id, 10) - config.batchSize * 5;  
           
           if (lastSavedIndex < 32570) {
             lastSavedIndex = 32569;
@@ -103,7 +99,7 @@ function addLeadingZeros (number, digits) {
 
 
 /**
- * saveNextBatch gets a batch of BATCH_SIZE number of ledgers,
+ * saveNextBatch gets a batch of config.batchSize number of ledgers,
  * parses them, and adds them into CouchDB
  *
  * note that prevLedgerHash is optional
@@ -117,7 +113,7 @@ function saveNextBatch(batchStart, prevLedgerHash) {
       return;
     }
 
-    var batchEnd = Math.min(latestLedgerIndex, (batchStart + BATCH_SIZE));
+    var batchEnd = Math.min(latestLedgerIndex, (batchStart + config.batchSize));
     if (batchStart >= batchEnd) {
       setTimeout(function() {
         saveNextBatch(batchEnd);
