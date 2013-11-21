@@ -42,7 +42,7 @@ if (process.argv.length < 3) {
 
           // go back beyond the last apparent saved index
           // in case there were ledgers that weren't saved
-          lastSavedIndex = parseInt(res.results[r].id, 10) - config.batchSize * 5;  
+          lastSavedIndex = parseInt(res.results[r].id, 10) - config.batchSize;  
           
           if (lastSavedIndex < 32570) {
             lastSavedIndex = 32569;
