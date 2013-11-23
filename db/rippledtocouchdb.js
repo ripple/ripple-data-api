@@ -2,6 +2,7 @@ var winston = require('winston'),
   async = require('async'),
   _ = require('lodash'),
   config = require('../config'),
+  deepEqual = require('deep-equal'),
   db = require('nano')('http://' + config.couchdb.username + 
             ':' + config.couchdb.password + 
             '@' + config.couchdb.host + 
@@ -182,6 +183,8 @@ function saveNextBatch(batchStart, prevLedgerHash) {
 
         if (res && res.rows && res.rows.length > 0) {
 
+          // if the docs are not deep equal to the res.rows
+          // add the _rev to them so they can be updated
           _.each(res.rows, function(row){
 
             var id = row.id,
@@ -192,6 +195,12 @@ function saveNextBatch(batchStart, prevLedgerHash) {
               && docs[parseInt(id, 10) - batchStart]._id === id) {
 
               docs[parseInt(id, 10) - batchStart]._rev = rev;
+
+              if (!deepEqual(row, docs[parseInt(id, 10) - batchStart])) {
+
+                docs[parseInt(id, 10) - batchStart].noUpdate = true;
+
+              }
 
             } else {
 
@@ -205,6 +214,12 @@ function saveNextBatch(batchStart, prevLedgerHash) {
             }
 
           });
+
+          // do not update docs that are the same as before
+          docs = _.filter(docs, function(doc){
+            return (!doc.noUpdate);
+          });
+
         }
 
         // bulk update/add docs
