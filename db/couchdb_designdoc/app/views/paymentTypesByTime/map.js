@@ -1,9 +1,3 @@
-/**
- *  this function classifies payments as either 'bridgedThroughXRP', 
- *  'crossCurrency', 'sameCurrCrossGateway', or 'otherPayment'
- *
- *  the sum of these should be the total number of payments
- */
 
 function( doc ) {
 
@@ -40,7 +34,7 @@ function( doc ) {
       if (node.LedgerEntryType === 'AccountRoot' && node.FinalFields 
         && node.FinalFields.Account !== srcAcct && node.FinalFields.Account !== dstAcct) {
 
-        emit(timestamp, {'bridgedThroughXRP': 1});
+        emit(timestamp, {'crossCurrXrpBridge': 1});
         return;
       }
 
@@ -90,25 +84,34 @@ function( doc ) {
 
       if (crossCurrency) {
 
-        emit(timestamp, {'crossCurrency': 1});
+        emit(timestamp, {'crossCurrNoXrpBridge': 1});
         return;
 
       } else {
 
-        emit(timestamp, {'sameCurrCrossGateway': 1});
+        emit(timestamp, {'sameCurrCrossGate': 1});
         return;
 
       }
 
     }
 
-    // check if cross currency
     if (srcCurr[0] !== dstCurr[0]) {
-      emit(timestamp, {'crossCurrency': 1});
+
+      emit(timestamp, {'crossCurrNoXrpBridge': 1});
+
     } else if (srcCurr[1] && dstCurr[1] && srcCurr[1] === dstCurr[1]) {
-      emit(timestamp, {'sameCurrCrossGateway': 1});
+
+      emit(timestamp, {'sameCurrCrossGate': 1});
+
+    } else if (srcCurr[0] === 'XRP' && dstCurr[0] === 'XRP') {
+
+      emit(timestamp, {'xrpToXrp': 1});
+
     } else {
-      emit(timestamp, {'otherPayment': 1});
+
+      emit(timestamp, {'sameCurrSameGate': 1});
+
     }
 
   });

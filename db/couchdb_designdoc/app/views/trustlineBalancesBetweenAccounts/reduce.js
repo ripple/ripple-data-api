@@ -27,9 +27,14 @@ function( keys, values, rereduce ) {
 
   } else {
 
-    results = values[ 0 ];
+    results = values[0];
 
-    values.forEach( function( val ) {
+    values.forEach( function( val, index ) {
+
+      // skip values[0]
+      if (index === 0) {
+        return;
+      }
 
       if ( lessThan( results.latestTime, val.latestTime ) ) {
 
@@ -38,12 +43,16 @@ function( keys, values, rereduce ) {
 
       }
 
-      results += val.balanceChange;
+      results.balanceChange += val.balanceChange;
 
     } );
+
   }
 
   return results;
+
+
+  
 
 
 

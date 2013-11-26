@@ -5,11 +5,10 @@ function( doc ) {
       time.getUTCHours( ), time.getUTCMinutes( ), time.getUTCSeconds( )
     ];
 
-  for ( var t = 0, txs = doc.transactions.length; t < txs; t++ ) {
-    var tx = doc.transactions[ t ];
+  doc.transactions.forEach( function( tx ) {
 
     if ( doc.transactions[ t ].metaData.TransactionResult !== "tesSUCCESS" ) {
-      continue;
+      return;
     }
 
     var value = {};
@@ -17,5 +16,5 @@ function( doc ) {
 
     emit( timestamp, value );
 
-  }
+  } );
 }
