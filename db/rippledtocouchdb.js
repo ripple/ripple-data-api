@@ -254,7 +254,7 @@ function saveNextBatch(batchStart, prevLedgerHash) {
 
             setTimeout(function() {
               saveNextBatch(batchEnd, lastLedgerHash);
-            }, 10000);
+            }, 2000);
 
           }
         });
