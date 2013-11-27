@@ -34,15 +34,18 @@ app.use(express.bodyParser());
 app.post('/api/offersExercised/', function (req, res) {
 
   // construct keys to query view
-  var currPair = [[req.body.baseCurrency, req.body.baseCurrencyIssuer], 
-                  [req.body.tradeCurrency, req.body.tradeCurrencyIssuer]],
+  // TODO handle XRP correctly
+  var currPair = [[req.body.tradeCurrency, req.body.tradeCurrencyIssuer],
+                  [req.body.baseCurrency, req.body.baseCurrencyIssuer]],
     startTime = moment().min(
       moment.utc(req.body.startTime),
       moment.utc(req.body.endTime)).toArray(),
     endTime = moment().max(
       moment.utc(req.body.startTime),
       moment.utc(req.body.endTime)).toArray();
+  // TODO check that this toArray does the 0 based indexed month
 
+  // swap startTime and endTime if results will be in descending order
   if (!req.body.hasOwnProperty('descending') || req.body.descending) {
     var tempTime = startTime;
     startTime = endTime;
@@ -77,6 +80,8 @@ app.post('/api/offersExercised/', function (req, res) {
     }
   }
 
+  winston.info(JSON.stringify(params));
+
   request.get(params, function(err, requestRes, data){
 
     if (err) {
@@ -86,8 +91,19 @@ app.post('/api/offersExercised/', function (req, res) {
 
     JSON.parse(data).rows.map(function(row){
 
-      var time = moment.utc(row.key.slice(2));
-      winston.info(time.format(), row.value);
+      var rowData = {
+        baseCurrencyVolume: row.value.curr2Volume,
+        tradeCurrencyVolume: row.value.curr1Volume,
+        open: row.value.open,
+        close: row.value.close,
+        high: row.value.high,
+        low: row.value.low,
+        volumeWeightedAverage: row.value.volumeWeightedAvg
+      };
+      winston.info(JSON.stringify(rowData));
+
+      // var time = moment.utc(row.key.slice(2));
+      // winston.info(time.format(), row.value);
     });
 
   });
