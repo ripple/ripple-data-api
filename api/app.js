@@ -100,6 +100,7 @@ app.post('/api/offersExercised/', function (req, res) {
         low: row.value.low,
         volumeWeightedAverage: row.value.volumeWeightedAvg
       };
+
       winston.info(JSON.stringify(rowData));
 
       // var time = moment.utc(row.key.slice(2));
