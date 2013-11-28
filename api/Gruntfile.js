@@ -19,7 +19,7 @@ module.exports = function(grunt) {
     },
     watch: {
       files: ['*.js'],
-      tasks: ['jshint', 'develop'],
+      tasks: ['npm-install', 'jshint', 'develop'],
       options: { spawn: false }
     },
     develop: {
@@ -30,10 +30,11 @@ module.exports = function(grunt) {
     }
   });
 
+  grunt.loadNpmTasks('grunt-npm-install');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-develop');
 
-  grunt.registerTask('default', ['jshint', 'develop']);
+  grunt.registerTask('default', ['jshint', 'develop', 'npm-install']);
 
 };

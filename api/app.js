@@ -1,14 +1,9 @@
 var winston = require('winston'),
-  moment = require('moment'), 
-  request = require('request'),
+  moment = require('moment'),
   express = require('express'),
   app = express(),
   config = require('./apiConfig.json'),
-  couchdbURL = 'http://' + config.couchdb.username + 
-      ':' + config.couchdb.password + 
-      '@' + config.couchdb.host + 
-      ':' + config.couchdb.port + 
-      '/' + config.couchdb.database + '/';
+  db = require('nano')('http://' + config.couchdb.username + ':' + config.couchdb.password + '@' + config.couchdb.host + ':' + config.couchdb.port + '/' + config.couchdb.database);
 
 app.use(express.bodyParser());
 
@@ -19,99 +14,142 @@ app.use(express.bodyParser());
  *
  *  expects req.body to have:
  *  {
- *    baseCurrency: "XRP" OR "USD" OR ["XRP"] OR ["USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"],
- *    baseCurrencyIssuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B", // optional, expected only if base currency is a string
- *    tradeCurrency: (same as baseCurrency),
- *    tradeCurrencyIssuer: (same as baseCurrencyIssuer), // optional
+ *    base: {currency: "XRP"},
+ *    trade: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+ *    
  *    staleView: true/false, // optional, defaults to true
  *    descending: true/false, // optional, defaults to true
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
  *    timeIncrement: (any of the following: "ALL", "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND")
+ *    
+ *    csv: true/false // optional, defaults to false (sends result as json)
  *  }
  */
 
 app.post('/api/offersExercised/', function (req, res) {
 
-  // construct keys to query view
-  // TODO handle XRP correctly
-  var currPair = [[req.body.tradeCurrency, req.body.tradeCurrencyIssuer],
-                  [req.body.baseCurrency, req.body.baseCurrencyIssuer]],
-    startTime = moment().min(
-      moment.utc(req.body.startTime),
-      moment.utc(req.body.endTime)).toArray(),
-    endTime = moment().max(
-      moment.utc(req.body.startTime),
-      moment.utc(req.body.endTime)).toArray();
-  // TODO check that this toArray does the 0 based indexed month
+  var viewOpts = {};
 
-  // swap startTime and endTime if results will be in descending order
+  winston.info(JSON.stringify(req.body));
+
+  // parse currency details
+  var baseCurr = (!req.body.base.issuer ? [req.body.base.currency] : [req.body.base.currency, req.body.base.issuer]),
+    tradeCurr = (!req.body.trade.issuer ? [req.body.trade.currency] : [req.body.trade.currency, req.body.trade.issuer]),
+    currPair = [tradeCurr, baseCurr];
+
+  // parse startTime and endTime
+  var startTime, endTime;
+  if (!req.body.startTime && !req.body.endTime) {
+    startTime = moment.utc().subtract('days', 30);
+    endTime = moment.utc();
+  } else if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
+    startTime = moment.utc(req.body.startTime);
+    endTime = moment.utc(req.body.endTime);
+  } else {
+    endTime = moment.utc(req.body.startTime);
+    startTime = moment.utc(req.body.endTime);
+  }
+
   if (!req.body.hasOwnProperty('descending') || req.body.descending) {
+    viewOpts.descending = true;
+
+    // swap startTime and endTime if results will be in descending order
     var tempTime = startTime;
     startTime = endTime;
     endTime = tempTime;
   }
 
-  var startkey = currPair.concat(startTime),
-    endkey = currPair.concat(endTime);
+  // set startkey and endkey
+  viewOpts.startkey = currPair.concat(startTime.toArray().slice(0,6));
+  viewOpts.endkey = currPair.concat(endTime.toArray().slice(0,6));
 
-  var params = {
-    url: couchdbURL + 
-      '_design/transactions' + 
-      '/_view/offersExercised',
-    qs: {
-      descending: (!req.body.hasOwnProperty('descending') || req.body.descending),
-      reduce: (!req.body.hasOwnProperty('reduce') || req.body.reduce),
-      startkey: startkey,
-      endkey: endkey,
-    }
-  };
-
-  if (!req.body.hasOwnProperty('timeIncrement')) {
-    params.qs.group_level = 2 + 3; // default to 'DAY'
-  } else if (req.body.timeIncrement === 'ALL') {
-    params.qs.group = false;
-  } else {
-    var level = ['YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND'].indexOf(req.body.timeIncrement);
-    if (level === -1) {
-      params.qs.group_level = 2 + 3; // default to 'DAY'
+  // determine the group_level from the timeIncrement field
+  if (req.body.timeIncrement) {
+    var inc = req.body.timeIncrement.toLowerCase(),
+      levels = ['year', 'month', 'day', 'hour', 'minute', 'second'];
+    if (inc === 'all') {
+      viewOpts.group = false;
+    } else if (levels.indexOf(inc)) {
+      viewOpts.group_level = 3 + levels.indexOf(inc);
     } else {
-      params.qs.group_level = 2 + level;
+      viewOpts.group_level = 3 + 2; // default to day
     }
+  } else {
+    viewOpts.group_level = 3 + 2; // default to day
   }
 
-  winston.info(JSON.stringify(params));
+  // set reduce option
+  if (!req.body.hasOwnProperty('reduce')) {
+    viewOpts.reduce = true;
+  } else {
+    viewOpts.reduce = req.body.reduce;
+  }
 
-  request.get(params, function(err, requestRes, data){
+  // set stale view option
+  if ((!req.body.hasOwnProperty('stale') && !req.body.hasOwnProperty('staleView'))
+    || req.body.stale || req.body.staleView) {
+    viewOpts.stale = 'update_after';
+  }
+  
+  winston.info('viewOpts:' + JSON.stringify(viewOpts));
+
+  db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
 
     if (err) {
       winston.error('Error with request: ' + err);
       return;
     }
 
-    JSON.parse(data).rows.map(function(row){
+    winston.info('Got ' + couchRes.rows.length + ' rows');
 
-      var rowData = {
-        baseCurrencyVolume: row.value.curr2Volume,
-        tradeCurrencyVolume: row.value.curr1Volume,
-        open: row.value.open,
-        close: row.value.close,
-        high: row.value.high,
-        low: row.value.low,
-        volumeWeightedAverage: row.value.volumeWeightedAvg
-      };
+    // send result either as json or csv string
+    if (!req.body.csv || req.body.csv === 'false') {
+      console.log('send as json');
 
-      winston.info(JSON.stringify(rowData));
+      var rows = couchRes.rows.map(function(row){
 
-      // var time = moment.utc(row.key.slice(2));
-      // winston.info(time.format(), row.value);
-    });
+        // reformat rows
+        return {
+          time: moment.utc(row.key.slice(2)).format(),
+          baseCurrencyVolume: row.value.curr2Volume,
+          tradeCurrencyVolume: row.value.curr1Volume,
+          open: row.value.open,
+          close: row.value.close,
+          high: row.value.high,
+          low: row.value.low,
+          volumeWeightedAverage: row.value.volumeWeightedAvg
+        };
+
+      });
+
+      res.json(rows);
+    
+    } else {
+
+      var csvRows = [['time', 'baseCurrencyVolume', 'tradeCurrencyVolume', 'open', 'close', 'high', 'low', 'volumeWeightedAverage'].join(', ')];
+      couchRes.rows.forEach(function(row){
+        csvRows.push([
+          moment.utc(row.key.slice(2)).format(),
+          row.value.curr2Volume,
+          row.value.curr1Volume,
+          row.value.open,
+          row.value.close,
+          row.value.high,
+          row.value.low,
+          row.value.volumeWeightedAvg
+          ].join(', '));
+      });
+
+      res.send(csvRows.join('\n'));
+    }
 
   });
 
 
 });
 
+app.use(express.static('public'));
 
 app.listen(config.port);
 console.log('Listening on port ' + config.port);

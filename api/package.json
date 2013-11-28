@@ -10,7 +10,8 @@
     "grunt-couch": "~1.2.3",
     "grunt-contrib-jshint": "~0.7.2",
     "grunt-contrib-watch": "~0.5.3",
-    "grunt-develop": "~0.2.2"
+    "grunt-develop": "~0.2.2",
+    "grunt-npm-install": "~0.1.0"
   },
   "dependencies": {
     "winston": "~0.7.2",

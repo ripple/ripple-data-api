@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+
+<head>
+
+</head>
+
+<body>
+
+  <h3>Ripple Data Test</h3>
+
+  <h4>offersExercised</h4>
+      <form name="offersExercisedData">
+        Base Currency:
+        <input type="text" name="baseCurrency" value="USD">Base Currency Issuer:
+        <input type="text" name="baseCurrencyIssuer" value="rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B">Trade Currency:
+        <input type="text" name="tradeCurrency" value="XRP">Trade Currency Issuer:
+        <input type="text" name="tradeCurrencyIssuer">Start Time:
+        <input type="text" name="startTime" value="2013-10-01T00:00:00 +0000">End Time:
+        <input type="text" name="endTime" value="2013-10-31T00:00:00 +0000">Time Interval:
+        <input type="text" name="timeIncrement" value="day">
+        Result Format:
+        <input type="radio" name="csv" value="true" checked> CSV
+        <input type="radio" name="csv" value="false"> JSON
+
+
+        <button id="submit">Submit</button>
+      </form>
+
+      <h4>Results:</h4>
+      <table id="results">
+      </table>
+
+      <script type="text/javascript" src="./jquery.js"></script>
+      <script type="text/javascript">
+      $('#submit').click(function(e) {
+        e.preventDefault();
+
+        var formData = {};
+        $.each($('[name="offersExercisedData"]').serializeArray(), function(index, val) {
+          formData[val.name] = val.value;
+        });
+
+        formData.base = { currency: formData.baseCurrency };
+        if (formData.baseCurrencyIssuer && formData.baseCurrencyIssuer !== '') {
+          formData.base.issuer = formData.baseCurrencyIssuer;
+        }
+        delete formData.baseCurrency;
+        delete formData.baseCurrencyIssuer;
+
+        formData.trade = { currency: formData.tradeCurrency };
+        if (formData.tradeCurrencyIssuer && formData.tradeCurrencyIssuer !== '') {
+          formData.trade.issuer = formData.tradeCurrencyIssuer;
+        }
+        delete formData.tradeCurrency;
+        delete formData.tradeCurrencyIssuer;
+
+        $.post('/api/offersExercised/', formData, function(res) {
+          var rows = res.split('\n');
+          rows.forEach(function(row){
+            $('#results').append('<tr><td>' + row.split(',').join('</td><td>') + '</td><tr>');
+          });
+          
+        });
+      });
+      </script>
+
+</body>
+
+</html>
