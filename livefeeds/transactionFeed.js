@@ -18,25 +18,11 @@ remote.connect( );
 
 /* views maps the available txProcessor functions to their view names */
 var views = {
+  "account_tx": extractAccountTx,
   "offersExercised": extractOffersExercised
+
   // TODO add more views
 };
-
-
-
-
-createTransactionListener(
-  "offersExercised",
-  function( data ) {
-    console.log( JSON.stringify( data ) );
-  }, {
-    // curr0: [ "USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B" ],
-    // curr1: [ "XRP" ]
-  } );
-
-
-
-
 
 /**
  *  createTransactions listener attaches the txProcessor
@@ -68,6 +54,47 @@ function createTransactionListener( viewName, displayFn, opts ) {
   } );
 }
 
+
+/****** Examples ******/
+
+/* Example for account_tx */
+createTransactionListener(
+  "account_tx",
+  function(data){
+    console.log( JSON.stringify( data ) );
+  }, {
+    account: 'rrpNnNLKrartuEqfJGpqyDwPj1AFPg9vn1'
+  });
+
+
+/* Example for offersExercised */
+// createTransactionListener(
+//   "offersExercised",
+//   function( data ) {
+//     console.log( JSON.stringify( data ) );
+//   }, {
+//     // curr0: [ "USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B" ],
+//     // curr1: [ "XRP" ]
+//   } );
+
+
+
+
+
+/****** txProcessors ******/
+
+
+
+/**
+ *
+ *
+ *
+ */
+function extractAccountTx( txData, displayFn, opts ) {
+  displayFn(txData);
+} 
+
+
 /**
  *  extractOffersExercised takes txData and if the txData contains
  *  an offer exercised it will call the given displayFn with an
@@ -92,7 +119,9 @@ function createTransactionListener( viewName, displayFn, opts ) {
  */
 function extractOffersExercised( txData, displayFn, opts ) {
 
-  if ( txData.transaction.TransactionType !== 'Payment' && txData.transaction.TransactionType !== 'OfferCreate' ) {
+  var txType = txData.transaction.TransactionType;
+
+  if ( txType !== 'Payment' && txType !== 'OfferCreate' ) {
     return;
   }
 
@@ -112,6 +141,7 @@ function extractOffersExercised( txData, displayFn, opts ) {
       currPair,
       revCurrPair;
 
+    // parse TakerPays and TakerGets and handle XRP case
     if ( typeof node.PreviousFields.TakerPays === "object" ) {
       pay_curr = [ node.PreviousFields.TakerPays.currency, node.PreviousFields.TakerPays.issuer ];
       pay_amnt = node.PreviousFields.TakerPays.value - node.FinalFields.TakerPays.value;
@@ -130,6 +160,8 @@ function extractOffersExercised( txData, displayFn, opts ) {
       exchange_rate = exchange_rate * 1000000.0;
     }
 
+
+    // setup returned values in the same format as CouchDB
     currPair = {
       key: [ pay_curr, get_curr ].concat( txData.utcTimeArray ),
       value: [ pay_amnt, get_amnt, exchange_rate ]
@@ -139,12 +171,14 @@ function extractOffersExercised( txData, displayFn, opts ) {
       value: [ get_amnt, pay_amnt, 1 / exchange_rate ]
     };
 
+
     // call displayFn if the curr options are not set
     if (!opts || (!opts.curr0 && !opts.curr1)) {
       displayFn( currPair, opts );
       displayFn( revCurrPair, opts );
       return;
     }
+
 
     // call displayFn if the curr options match this offer
     if (opts && opts.curr0 && opts.curr1) {
