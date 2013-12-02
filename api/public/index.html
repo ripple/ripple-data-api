@@ -22,8 +22,8 @@
 
         <br>
         Start Time:
-        <input type="text" name="startTime" value="2013-10-01T00:00:00 +0000">End Time:
-        <input type="text" name="endTime" value="2013-10-31T00:00:00 +0000">
+        <input type="text" name="startTime" value="2013-11-01T00:00:00 +0000">End Time:
+        <input type="text" name="endTime" value="2013-11-30T00:00:00 +0000">
         
         <br>
         Time Interval:
@@ -45,6 +45,8 @@
       $('#submit').click(function(e) {
         e.preventDefault();
 
+        $('#results').html('');
+
         var formData = {};
         $.each($('[name="offersExercisedData"]').serializeArray(), function(index, val) {
           formData[val.name] = val.value;
@@ -65,10 +67,21 @@
         delete formData.tradeCurrencyIssuer;
 
         $.post('/api/offersExercised/', formData, function(res) {
-          var rows = res.split('\n');
-          rows.forEach(function(row){
-            $('#results').append('<tr><td>' + row.split(',').join('</td><td>') + '</td><tr>');
-          });
+
+          $('#results').html('');
+
+          if (formData.csv === 'true') {
+
+            var rows = res.split('\n');
+            rows.forEach(function(row){
+              $('#results').append('<tr><td>' + row.split(',').join('</td><td>') + '</td><tr>');
+            });
+
+          } else {
+
+            $('#results').append(res);
+
+          }
           
         });
       });
