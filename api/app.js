@@ -1,14 +1,22 @@
 var winston = require('winston'),
   moment = require('moment'),
+  _ = require('lodash'),
   express = require('express'),
+  ripple = require('ripple-lib'),
   app = express(),
   config = require('./apiConfig.json'),
   db = require('nano')('http://' + config.couchdb.username + 
     ':' + config.couchdb.password + 
     '@' + config.couchdb.host + 
     ':' + config.couchdb.port + 
-    '/' + config.couchdb.database);
+    '/' + config.couchdb.database),
+  gateways = require('./gateways.json');
+  // TODO find permanent location for gateways list
+  // should the gateways json file live in couchdb?
 
+// TODO handle hot wallets
+
+app.use(express.bodyParser());
 
 /**
  *  offersExercised returns reduced or individual 
@@ -23,7 +31,7 @@ var winston = require('winston'),
  *    descending: true/false, // optional, defaults to true
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
- *    timeIncrement: (any of the following: "ALL", "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND")
+ *    timeIncrement: (any of the following: "ALL", "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND") // optional, defaults to "DAY"
  *    
  *    csv: true/false // optional, defaults to false (sends result as json)
  *  }
@@ -35,12 +43,42 @@ app.post('/api/offersExercised/', function (req, res) {
 
   winston.info('req.body: ' + JSON.stringify(req.body));
 
-  // parse currency details
-  var baseCurr = (!req.body.base.issuer ? [req.body.base.currency] : [req.body.base.currency, req.body.base.issuer]),
-    tradeCurr = (!req.body.trade.issuer ? [req.body.trade.currency] : [req.body.trade.currency, req.body.trade.issuer]),
-    currPair = [tradeCurr, baseCurr];
+  // parse base currency details
+  var baseCurr;
+  if (!req.body.base.issuer) {
+    baseCurr = [req.body.base.currency.toUpperCase()];
+  } else if (ripple.UInt160.is_valid(req.body.base.issuer)) {
+    baseCurr = [req.body.base.currency.toUpperCase(), req.body.base.issuer];
+  } else {
+    var baseGatewayAddress = gatewayNameToAddress(req.body.base.issuer, req.body.base.currency.toUpperCase());
+    if (baseGatewayAddress) {
+      baseCurr = [req.body.base.currency.toUpperCase(), baseGatewayAddress];
+    } else {
+      winston.error('invalid base currency issuer: ' + req.body.base.issuer);
+      return;
+      // TODO handle invalid issuer better
+    }
+  }
+
+  // parse trade currency details
+  var tradeCurr;
+  if (!req.body.trade.issuer) {
+    tradeCurr = [req.body.trade.currency.toUpperCase()];
+  } else if (ripple.UInt160.is_valid(req.body.trade.issuer)) {
+    tradeCurr = [req.body.trade.currency.toUpperCase(), req.body.trade.issuer];
+  } else {
+    var tradeGatewayAddress = gatewayNameToAddress(req.body.trade.issuer, req.body.trade.currency.toUpperCase());
+    if (tradeGatewayAddress) {
+      tradeCurr = [req.body.trade.currency.toUpperCase(), tradeGatewayAddress];
+    } else {
+      winston.error('invalid trade currency issuer: ' + req.body.trade.issuer);
+      return;
+      // TODO handle invalid issuer better
+    }
+  }
 
   // parse startTime and endTime
+  // TODO handle incorrect startTime/endTime values
   var startTime, endTime;
   if (!req.body.startTime && !req.body.endTime) {
     // default
@@ -52,11 +90,9 @@ app.post('/api/offersExercised/', function (req, res) {
   } else {
     endTime = moment.utc(req.body.startTime);
     startTime = moment.utc(req.body.endTime);
-  } else {
-    // TODO handle incorrect startTime/endTime values
-    winton.error('Incorrect startTime or entTime values. startTime: ' + req.body.startTime + ' endTime: ' + req.body.entTime);
-  }
+  } 
 
+  // handle descending/non-descending query
   if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
     viewOpts.descending = true;
 
@@ -70,8 +106,8 @@ app.post('/api/offersExercised/', function (req, res) {
   }
 
   // set startkey and endkey for couchdb query
-  viewOpts.startkey = currPair.concat(startTime.toArray().slice(0,6));
-  viewOpts.endkey = currPair.concat(endTime.toArray().slice(0,6));
+  viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
+  viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
   // determine the group_level from the timeIncrement field
   if (req.body.timeIncrement) {
@@ -114,6 +150,7 @@ app.post('/api/offersExercised/', function (req, res) {
     }
 
     winston.info('Got ' + couchRes.rows.length + ' rows');
+    winston.info(JSON.stringify(couchRes.rows));
 
     // send result either as json or csv string
     if (!req.body.csv || req.body.csv === false || req.body.csv === 'false') {
@@ -125,7 +162,7 @@ app.post('/api/offersExercised/', function (req, res) {
 
         // reformat rows
         return {
-          time: moment.utc(row.key.slice(2)).format(),
+          time: (row.key ? moment.utc(row.key.slice(2)).format() : ''),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           open: row.value.open,
@@ -144,7 +181,7 @@ app.post('/api/offersExercised/', function (req, res) {
       var csvRows = [['time', 'baseCurrVolume', 'tradeCurrVolume', 'open', 'close', 'high', 'low', 'vwav'].join(', ')];
       couchRes.rows.forEach(function(row){
         csvRows.push([
-          moment.utc(row.key.slice(2)).format(),
+          (row.key ? moment.utc(row.key.slice(2)).format() : ''),
           row.value.curr2Volume,
           row.value.curr1Volume,
           row.value.open,
@@ -162,14 +199,47 @@ app.post('/api/offersExercised/', function (req, res) {
       res.end(csvRows.join('\n'));
 
       // TODO write data as a stream to download it
-
-      // res.send(csvRows.join('\n'));
     }
 
   });
 
 
 });
+
+
+/**
+ *  gatewayNameToAddress translates a given name and, 
+ *  optionally, a currency to its corresponding ripple address or
+ *  returns null
+ */
+ function gatewayNameToAddress( name, currency ) {
+
+  var gatewayAdress = null;
+
+  _.each(gateways, function(entry){
+
+    if (entry.name.toLowerCase() === name.toLowerCase()) {
+    
+      if (currency) {
+
+        _.each(entry.accounts, function(acct){
+
+          winston.info('acct: ' + JSON.stringify(acct));
+          if (acct.currencies.indexOf(currency) !== -1) {
+            gatewayAdress = acct.address;
+          }
+        });
+
+      } else {
+         gatewayAdress = entry.accounts[0].address;
+      }
+    }
+
+  });
+
+  return gatewayAdress;
+
+ }
 
 app.use(express.static('public'));
 app.listen(config.port);

@@ -12,7 +12,7 @@
       <form name="offersExercisedData">
         Base Currency:
         <input type="text" name="baseCurrency" value="USD">Base Currency Issuer:
-        <input type="text" name="baseCurrencyIssuer" value="rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B">
+        <input type="text" name="baseCurrencyIssuer" value="Bitstamp">
 
         <br>
         Trade Currency:
@@ -22,16 +22,19 @@
 
         <br>
         Start Time:
-        <input type="text" name="startTime" value="2013-11-01T00:00:00 +0000">End Time:
-        <input type="text" name="endTime" value="2013-11-30T00:00:00 +0000">
+        <input type="text" name="startTime" size="50" value="">
+
+        <br>
+        End Time:
+        <input type="text" name="endTime" size="50" value="">
         
         <br>
         Time Interval:
         <input type="text" name="timeIncrement" value="day">
-        Result Format:
+        <!-- Result Format:
         <input type="radio" name="csv" value="true" checked> CSV
         <input type="radio" name="csv" value="false"> JSON
-
+ -->
         <br>
         <button id="submit">Submit</button>
       </form>
@@ -42,6 +45,11 @@
 
       <script type="text/javascript" src="./jquery.js"></script>
       <script type="text/javascript">
+
+      var now = new Date();
+      $('[name=startTime]').attr('value', now.toString());
+      $('[name=endTime]').attr('value', (new Date(now.valueOf() - 2592000000)).toString());
+
       $('#submit').click(function(e) {
         e.preventDefault();
 
@@ -53,18 +61,23 @@
         });
 
         formData.base = { currency: formData.baseCurrency };
-        if (formData.baseCurrencyIssuer && formData.baseCurrencyIssuer !== '') {
+        if (formData.baseCurrencyIssuer 
+          && formData.baseCurrencyIssuer !== '') {
           formData.base.issuer = formData.baseCurrencyIssuer;
         }
         delete formData.baseCurrency;
         delete formData.baseCurrencyIssuer;
 
         formData.trade = { currency: formData.tradeCurrency };
-        if (formData.tradeCurrencyIssuer && formData.tradeCurrencyIssuer !== '') {
+        if (formData.tradeCurrencyIssuer 
+          && formData.tradeCurrencyIssuer !== '') {
           formData.trade.issuer = formData.tradeCurrencyIssuer;
         }
         delete formData.tradeCurrency;
         delete formData.tradeCurrencyIssuer;
+
+        // TODO change this back to being an option
+        formData.csv = 'true';
 
         $.post('/api/offersExercised/', formData, function(res) {
 
