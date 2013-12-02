@@ -16,6 +16,7 @@ var winston = require('winston'),
 
 // TODO handle hot wallets
 
+// TODO use express.json() instead of bodyParser
 app.use(express.bodyParser());
 
 /**
@@ -31,6 +32,7 @@ app.use(express.bodyParser());
  *    descending: true/false, // optional, defaults to true
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
+ *    reduce: true/false, // optional, defaults to true
  *    timeIncrement: (any of the following: "ALL", "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND") // optional, defaults to "DAY"
  *    
  *    csv: true/false // optional, defaults to false (sends result as json)
@@ -109,12 +111,21 @@ app.post('/api/offersExercised/', function (req, res) {
   viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
   viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
+    // set reduce option
+  if (!req.body.hasOwnProperty('reduce')) {
+    viewOpts.reduce = true;
+  } else {
+    viewOpts.reduce = (req.body.reduce === true);
+  }
+
   // determine the group_level from the timeIncrement field
-  if (req.body.timeIncrement) {
+  if (viewOpts.reduce === true && req.body.timeIncrement) {
     var inc = req.body.timeIncrement.toLowerCase(),
       levels = ['year', 'month', 'day', 'hour', 'minute', 'second'];
     if (inc === 'all') {
       viewOpts.group = false;
+    } else if (inc === 'none') {
+      viewOpts.reduce = false;
     } else if (levels.indexOf(inc)) {
       viewOpts.group_level = 3 + levels.indexOf(inc);
     } else {
@@ -125,12 +136,6 @@ app.post('/api/offersExercised/', function (req, res) {
     viewOpts.group_level = 3 + 2; // default to day
   }
 
-  // set reduce option
-  if (!req.body.hasOwnProperty('reduce')) {
-    viewOpts.reduce = true;
-  } else {
-    viewOpts.reduce = (req.body.reduce === true);
-  }
 
   // set stale view option
   if ((!req.body.hasOwnProperty('stale') && !req.body.hasOwnProperty('staleView'))
@@ -150,7 +155,7 @@ app.post('/api/offersExercised/', function (req, res) {
     }
 
     winston.info('Got ' + couchRes.rows.length + ' rows');
-    winston.info(JSON.stringify(couchRes.rows));
+    // winston.info(JSON.stringify(couchRes.rows));
 
     // send result either as json or csv string
     if (!req.body.csv || req.body.csv === false || req.body.csv === 'false') {
