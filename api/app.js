@@ -35,9 +35,9 @@ app.use(express.bodyParser());
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
  *    reduce: true/false, // optional, defaults to true
- *    timeIncrement: (any of the following: "ALL", "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND") // optional, defaults to "DAY"
+ *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    
- *    format: (either 'csv' or 'json', defaults to 'json')
+ *    format: (either 'json', 'json_verbose', 'csv') // optional, defaults to 'json'
  *  }
  */
 app.post('/api/offersExercised/', function (req, res) {
@@ -158,40 +158,59 @@ app.post('/api/offersExercised/', function (req, res) {
     winston.info('Got ' + couchRes.rows.length + ' rows');
     winston.info(JSON.stringify(couchRes.rows));
 
-    // send result either as json or csv string
-    if (req.body.format && req.body.format.toLowerCase() === 'csv') {
+    // prepare results to send back
+    var resRows = [],
+      headerRow = [
+        'openTime', 
+        'closeTime', 
+        'baseCurrVolume', 
+        'tradeCurrVolume', 
+        'numTrades', 
+        'openPrice', 
+        'closePrice', 
+        'highPrice', 
+        'low', 
+        'vwav'
+      ];
 
-      var csvRows = [];
+    resRows.push(headerRow);
 
-      // add headers
-      csvRows.push(['time', 'baseCurrVolume', 'tradeCurrVolume', 'open', 'close', 'high', 'low', 'vwav'].join(', '));
-
-      // add rows
-      couchRes.rows.forEach(function(row){
-        csvRows.push([
-          (row.key ? moment.utc(row.key.slice(2)).format() : moment.utc(row.value.openTime.slice(2)).format()),
+    couchRes.rows.forEach(function(row){
+        resRows.push([
+          moment.utc(row.value.openTime.slice(2)).format(),
+          moment.utc(row.value.closeTime.slice(2)).format(),          
           row.value.curr2Volume,
           row.value.curr1Volume,
+          row.value.numTrades,
           row.value.open,
           row.value.close,
           row.value.high,
           row.value.low,
           row.value.volumeWeightedAvg
-          ].join(', '));
+          ]);
       });
 
-      // send csv file
+    // handle format option
+    if (!req.body.format || req.body.format === 'json') {
+
+      // TODO include time sent?
+      res.send(resRows);
+
+    } else if (req.body.format === 'csv') {
+
+      var csvStr = _.map(resRows, function(row){
+        return row.join(', ');
+      }).join('\n');
+
+      // TODO make this download instead of display
       res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
       res.setHeader('Content-type', 'text/csv');
       res.charset = 'UTF-8';
-      res.end(csvRows.join('\n'));
+      res.end(csvStr);
 
-      // TODO write data as a stream to download it
-    
-    } else {
+    } else if (req.body.format === 'json_verbose') {
 
-      // send as json
-
+      // send as an array of json objects
       var apiRes = {};
       apiRes.timeRetrieved = moment.utc().valueOf();
 
@@ -199,19 +218,25 @@ app.post('/api/offersExercised/', function (req, res) {
 
         // reformat rows
         return {
-          time: (row.key ? moment.utc(row.key.slice(2)).format() : moment.utc(row.value.openTime.slice(2)).format()),
+          openTime: moment.utc(row.value.openTime.slice(2)).format(),
+          closeTime: moment.utc(row.value.closeTime.slice(2)).format(),          
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
-          open: row.value.open,
-          close: row.value.close,
-          high: row.value.high,
-          low: row.value.low,
-          vwav: row.value.volumeWeightedAvg
+          numTrades: row.value.numTrades,
+          openPrice: row.value.open,
+          closePrice: row.value.close,
+          highPrice: row.value.high,
+          lowPrice: row.value.low,
+          vwavPrice: row.value.volumeWeightedAvg
         };
 
       });
 
       res.json(apiRes);
+
+    } else {
+      // TODO handle incorrect input
+      winston.error('incorrect format: ' + req.body.format);
 
     }
 
