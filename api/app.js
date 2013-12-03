@@ -19,6 +19,8 @@ var winston = require('winston'),
 // TODO use express.json() instead of bodyParser
 app.use(express.bodyParser());
 
+
+
 /**
  *  offersExercised returns reduced or individual 
  *  trade-level data about trades that were executed
@@ -38,7 +40,6 @@ app.use(express.bodyParser());
  *    csv: true/false // optional, defaults to false (sends result as json)
  *  }
  */
-
 app.post('/api/offersExercised/', function (req, res) {
 
   var viewOpts = {};
@@ -179,7 +180,7 @@ app.post('/api/offersExercised/', function (req, res) {
 
       });
 
-      res.json(rows);
+      res.json(apiRes);
     
     } else {
 
