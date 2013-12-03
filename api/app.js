@@ -14,7 +14,8 @@ var winston = require('winston'),
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
 
-var DATEFORMAT = 'YYYY-MM-DDTHH:mm:ssZZ';
+var DATEARRAY = ['YYYY', '-MM', '-DD', 'THH', ':mm', ':ssZZ'],
+  DATEFORMAT = DATEARRAY.join('');
 
 // TODO handle hot wallets
 
@@ -160,11 +161,11 @@ app.post('/api/offersExercised/', function (req, res) {
     winston.info('Got ' + couchRes.rows.length + ' rows');
     winston.info(JSON.stringify(couchRes.rows));
 
+
     // prepare results to send back
     var resRows = [],
       headerRow = [
-        'openTime', 
-        'closeTime', 
+        'time', 
         'baseCurrVolume', 
         'tradeCurrVolume', 
         'numTrades', 
@@ -178,19 +179,18 @@ app.post('/api/offersExercised/', function (req, res) {
     resRows.push(headerRow);
 
     couchRes.rows.forEach(function(row){
-        resRows.push([
-          moment.utc(row.value.openTime.slice(2)).format(DATEFORMAT),
-          moment.utc(row.value.closeTime.slice(2)).format(DATEFORMAT),          
-          row.value.curr2Volume,
-          row.value.curr1Volume,
-          row.value.numTrades,
-          row.value.open,
-          row.value.close,
-          row.value.high,
-          row.value.low,
-          row.value.volumeWeightedAvg
-          ]);
-      });
+      resRows.push([
+        (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+        row.value.curr2Volume,
+        row.value.curr1Volume,
+        row.value.numTrades,
+        row.value.open,
+        row.value.close,
+        row.value.high,
+        row.value.low,
+        row.value.volumeWeightedAvg
+        ]);
+    });
 
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
@@ -220,8 +220,7 @@ app.post('/api/offersExercised/', function (req, res) {
 
         // reformat rows
         return {
-          openTime: moment.utc(row.value.openTime.slice(2)).format(DATEFORMAT),
-          closeTime: moment.utc(row.value.closeTime.slice(2)).format(DATEFORMAT),          
+          openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           numTrades: row.value.numTrades,
