@@ -169,8 +169,8 @@ app.post('/api/offersExercised/', function (req, res) {
         'openPrice', 
         'closePrice', 
         'highPrice', 
-        'low', 
-        'vwav'
+        'lowPrice', 
+        'vwavPrice'
       ];
 
     resRows.push(headerRow);
