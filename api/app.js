@@ -37,7 +37,7 @@ app.use(express.bodyParser());
  *    reduce: true/false, // optional, defaults to true
  *    timeIncrement: (any of the following: "ALL", "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND") // optional, defaults to "DAY"
  *    
- *    csv: true/false // optional, defaults to false (sends result as json)
+ *    format: (either 'csv' or 'json', defaults to 'json')
  *  }
  */
 app.post('/api/offersExercised/', function (req, res) {
@@ -159,7 +159,38 @@ app.post('/api/offersExercised/', function (req, res) {
     // winston.info(JSON.stringify(couchRes.rows));
 
     // send result either as json or csv string
-    if (!req.body.csv || req.body.csv === false || req.body.csv === 'false') {
+    if (req.body.format && req.body.format.toLowerCase() === 'csv') {
+
+      var csvRows = [];
+
+      // add headers
+      csvRows.push(['time', 'baseCurrVolume', 'tradeCurrVolume', 'open', 'close', 'high', 'low', 'vwav'].join(', '));
+
+      // add rows
+      couchRes.rows.forEach(function(row){
+        csvRows.push([
+          (row.key ? moment.utc(row.key.slice(2)).format() : ''),
+          row.value.curr2Volume,
+          row.value.curr1Volume,
+          row.value.open,
+          row.value.close,
+          row.value.high,
+          row.value.low,
+          row.value.volumeWeightedAvg
+          ].join(', '));
+      });
+
+      // send csv file
+      res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
+      res.setHeader('Content-type', 'text/csv');
+      res.charset = 'UTF-8';
+      res.end(csvRows.join('\n'));
+
+      // TODO write data as a stream to download it
+    
+    } else {
+
+      // send as json
 
       var apiRes = {};
       apiRes.timeRetrieved = moment.utc().valueOf();
@@ -181,30 +212,7 @@ app.post('/api/offersExercised/', function (req, res) {
       });
 
       res.json(apiRes);
-    
-    } else {
 
-      var csvRows = [['time', 'baseCurrVolume', 'tradeCurrVolume', 'open', 'close', 'high', 'low', 'vwav'].join(', ')];
-      couchRes.rows.forEach(function(row){
-        csvRows.push([
-          (row.key ? moment.utc(row.key.slice(2)).format() : ''),
-          row.value.curr2Volume,
-          row.value.curr1Volume,
-          row.value.open,
-          row.value.close,
-          row.value.high,
-          row.value.low,
-          row.value.volumeWeightedAvg
-          ].join(', '));
-      });
-
-      // send csv file
-      res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
-      res.setHeader('Content-type', 'text/csv');
-      res.charset = 'UTF-8';
-      res.end(csvRows.join('\n'));
-
-      // TODO write data as a stream to download it
     }
 
   });

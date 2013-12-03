@@ -86,7 +86,7 @@
         delete formData.tradeCurrencyIssuer;
 
         // TODO change this back to being an option
-        formData.csv = 'true';
+        formData.format = 'csv';
 
         $.post('/api/offersExercised/', formData, function(res) {
 
