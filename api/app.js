@@ -14,6 +14,8 @@ var winston = require('winston'),
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
 
+var DATEFORMAT = 'YYYY-MM-DDTHH:mm:ssZZ';
+
 // TODO handle hot wallets
 
 // TODO use express.json() instead of bodyParser
@@ -177,8 +179,8 @@ app.post('/api/offersExercised/', function (req, res) {
 
     couchRes.rows.forEach(function(row){
         resRows.push([
-          moment.utc(row.value.openTime.slice(2)).format(),
-          moment.utc(row.value.closeTime.slice(2)).format(),          
+          moment.utc(row.value.openTime.slice(2)).format(DATEFORMAT),
+          moment.utc(row.value.closeTime.slice(2)).format(DATEFORMAT),          
           row.value.curr2Volume,
           row.value.curr1Volume,
           row.value.numTrades,
@@ -218,8 +220,8 @@ app.post('/api/offersExercised/', function (req, res) {
 
         // reformat rows
         return {
-          openTime: moment.utc(row.value.openTime.slice(2)).format(),
-          closeTime: moment.utc(row.value.closeTime.slice(2)).format(),          
+          openTime: moment.utc(row.value.openTime.slice(2)).format(DATEFORMAT),
+          closeTime: moment.utc(row.value.closeTime.slice(2)).format(DATEFORMAT),          
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           numTrades: row.value.numTrades,
