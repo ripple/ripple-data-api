@@ -88,11 +88,13 @@
         // TODO change this back to being an option
         formData.format = 'csv';
 
+        console.log('Sending formData: ' + JSON.stringify(formData));
+
         $.post('/api/offersExercised/', formData, function(res) {
 
           $('#results').html('');
 
-          if (formData.csv === 'true') {
+          if (formData.format === 'csv') {
 
             var rows = res.split('\n');
             rows.forEach(function(row){

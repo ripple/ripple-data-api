@@ -112,7 +112,7 @@ app.post('/api/offersExercised/', function (req, res) {
   viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
   viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
-    // set reduce option
+  // set reduce option
   if (!req.body.hasOwnProperty('reduce')) {
     viewOpts.reduce = true;
   } else {
@@ -156,7 +156,7 @@ app.post('/api/offersExercised/', function (req, res) {
     }
 
     winston.info('Got ' + couchRes.rows.length + ' rows');
-    // winston.info(JSON.stringify(couchRes.rows));
+    winston.info(JSON.stringify(couchRes.rows));
 
     // send result either as json or csv string
     if (req.body.format && req.body.format.toLowerCase() === 'csv') {
@@ -169,7 +169,7 @@ app.post('/api/offersExercised/', function (req, res) {
       // add rows
       couchRes.rows.forEach(function(row){
         csvRows.push([
-          (row.key ? moment.utc(row.key.slice(2)).format() : ''),
+          (row.key ? moment.utc(row.key.slice(2)).format() : moment.utc(row.value.openTime.slice(2)).format()),
           row.value.curr2Volume,
           row.value.curr1Volume,
           row.value.open,
@@ -199,7 +199,7 @@ app.post('/api/offersExercised/', function (req, res) {
 
         // reformat rows
         return {
-          time: (row.key ? moment.utc(row.key.slice(2)).format() : ''),
+          time: (row.key ? moment.utc(row.key.slice(2)).format() : moment.utc(row.value.openTime.slice(2)).format()),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           open: row.value.open,
@@ -238,7 +238,6 @@ app.post('/api/offersExercised/', function (req, res) {
 
         _.each(entry.accounts, function(acct){
 
-          winston.info('acct: ' + JSON.stringify(acct));
           if (acct.currencies.indexOf(currency) !== -1) {
             gatewayAdress = acct.address;
           }
