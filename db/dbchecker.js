@@ -14,6 +14,8 @@ var config = require( '../config' ),
     ':' + config.couchdb.port +
     '/' + config.couchdb.database );
 
+var BATCHSIZE = 1000;
+
 if (process.argv.length < 3) {
 
     // get earliest ledger number
@@ -46,49 +48,63 @@ if (process.argv.length < 3) {
 
 function verifyFromLedgerIndex (ledgerIndex, prevLedgerHash) {
 
-    // TODO use bulk api
-    db.get(addLeadingZeros(ledgerIndex, 10), function(err, body){
+    var indexes = _.range(ledgerIndex, ledgerIndex + BATCHSIZE),
+      docsNames = _.map(indexes, function(index){
+        return addLeadingZeros(index, 10);
+      });
+
+    // winston.info('Getting docs: ' + JSON.stringify(docsNames));
+
+    db.fetch({keys: docsNames}, function(err, body){
 
         if (err) {
             winston.error("Error getting ledgerIndex: " + ledgerIndex + " err: " + err);
             return;
         }
 
-        // check index number is correct
-        if (ledgerIndex !== body.ledger_index) {
-          winston.error('db has wrong ledger at ledgerIndex: ' + ledgerIndex + 
-            ' body.ledger_index is: ' + body.ledger_index);
-          return;
-        }
+        // winston.info(JSON.stringify(body));
 
-        // check ledger chain is intact
-        if (prevLedgerHash) {
+        for (var r = 0, len = body.rows.length; r < len; r++) {
 
-          if (prevLedgerHash !== body.parent_hash) {
-            winston.error('problem in ledger chain. ledger ' + body.ledger_index +
-              ' has parent_hash: ' + body.parent_hash + ' but the prevLedgerHash is: ' + prevLedgerHash);
+          var row = body.rows[r],
+            ledger = row.doc;
+
+          // check index number is correct
+          if (parseInt(row.id, 10) !== parseInt(ledger.ledger_index, 10)) {
+            winston.error('db has wrong ledger at ledgerIndex: ' + parseInt(row.id, 10) + 
+              ' ledger.ledger_index is: ' + ledger.ledger_index);
             return;
           }
 
-        } else {
+          // check ledger chain is intact
+          if (prevLedgerHash) {
 
-          winston.error('prevLedgerHash: ' + prevLedgerHash + ' for ledgerIndex: ' + ledgerIndex);
-        
+            if (prevLedgerHash !== ledger.parent_hash) {
+              winston.error('problem in ledger chain. ledger ' + ledger.ledger_index +
+                ' has parent_hash: ' + ledger.parent_hash + ' but the prevLedgerHash is: ' + prevLedgerHash);
+              return;
+            }
+
+          } else {
+
+            winston.error('prevLedgerHash: ' + prevLedgerHash + ' for ledgerIndex: ' + ledgerIndex);
+          
+          }
+
+          // check transactions has correctly
+          if (!verifyLedgerTransactions(ledger)) {
+            winston.error('transactions do not hash correctly for ledger ' + ledger.ledger_index);
+            return;
+          }
+
+          prevLedgerHash = ledger.ledger_hash;
+
         }
 
-        // check transactions has correctly
-        if (!verifyLedgerTransactions(body)) {
-          winston.error('transactions do not hash correctly for ledger ' + body.ledger_index);
-          return;
-        }
-
-        // print to log every 1000 good ledgers
-        if (ledgerIndex % 1000 === 0) {
-          winston.info('Verified ledgers to ledger_index: ' + ledgerIndex + " (" + (new Date().toString()) + ")");
-        }
+        winston.info('Verified ledgers: ' + ledgerIndex + " to " + (ledgerIndex + BATCHSIZE) + " (" + (new Date().toString()) + ")");
 
         setImmediate(function(){
-          verifyFromLedgerIndex(ledgerIndex + 1, body.ledger_hash);
+          verifyFromLedgerIndex(ledgerIndex + BATCHSIZE, body.rows[body.rows.length-1].doc.ledger_hash);
         });
     });
 
