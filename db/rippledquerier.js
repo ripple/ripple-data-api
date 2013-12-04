@@ -94,7 +94,7 @@ function getLedger( dbs, ledgerIdentifier, callback ) {
 
     } else {
 
-      winston.error("Error with ledger " + ledgerIdentifier + " in local db");
+      winston.error("Problem with ledger " + ledgerIdentifier + " in local db");
       // getLedgerFromRemoteRippled( ledgerIdentifier, callback );
 
     }
@@ -146,6 +146,7 @@ function getLedgerFromLocalRippled( dbs, ledgerIdentifier, callback ) {
         }
 
         if ( !correctHeader ) {
+          winston.error('could not find correct header amongst rows for ledger: ' + rows[0].LedgerSeq);
           callback( null, null );
           return;
         }
@@ -214,6 +215,7 @@ function verifyAndSelectHeader( dbs, rows, callback ) {
           }
 
           if ( !nextHeader ) {
+            winston.error('in verifyAndSelectHeader, nextHeader is null');
             callback( null, null );
             return;
           }
