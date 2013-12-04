@@ -193,6 +193,8 @@ function verifyAndSelectHeader( dbs, rows, callback ) {
       if ( nextRows.length === 0 ) {
 
         // header cannot be verified locally
+        winston.error('cannot verify header for ledger: ' + rows[0].LedgerSeq + 
+          ' because there appear to be no entries for the next ledger');
         callback( null, null );
         return;
 
@@ -370,6 +372,12 @@ function verifyLedgerTransactions( ledger ) {
 
   var ledgerJsonTxHash = Ledger.from_json( ledger )
     .calc_tx_hash( ).to_hex( );
+
+  if (ledgerJsonTxHash !== ledger.transaction_hash) {
+    winston.error('transactions do not hash properly for ledger: ' + ledger.ledger_index +
+      '\nactual:  ' + ledgerJsonTxHash + 
+      '\nexpected:' + ledger.transaction_hash);
+  }
 
   return ledgerJsonTxHash === ledger.transaction_hash;
 }
