@@ -411,22 +411,24 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
       expand: true
     }).callback( function( err, res ) {
 
-        if ( err ) {
-          winston.error( "Error in getLedgerFromRemoteRippled: " + err );
+      winston.info('res: ' + JSON.stringify(res));
 
-          setTimeout(function(){
-            tryServer( server_num );
-          }, 5000);
-          return;
-        }
+      if ( err ) {
+        winston.error( "Error in getLedgerFromRemoteRippled: " + err );
 
-        var ledger = formatRemoteLedger( res.ledger );
+        setTimeout(function(){
+          tryServer( server_num );
+        }, 5000);
+        return;
+      }
 
-        callback( null, ledger );
+      var ledger = formatRemoteLedger( res.ledger );
 
-        winston.info('ledger: ' + ledger.ledger_index + ' has correct transactions: ' + verifyLedgerTransactions(ledger));
+      callback( null, ledger );
 
-      });
+      winston.info('ledger: ' + ledger.ledger_index + ' has correct transactions: ' + verifyLedgerTransactions(ledger));
+
+    });
 
   });
 
