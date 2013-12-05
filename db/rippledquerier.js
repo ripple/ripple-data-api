@@ -394,8 +394,6 @@ function verifyLedgerTransactions( ledger ) {
 
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
-  // var servers = _.shuffle(serverAddresses);
-
   var remote = new ripple.Remote( {
     // trace: true,
     servers: _.map( serverAddresses, function( addr ) {
@@ -414,11 +412,9 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   function tryServer( server_num ) {
 
     if ( server_num > serverAddresses.length - 1 ) {
+
       callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
         "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
-
-      // remote.disconnect();
-      // remote = null;
 
       return;
     }
@@ -434,8 +430,6 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
       .setServer( serverAddresses[ server_num ] )
       .callback( function( err, res ) {
 
-        // winston.info("res 1: " + JSON.stringify(res));
-
         if ( err ) {
           winston.error( "Error in getLedgerFromRemoteRippled: " + err );
 
@@ -447,68 +441,11 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
         var ledger = formatRemoteLedger( res.ledger );
 
-        // compare ledger.ledger_hash to the next ledger's parent_hash
-        remote.requestLedger( ledger.ledger_index + 1 )
-          // .set_server( serverAddresses[ server_num ] )
-          .callback( function( err, res ) {
+        callback( null, ledger );
 
-            // winston.info("res 2: " + JSON.stringify(res));
+        winston.info('verifyLedgerTransactions(ledger): ', verifyLedgerTransactions(ledger));
 
-            if ( err ) {
-              winston.error( "Error in getLedgerFromRemoteRippled: " + err );
-
-              // try another server
-              setTimeout(function(){
-                tryServer( ++server_num );
-              }, 1000);
-              return;
-            }
-
-            // check ledger hash chain
-            if ( res.ledger.parent_hash !== ledger.ledger_hash ) {
-              // TODO how do you handle if the remote has two incorrect ledgers in a row?
-
-              winston.error( server_addresses[ server_num ] +
-                " has a broken ledger chain:\n" +
-                "ledger: " + res.ledger.ledger_index +
-                ", ledger_hash: " + res.ledger.ledger_hash +
-                ", parent_hash: " + res.ledger.parent_hash + "\n" +
-                "ledger: " + ledger.ledger_index +
-                " ledger_hash: " + ledger.ledger_hash );
-
-              setTimeout(function(){
-                tryServer( ++server_num );
-              }, 1000);
-              return;
-
-            }
-
-            // check hash of transactions
-            if ( verifyLedgerTransactions( ledger ) ) {
-
-              callback( null, ledger );
-
-              // remote.disconnect();
-              // remote = null;
-
-              return;
-
-            } else {
-
-              winston.error( server_addresses[ server_num ] +
-                " is returning a ledger whose transactions " +
-                "do not hash to the expected value\n" +
-                JSON.stringify( ledger ) );
-
-              setTimeout(function(){
-                tryServer( ++server_num );
-              }, 1000);
-              return;
-
-            }
-          } );
       } );
-
 
   }
 }
