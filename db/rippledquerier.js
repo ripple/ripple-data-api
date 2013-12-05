@@ -8,8 +8,8 @@ var sqlite3 = require( 'sqlite3' ).verbose( ),
 
 /* ripple-lib imports */
 var ripple = require( 'ripple-lib' ),
-  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger;
-  // serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
+  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
+  serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
 
 
 /* config options */
