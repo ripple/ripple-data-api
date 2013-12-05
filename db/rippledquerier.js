@@ -397,27 +397,15 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   winston.info('getLedgerFromRemoteRippled: ' + ledgerIdentifier);
 
   var remote = new ripple.Remote( {
-    trace: true,
+    // trace: true,
     servers: [{
       host: 's_west.ripple.com',
       port: 443
     }]
   });
 
-  //   _.map( serverAddresses, function( addr ) {
-  //     return {
-  //       host: addr,
-  //       port: 443
-  //     };
-  //   } )
-  // } );
-  remote.connect(function(err){
-    winston.info('connected');
-  });
-
-  remote.on('ready', function(){
-    winston.info('ready');
-    
+  remote.connect(function(){
+   
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
@@ -438,7 +426,8 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
         winston.info('ledger: ' + ledger.ledger_index + ' has correct transactions: ' + verifyLedgerTransactions(ledger));
 
-      } );
+      });
+
   });
 
 }
