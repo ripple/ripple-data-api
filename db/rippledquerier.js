@@ -394,6 +394,8 @@ function verifyLedgerTransactions( ledger ) {
 
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
+  winston.info('getLedgerFromRemoteRippled: ' + ledgerIdentifier)
+;
   var remote = new ripple.Remote( {
     // trace: true,
     servers: [{
@@ -412,23 +414,6 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   remote.connect( );
 
   remote.on('ready', function(){
-    tryServer(0);
-  });
-
-  function tryServer( server_num ) {
-
-    // if ( server_num > serverAddresses.length - 1 ) {
-
-    //   callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
-    //     "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
-
-    //   return;
-    // }
-
-    
-    // winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
-    //   ledgerIdentifier + " server " + serverAddresses[ server_num ] );
-
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
@@ -447,11 +432,11 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
         callback( null, ledger );
 
-        winston.info('verifyLedgerTransactions(ledger): ', verifyLedgerTransactions(ledger));
+        winston.info('ledger: ' + ledger.ledger_index + ' has correct transactions: ' + verifyLedgerTransactions(ledger));
 
       } );
+  });
 
-  }
 }
 
 
