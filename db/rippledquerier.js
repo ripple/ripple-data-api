@@ -94,9 +94,37 @@ function getLedger( dbs, ledgerIdentifier, callback ) {
 
     } else {
 
-      winston.error("Problem with ledger " + ledgerIdentifier + " in local db");
-      getLedgerFromRemoteRippled( ledgerIdentifier, callback );
+      if ( typeof ledgerIdentifier === "number") {
 
+        dbs.ledb.all( "SELECT PrevHash FROM Ledgers WHERE LedgerSeq = ?;", [ ledgerIdentifier + 1 ],
+          function( err, rows ) {
+
+            if (err || rows.length === 0) {
+              winston.error('error getting PrevHash for ledger: ' + (ledgerIdentifier + 1) + ' err: ' + err);
+              return;
+            }
+
+            getLedgerFromRemoteRippled(rows[0].PrevHash, callback);
+
+          });
+
+      } else if ( typeof ledgerIdentifier === "string") {
+
+        dbs.ledb.all( "SELECT LedgerSeq FROM Ledgers WHERE LedgerHash = ?;", [ ledgerIdentifier ],
+          function( err, rows ) {
+
+            if (err || rows.length === 0) {
+              winston.error('error getting LedgerSeq for ledger: ' + ledgerIdentifier + ' err: ' + err);
+              return;
+            }
+
+            setImmediate(function(){
+              getLedger(dbs, rows[0].LedgerSeq, callback);
+            });
+
+          });
+
+      }
     }
   } );
 }
