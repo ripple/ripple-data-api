@@ -394,8 +394,8 @@ function verifyLedgerTransactions( ledger ) {
 
 function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
-  winston.info('getLedgerFromRemoteRippled: ' + ledgerIdentifier)
-;
+  winston.info('getLedgerFromRemoteRippled: ' + ledgerIdentifier);
+
   var remote = new ripple.Remote( {
     // trace: true,
     servers: [{
@@ -411,9 +411,13 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   //     };
   //   } )
   // } );
-  remote.connect( );
+  remote.connect(function(err){
+    winston.info('connected');
+  });
 
   remote.on('ready', function(){
+    winston.info('ready');
+    
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
