@@ -95,7 +95,7 @@ function getLedger( dbs, ledgerIdentifier, callback ) {
     } else {
 
       winston.error("Problem with ledger " + ledgerIdentifier + " in local db");
-      // getLedgerFromRemoteRippled( ledgerIdentifier, callback );
+      getLedgerFromRemoteRippled( ledgerIdentifier, callback );
 
     }
   } );
