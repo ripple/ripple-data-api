@@ -17,13 +17,97 @@ var winston = require('winston'),
 var DATEARRAY = ['YYYY', '-MM', '-DD', 'THH', ':mm', ':ssZZ'],
   DATEFORMAT = DATEARRAY.join('');
 
+var apiHandlers = {
+  'offersexercised': offersExercisedHandler,
+  'accountscreated': accountsCreatedHandler,
+  'gatewaycapitalization': gatewayCapitalizationHandler,
+  'exchangerates': exchangeRatesHandler
+};
+
 // TODO handle hot wallets
+
+// enable CORS
+var allowCrossDomain = function(req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+
+    // intercept OPTIONS method
+    if ('OPTIONS' == req.method) {
+      res.send(200);
+    }
+    else {
+      next();
+    }
+};
+app.use(allowCrossDomain);
 
 // TODO use express.json() instead of bodyParser
 app.use(express.bodyParser());
 
+// general api route handler
+app.post('/api/*', function(req, res){
 
-// TODO create one app.post('/api/*') handler that processes requests
+  var path = req.path.slice(5),
+    apiRoute;
+  
+  if (path.indexOf('/') !== -1) {
+  
+    apiRoute = path.slice(0, path.indexOf('/')).toLowerCase();
+  
+  } else {
+  
+    apiRoute = path.toLowerCase();
+  
+  }
+
+  if (apiHandlers[apiRoute]) {
+
+    winston.info('Calling apiHandler for apiRoute: ' + apiRoute);
+    apiHandlers[apiRoute](req, res);
+
+  } else {
+
+    var availableRoutes = _.map(Object.keys(apiHandlers), function(route){
+      return '/api/' + route + '/';
+    });
+    res.send(404, 'Sorry, that API route doesn\'t seem to exist. Available paths are: ' + availableRoutes.join(', ') + '\n');
+  
+  }
+
+});
+
+
+
+
+// TODO
+function gatewayCapitalizationHandler( req, res ) {
+  res.send(404, 'Oops! This API route is still under development, try again soon.\n');
+}
+
+// TODO
+/**
+ *  exchangeRates returns the exchange rate(s) between two or more currencies
+ *  for a given time range, broken down by the given time increment
+ *
+ *  expects req.body to have:
+ *  {
+ *    currencies: [{currency: "XRP"}, {currency: "USD", issuer: "Bitstamp"}, ...]
+ *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
+ *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
+ *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "all"
+ *  }
+ */
+function exchangeRatesHandler( req, res ) {
+  res.send(404, 'Oops! This API route is still under development, try again soon.\n');
+}
+
+
+
+
+
+
+
 
 /**
  *  offersExercised returns reduced or individual 
@@ -44,8 +128,8 @@ app.use(express.bodyParser());
  *    format: (either 'json', 'json_verbose', 'csv') // optional, defaults to 'json'
  *  }
  */
-app.post('/api/offersExercised/', function (req, res) {
-
+function offersExercisedHandler( req, res ) {
+ 
   var viewOpts = {};
 
   winston.info('req.body: ' + JSON.stringify(req.body));
@@ -62,8 +146,8 @@ app.post('/api/offersExercised/', function (req, res) {
       baseCurr = [req.body.base.currency.toUpperCase(), baseGatewayAddress];
     } else {
       winston.error('invalid base currency issuer: ' + req.body.base.issuer);
+      res.send(500, { error: 'invalid base currency issuer: ' + req.body.base.issuer });
       return;
-      // TODO handle invalid issuer better
     }
   }
 
@@ -79,25 +163,45 @@ app.post('/api/offersExercised/', function (req, res) {
       tradeCurr = [req.body.trade.currency.toUpperCase(), tradeGatewayAddress];
     } else {
       winston.error('invalid trade currency issuer: ' + req.body.trade.issuer);
+      res.send(500, { error: 'invalid trade currency issuer: ' + req.body.trade.issuer });
       return;
-      // TODO handle invalid issuer better
     }
   }
 
   // parse startTime and endTime
   // TODO handle incorrect startTime/endTime values
   var startTime, endTime;
+
   if (!req.body.startTime && !req.body.endTime) {
-    // default
+
     startTime = moment.utc().subtract('days', 30);
     endTime = moment.utc();
-  } else if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-    startTime = moment.utc(req.body.startTime);
-    endTime = moment.utc(req.body.endTime);
+
+  } else if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+
+    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
+      startTime = moment.utc(req.body.startTime);
+      endTime = moment.utc(req.body.endTime);
+    } else {
+      endTime = moment.utc(req.body.startTime);
+      startTime = moment.utc(req.body.endTime);
+    }
+
   } else {
-    endTime = moment.utc(req.body.startTime);
-    startTime = moment.utc(req.body.endTime);
-  } 
+
+    if (!moment(req.body.startTime).isValid()) {
+      winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
+      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+    }
+
+    if (!moment(req.body.endTime).isValid()) {
+      winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
+      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+    }
+
+    return;
+
+  }
 
   // handle descending/non-descending query
   if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
@@ -107,9 +211,7 @@ app.post('/api/offersExercised/', function (req, res) {
     var tempTime = startTime;
     startTime = endTime;
     endTime = tempTime;
-  } else {
-    // TODO handle incorrect values
-    winton.error('Inccorect descending value. descending: ' + req.body.descending);
+
   }
 
   // set startkey and endkey for couchdb query
@@ -125,11 +227,11 @@ app.post('/api/offersExercised/', function (req, res) {
 
   // determine the group_level from the timeIncrement field
   if (viewOpts.reduce === true && req.body.timeIncrement) {
-    var inc = req.body.timeIncrement.toLowerCase(),
-      levels = ['year', 'month', 'day', 'hour', 'minute', 'second'];
-    if (inc === 'all') {
+    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+    if (inc === 'al') {
       viewOpts.group = false;
-    } else if (inc === 'none') {
+    } else if (inc === 'no') {
       viewOpts.reduce = false;
     } else if (levels.indexOf(inc)) {
       viewOpts.group_level = 3 + levels.indexOf(inc);
@@ -150,8 +252,57 @@ app.post('/api/offersExercised/', function (req, res) {
 
   winston.info('viewOpts:' + JSON.stringify(viewOpts));
 
-  // query couchdb
+  /**
+  // TODO handle multiple issuers, figure out how to combine results
+
+  // async.map for both the trade curr and the base curr
+  // combine the results
+  // process them as before
+
+  var baseIssuers, tradeIssuers;
+  if (baseCurr[0] === 'XRP') {
+    baseIssuers = ['XRP'];
+  } else if (baseCurr[1]) {
+    baseIssuers = [baseCurr[1]];
+  } else {
+    baseIssuers = getGatewaysForCurrency(baseCurr[0]);
+    if (issuers.length === 0) {
+      res.send(500, { error: 'This currency: ' + baseCurr[0] + ' is either invalid or not issued by any known gateway.' +
+        ' Please change the currency or specify a gateway address.\n'});
+      return;
+    }
+  }
+
+  if (tradeCurr[0] === 'XRP') {
+    tradeIssuers = ['XRP'];
+  } else if (tradeCurr[1]) {
+    tradeIssuers = [tradeCurr[1]];
+  } else {
+    tradeIssuers = getGatewaysForCurrency(tradeCurr[0]);
+    if (issuers.length === 0) {
+      res.send(500, { error: 'This currency: ' + tradeCurr[0] + ' is either invalid or not issued by any known gateway.' +
+        ' Please change the currency or specify a gateway address.\n'});
+      return;
+    }
+  }
+
+
+
+  function queryView( issuer, asyncCallback ) {
+  
+    if (issuer !== 'XRP') {
+      // add issuer to startkey and endkey
+      // careful about changing the original object
+    }
+
+    db.view("transactions", "offersExercised", viewOpts, asyncCallback);
+  }
+
+  */
+
+  // query couchdb multiple times when combining gateways
   db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
+  // db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
 
     if (err) {
       winston.error('Error with request: ' + err);
@@ -244,7 +395,10 @@ app.post('/api/offersExercised/', function (req, res) {
 
   });
 
-});
+}
+
+
+
 
 
 /**
@@ -258,7 +412,7 @@ app.post('/api/offersExercised/', function (req, res) {
  *    descending: true/false, // optional, defaults to true
  *  }
  */
-app.post('/api/accountsCreated/', function(req, res){
+function accountsCreatedHandler( req, res ) {
 
   var viewOpts = {};
 
@@ -394,7 +548,22 @@ app.post('/api/accountsCreated/', function(req, res){
 
   });
 
-});
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /** HELPER FUNCTIONS **/
@@ -431,6 +600,27 @@ app.post('/api/accountsCreated/', function(req, res){
   return gatewayAdress;
 
  }
+
+
+/**
+ *  getGatewaysForCurrency takes a currency and returns
+ *  an array of gateways that issue that currency
+ *  returns an empty array if the currency is invalid
+ */
+function getGatewaysForCurrency( currName ) {
+
+  var issuers = [];
+  gateways.forEach(function(gateway){
+    gateway.accounts.forEach(function(acct){
+      if (acct.currencies.indexOf(currName.toUpperCase()) !== -1) {
+        issuers.push(acct.address);
+      }
+    });
+  });
+
+  return issuers;
+
+}
 
 app.use(express.static('public'));
 app.listen(config.port);
