@@ -397,7 +397,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   winston.info('getLedgerFromRemoteRippled: ' + ledgerIdentifier);
 
   var remote = new ripple.Remote( {
-    // trace: true,
+    trace: true,
     servers: [{
       host: 's_west.ripple.com',
       port: 443
