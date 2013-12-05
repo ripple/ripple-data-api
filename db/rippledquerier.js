@@ -409,7 +409,7 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
-    }).callback( function( err, res ) {
+    }, function( err, res ) {
 
       winston.info('res: ' + JSON.stringify(res));
 
