@@ -396,13 +396,19 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
   var remote = new ripple.Remote( {
     // trace: true,
-    servers: _.map( serverAddresses, function( addr ) {
-      return {
-        host: addr,
-        port: 443
-      };
-    } )
-  } );
+    servers: [{
+      host: 's_west.ripple.com',
+      port: 443
+    }]
+  });
+
+  //   _.map( serverAddresses, function( addr ) {
+  //     return {
+  //       host: addr,
+  //       port: 443
+  //     };
+  //   } )
+  // } );
   remote.connect( );
 
   remote.on('ready', function(){
@@ -411,24 +417,22 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
   function tryServer( server_num ) {
 
-    if ( server_num > serverAddresses.length - 1 ) {
+    // if ( server_num > serverAddresses.length - 1 ) {
 
-      callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
-        "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
+    //   callback( new Error( "getLedgerFromRemoteRippled tried all servers " +
+    //     "but could not find correct data for ledgerIdentifier: " + ledgerIdentifier ));
 
-      return;
-    }
+    //   return;
+    // }
 
     
-    winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
-      ledgerIdentifier + " server " + serverAddresses[ server_num ] );
+    // winston.info( "getLedgerFromRemoteRippled called with ledgerIdentifier: " +
+    //   ledgerIdentifier + " server " + serverAddresses[ server_num ] );
 
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
       expand: true
-    } )
-      .setServer( serverAddresses[ server_num ] )
-      .callback( function( err, res ) {
+    }).callback( function( err, res ) {
 
         if ( err ) {
           winston.error( "Error in getLedgerFromRemoteRippled: " + err );
