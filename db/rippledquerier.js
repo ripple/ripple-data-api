@@ -8,8 +8,8 @@ var sqlite3 = require( 'sqlite3' ).verbose( ),
 
 /* ripple-lib imports */
 var ripple = require( 'ripple-lib' ),
-  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger,
-  serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
+  Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger;
+  // serverAddresses = [ 's_west.ripple.com', 's_east.ripple.com', 's1.ripple.com' ];
 
 
 /* config options */
@@ -405,6 +405,8 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
   });
 
   remote.connect(function(){
+
+    winston.info('connected to remote');
    
     remote.requestLedger( ledgerIdentifier, {
       transactions: true,
@@ -424,9 +426,15 @@ function getLedgerFromRemoteRippled( ledgerIdentifier, callback ) {
 
       var ledger = formatRemoteLedger( res.ledger );
 
-      callback( null, ledger );
+      if (verifyLedgerTransactions(ledger)) {
 
-      winston.info('ledger: ' + ledger.ledger_index + ' has correct transactions: ' + verifyLedgerTransactions(ledger));
+        callback( null, ledger );
+
+      } else {
+
+        callback(new Error('ledger from remote rippled has transactions that do not hash properly:\n' + JSON.stringify(ledger)));
+
+      }
 
     });
 
