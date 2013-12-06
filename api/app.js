@@ -105,7 +105,10 @@ app.post('/api/*', function(req, res){
  */
 function gatewayCapitalizationHandler( req, res ) {
 
+
   var viewOpts = {};
+
+  winston.info(JSON.stringify(req.body));
 
   // parse gateway
   var gateway = req.body.gateway || req.body.account;
@@ -141,7 +144,7 @@ function gatewayCapitalizationHandler( req, res ) {
     }
 
     if (currencies.length === 0) {
-      currencies = currencies.concat(getCurrenciesForGateway(gateway));
+      currencies = getCurrenciesForGateway(gateway);
     }
 
     currencies.forEach(function(curr){
@@ -153,9 +156,12 @@ function gatewayCapitalizationHandler( req, res ) {
 
   }
 
+  winston.info('gatewayAccounts: ' + JSON.stringify(gatewayAccounts));
+  winston.info('currencies: ' + JSON.stringify(currencies));
+
+
   // parse startTime and endTime
   var startTime, endTime;
-
   if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
 
     if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
@@ -171,14 +177,22 @@ function gatewayCapitalizationHandler( req, res ) {
     if (!moment(req.body.startTime).isValid()) {
       winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
       res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+      return;
     }
 
     if (!moment(req.body.endTime).isValid()) {
       winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
       res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+      return;
     }
 
-    return;
+    if (!startTime) {
+      startTime = moment(0);
+    }
+
+    if (!endTime) {
+      endTime = moment();
+    }
 
   }
 
@@ -211,6 +225,8 @@ function gatewayCapitalizationHandler( req, res ) {
     viewOpts.group = false; // default to all
   }
 
+  winston.info('viewOpts: ' + JSON.stringify(viewOpts));
+
   // prepare results to send back
   var resRows = [],
     headerRow = ['time'].concat(currencies);
@@ -220,9 +236,14 @@ function gatewayCapitalizationHandler( req, res ) {
 
     async.map(currencies, function(currency, asyncCallbackCurrency){
 
+      winston.info('account: ' + ' currency: ' + currency);
+      winston.info(JSON.stringify(viewOpts));
+
       var opts = clone(viewOpts);
-      opts.startkey = [account, currency].concat(startTime);
-      opts.endkey = [account, currency].concat(endTime);
+      opts.startkey = [account, currency].concat(startTime.toArray().slice(0,6));
+      opts.endkey = [account, currency].concat(endTime.toArray().slice(0,6));
+
+      winston.info('querying trustlineBalanceChangesByAccount with opts: ' + JSON.stringify(opts));
 
       db.view('trustlines', 'trustlineBalanceChangesByAccount', opts, function(err, res){
         if (err) {
@@ -254,6 +275,8 @@ function gatewayCapitalizationHandler( req, res ) {
 
     // TODO format results and send them
     // currencies.forEach(function(currency))
+
+    // TODO subtract hotwallet balances
 
     res.send(404, 'Oops! This API route is still under development, try again soon.\n');
 
