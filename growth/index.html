@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Ripple Growth</title>
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
+<style>
+@import url(lib/bootstrap/bootstrap.min.css);
+@import url(charts.css);
+@import url(lib/datepicker.css);
+body {
+	font-family:"Open Sans", Helvetica, Arial, sans-serif;
+	text-align:center;
+}
+
+h2 {font-size:36px}
+
+#last-price {
+  font-size: 3em;
+  font-weight: 300;
+}
+
+.grey {
+  color: #ccc;
+}
+
+#line path {
+  fill: none;
+  stroke: #3369a8;
+}
+
+#trades {
+  float: right;
+  font-size: 12px;
+}
+
+#trades td {
+  text-align: right;
+  padding: 3px 8px;
+}
+
+#trades th {
+  background: #eee;
+}
+
+#currency-pair h3 {
+  margin: 0 0 .5em;
+  background: #f6f6f6;
+}
+
+#base, #quote {
+  width: 300px;
+  display: inline-block;
+}
+
+#chart { display: none; }
+
+#interval a {
+  font-size:14px;
+  display: inline-block;
+  text-decoration: none;
+  color:#666;
+  margin:0 1em;
+}
+
+#interval a:hover {
+  color: #999;
+}
+
+#interval a.selected {
+  color: #3369a8;
+  font-weight:bold;
+}
+
+#line {
+	display:inline-block;
+}
+
+.status {
+	color:#999;
+	font-size:12px;	
+}
+
+div.tooltip {   
+  position: absolute;           
+  text-align: center;           
+  width: 60px;                  
+  height: 28px;                 
+  padding: 2px;             
+  font: 12px sans-serif;        
+  background: lightsteelblue;   
+  border: 0px;      
+  border-radius: 8px;           
+  pointer-events: none;         
+}
+
+#range {
+	margin:.5em;
+}
+
+#range input {text-align:center}
+</style>
+
+<h2>Growth of The Ripple Network</h2>
+<div id="interval"></div>
+<div id="range">
+	<input id="startTime"/>
+	<span>to</span>
+	<input id="endTime"/>
+</div>
+<div id="line"></div>
+<div id="chart"></div>
+
+<script src="lib/d3/d3.min.js"></script>
+<script src="lib/jquery/jquery.min.js"></script>
+<script src="lib/bootstrap/bootstrap.min.js"></script>
+<script src="lib/bootstrap-datepicker.js"></script>
+    
+<script>
+$('#startTime').datepicker().on('changeDate', function(e){
+	var d = d3.select("#interval .selected").datum();
+	updateLine(d.interval, this.value, $('#endTime').val());	
+	$(this).datepicker('hide');
+});
+
+$('#endTime').datepicker().on('changeDate', function(){
+	var d = d3.select("#interval .selected").datum();
+	updateLine(d.interval, $('#startTime').val(), this.value);	
+	$(this).datepicker('hide');
+});
+
+var apiBase = "http://ct.ripple.com:5993/api/";
+
+var accountsCreated = apiBase + "accountsCreated?";
+//var accountsCreated = "acSample.txt";
+
+var formatDate  = d3.time.format.utc("%m/%d/%Y %H:%M:%S"),
+    formatPrice = d3.format(",.5f"),
+
+    lineData = [],
+    offset = function(d) { return d3.time.day.utc.offset(d, -1); }; // 1d
+
+
+var intervalA = d3.select("#interval").selectAll("a")
+    .data([
+      //{name: "1s",  increment:"second", offset: function(d) { return d3.time.day.offset(d, -1); }},
+      //{name: "10m", increment:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
+      //{name: "1h",  increment:"second", offset: function(d) { return d3.time.hour.offset(d, -1); }},
+      //{name: "12h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
+      //{name: "24h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -24); }},
+      {name: "3d",  increment:"minute", offset: function(d) { return d3.time.day.offset(d, -3); }},
+      {name: "1m",  increment:"hour",   offset: function(d) { return d3.time.month.offset(d, -1); }},
+      {name: "6m",  increment:"day",    offset: function(d) { return d3.time.month.offset(d, -6); }},
+      {name: "max", increment:"day",    offset: function(d) { return d3.time.year.offset(d, -100); }},
+    ])
+	.enter().append("a")
+    .attr("href", "#")
+    .classed("selected", function(z, i) { return !i; })
+    .text(function(d) { return d.name; })
+    .on("click", function(d){
+    	d3.event.preventDefault();
+    	var that = this;
+  		intervalA.classed("selected", function() { return this === that; });
+    	selectInterval(d);
+    });
+
+function selectInterval (d) {
+
+  	var end   = new Date;
+  	var start = d.offset(end);
+  	console.log(end);
+  	console.log(start);
+  	$('#startTime').datepicker('setValue', start);
+  	$('#endTime').datepicker('setValue', end);
+  	updateLine(d.interval, start, end);
+}
+
+//load intital graph
+selectInterval(intervalA.data()[0]);
+
+
+function updateLine(interval, start, end) {
+	data = d3.select("#interval").select(".selected").datum();
+	
+  var request = d3.xhr(accountsCreated);
+  var data  = {
+  	startTime     : end,
+    endTime       : start,
+    timeIncrement : data.increment,
+    //descending    : false,
+    //format        : 'json',
+  }
+   
+  request.header("Content-type","application/x-www-form-urlencoded");
+  request.post(params(data), function(error, xhr) {
+  	
+  	data = JSON.parse(xhr.response);
+  	data.splice(0,1);
+  	data.reverse();
+  	total = 0;
+    lineData = data.map(function(d){
+    	total += d[1];
+   		return {
+   			time  : new Date(d[0]), //TODO: handle UTC, local time
+   			count : d[1],
+   			total : total}
+  	});
+  	
+    redrawLineChart();
+  });
+}
+ 
+function redrawLineChart() {
+	var margin = {top: 20, right: 50, bottom: 50, left: 50},
+		width  = 960 - margin.left - margin.right,
+      	height = 500 - margin.top - margin.bottom;
+  
+    
+  	var x = d3.time.scale().range([0, width]).domain(d3.extent(lineData, function(d) { return d.time; })),
+    	y = d3.scale.linear().range([height, 0]).domain(d3.extent(lineData, function(d) { return d.total; })).nice(),
+      	xAxis = d3.svg.axis().scale(x),
+      	yAxis = d3.svg.axis().scale(y),
+      	line = d3.svg.line()
+        	.x(function(d) { return x(d.time); })
+        	.y(function(d) { return y(d.total); });
+        	
+	var svg      = d3.select("#line").selectAll("svg").data([0]); 
+  	var svgEnter = svg.enter().append("svg")
+    	.attr("width", width + margin.left + margin.right)
+      	.attr("height", height + margin.top + margin.bottom);
+  	var gEnter = svgEnter.append("g")
+      	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+  	gEnter.append("path").attr("class", "line");
+  	gEnter.append("g")
+      	.attr("class", "x axis")
+      	.attr("transform", "translate(0," + y.range()[0] + ")")
+  	gEnter.append("g")
+    	.attr("class", "y axis right")
+      	.attr("transform", "translate(" + x.range()[1] + ")");
+  	var g = svg.select("g");
+  	g.select(".line").datum(lineData).attr("d", line);
+  	g.select(".x.axis").call(xAxis).attr("fill","#aaa");
+  	g.select(".y.axis.right").call(yAxis.orient("right")).attr({"font-size":"12px","fill":"#999"});
+  	d3.selectAll(".symbol-base").text("Date");
+  	d3.selectAll(".symbol-quote").text("Time");
+  	
+  	svg.on("mousemove.hover", mousemove);
+  	svg.select(".status").remove();
+  	var status = svg.append("text").attr("class", "status").attr({"y":"1em","fill":"#999"});
+  	
+	function mousemove() {
+	  var tx = Math.max(0, Math.min(width, d3.mouse(svg.node())[0])),
+		i = d3.bisect(lineData.map(function(d) { return d.time; }), x.invert(tx));
+	    d = lineData[i];
+		
+	 	if (d) {
+	  	status.text(d.time + " created:" + d.count + " total:" + d.total);
+	  	}
+	}	
+
+}
+
+
+function params(o) {
+  var s = [];
+  for (var key in o) {
+  s.push(key + "=" + encodeURIComponent(o[key]));
+  }
+  return s.join("&");
+}
+</script>
+

@@ -1,6 +1,8 @@
 var winston = require('winston'),
   moment = require('moment'),
   _ = require('lodash'),
+  async = require('async'),
+  clone = require('clone'),
   express = require('express'),
   ripple = require('ripple-lib'),
   app = express(),
@@ -25,6 +27,7 @@ var apiHandlers = {
 };
 
 // TODO handle hot wallets
+// TODO get rid of staleView and replace it with something that routinely pings all of the views
 
 // enable CORS
 var allowCrossDomain = function(req, res, next) {
@@ -80,9 +83,179 @@ app.post('/api/*', function(req, res){
 
 
 
-// TODO
+/**
+ *  gatewayCapitalization returns the total capitalization (outstanding balance)
+ *  of a gateway at a particular moment or over time
+ *
+ *  expects req.body to have:
+ *  {
+ *    gateway: ('Bitstamp' or 'rvY...'),
+ *    account: // optional, interchangeable with gateway
+ *    currencies: 'all' or ['USD', 'BTC', ...] // optional, defaults to 'all'
+ *    
+ *    format: 'json', 'csv', 'json_verbose'
+ *
+ *    // the following options are optional
+ *    // by default it will return the gateway's current balance
+ *    startTime: (any momentjs-readable date),
+ *    endTime: (any momentjs-readable date),
+ *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // defaults to 'all'
+ *    descending: true/false
+ *  }
+ */
 function gatewayCapitalizationHandler( req, res ) {
-  res.send(404, 'Oops! This API route is still under development, try again soon.\n');
+
+  var viewOpts = {};
+
+  // parse gateway
+  var gateway = req.body.gateway || req.body.account;
+  if (!gateway) {
+    res.send(500, { error: 'must specify "gateway" or "account"' });
+    return;
+  }
+
+  // parse currencies
+  var currencies = [];
+  if (req.body.currencies && typeof req.body.currencies === 'object') {
+    req.body.currencies.forEach(function(curr){
+      currencies.push(curr.toUpperCase());
+    });
+  }
+
+  var gatewayAccounts = [];
+  if (ripple.UInt160.is_valid(gateway)) {
+    
+    gatewayAccounts.push(gateway);
+
+    if (currencies.length === 0) {
+      res.send(500, { error: 'please specify the currencies for this account or give a gateway name'});
+      return;
+    }
+  
+  } else {
+    
+    if (!gatewayNameToAddress(gateway)) {
+      res.send(500, { error: 'invalid or unknown gateway: ' + gateway } + 
+        '.\nAvailable gateways are: ' + gatewayNames.join(', '));
+      return;
+    }
+
+    if (currencies.length === 0) {
+      currencies = currencies.concat(getCurrenciesForGateway(gateway));
+    }
+
+    currencies.forEach(function(curr){
+      var acct = gatewayNameToAddress(gateway, curr);
+      if (acct) {
+        gatewayAccounts.push(acct);
+      }
+    });
+
+  }
+
+  // parse startTime and endTime
+  var startTime, endTime;
+
+  if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+
+    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
+      startTime = moment.utc(req.body.startTime);
+      endTime = moment.utc(req.body.endTime);
+    } else {
+      endTime = moment.utc(req.body.startTime);
+      startTime = moment.utc(req.body.endTime);
+    }
+
+  } else {
+
+    if (!moment(req.body.startTime).isValid()) {
+      winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
+      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+    }
+
+    if (!moment(req.body.endTime).isValid()) {
+      winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
+      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+    }
+
+    return;
+
+  }
+
+  // handle descending/non-descending query
+  if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
+    viewOpts.descending = true;
+
+    // swap startTime and endTime if results will be in descending order
+    var tempTime = startTime;
+    startTime = endTime;
+    endTime = tempTime;
+
+  }
+
+  // determine the group_level from the timeIncrement field
+  if (req.body.timeIncrement) {
+    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+    if (inc === 'al') {
+      viewOpts.group = false;
+    } else if (inc === 'no') {
+      viewOpts.reduce = false;
+    } else if (levels.indexOf(inc)) {
+      viewOpts.group_level = 3 + levels.indexOf(inc);
+    } else {
+      viewOpts.group_level = 3 + 2; // default to day
+    }
+  } else {
+    // TODO handle incorrect options better
+    viewOpts.group = false; // default to all
+  }
+
+  // prepare results to send back
+  var resRows = [],
+    headerRow = ['time'].concat(currencies);
+  resRows.push(headerRow);
+
+  async.map(gatewayAccounts, function(account, asyncCallbackAccount){
+
+    async.map(currencies, function(currency, asyncCallbackCurrency){
+
+      var opts = clone(viewOpts);
+      opts.startkey = [account, currency].concat(startTime);
+      opts.endkey = [account, currency].concat(endTime);
+
+      db.view('trustlines', 'trustlineBalanceChangesByAccount', opts, function(err, res){
+        if (err) {
+          asyncCallbackCurrency(err);
+        }
+        if (res.rows) {
+          asyncCallbackCurrency(null, res.rows);
+        } else {
+          asyncCallbackCurrency(null, null);
+        }
+      });
+
+    }, function(err, currencyResults){
+
+      if (err) {
+        asyncCallbackAccount(err);
+        return;
+      }
+
+      asyncCallbackAccount(null, currencyResults);
+
+    });
+
+  }, function(err, accountResults){
+
+    var results = [];
+
+    // TODO format results and send them
+    // currencies.forEach(function(currency))
+
+  });
+
+
 }
 
 // TODO
@@ -169,7 +342,6 @@ function offersExercisedHandler( req, res ) {
   }
 
   // parse startTime and endTime
-  // TODO handle incorrect startTime/endTime values
   var startTime, endTime;
 
   if (!req.body.startTime && !req.body.endTime) {
@@ -410,6 +582,7 @@ function offersExercisedHandler( req, res ) {
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
  *    staleView: true/false, // optional, defaults to true
  *    descending: true/false, // optional, defaults to true
+ *    format: 'json', 'csv', or 'json_verbose'
  *  }
  */
 function accountsCreatedHandler( req, res ) {
@@ -575,7 +748,7 @@ function accountsCreatedHandler( req, res ) {
  */
  function gatewayNameToAddress( name, currency ) {
 
-  var gatewayAdress = null;
+  var gatewayAddress = null;
 
   _.each(gateways, function(entry){
 
@@ -586,18 +759,18 @@ function accountsCreatedHandler( req, res ) {
         _.each(entry.accounts, function(acct){
 
           if (acct.currencies.indexOf(currency) !== -1) {
-            gatewayAdress = acct.address;
+            gatewayAddress = acct.address;
           }
         });
 
       } else {
-         gatewayAdress = entry.accounts[0].address;
+         gatewayAddress = entry.accounts[0].address;
       }
     }
 
   });
 
-  return gatewayAdress;
+  return gatewayAddress;
 
  }
 
@@ -620,6 +793,21 @@ function getGatewaysForCurrency( currName ) {
 
   return issuers;
 
+}
+
+/**
+ *  getCurrenciesForGateway returns the currencies that that gateway handles
+ */
+function getCurrenciesForGateway( name ) {
+  var currencies = [];
+  gateways.forEach(function(gateway){
+    if (gateway.name.toLowerCase() === name.toLowerCase()) {
+      gateway.accounts.forEach(function(account){
+        currencies = currencies.concat(account.currencies);
+      });
+    }
+  });
+  return currencies;
 }
 
 app.use(express.static('public'));
