@@ -11,7 +11,8 @@ body {
 	text-align:center;
 }
 
-h2 {font-size:36px}
+h2 {font-size:36px; margin:.5em}
+h3 {font-size:21px}
 
 #last-price {
   font-size: 3em;
@@ -53,6 +54,9 @@ h2 {font-size:36px}
 
 #chart { display: none; }
 
+#interval {
+	margin-bottom:2em;
+}
 #interval a {
   font-size:14px;
   display: inline-block;
@@ -93,7 +97,8 @@ div.tooltip {
 }
 
 #range {
-	margin:.5em;
+	display:none;
+	padding:.5em;
 }
 
 #range input {text-align:center}
@@ -106,6 +111,7 @@ div.tooltip {
 	<span>to</span>
 	<input id="endTime"/>
 </div>
+<h3>Total Accounts</h3>
 <div id="line"></div>
 <div id="chart"></div>
 
@@ -115,15 +121,31 @@ div.tooltip {
 <script src="lib/bootstrap-datepicker.js"></script>
     
 <script>
+
+//used to load intital chart
+jQuery.fn.d3Click = function () {
+  this.each(function (i, e) {
+    var evt = document.createEvent("MouseEvents");
+    evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+
+    e.dispatchEvent(evt);
+  });
+};
+
+
 $('#startTime').datepicker().on('changeDate', function(e){
-	var d = d3.select("#interval .selected").datum();
-	updateLine(d.interval, this.value, $('#endTime').val());	
+	var start = new Date(e.date);
+	var end   = new Date($('#endTime').val());
+
+	updateLine(getIncrement(start, end), start, end);	
 	$(this).datepicker('hide');
 });
 
-$('#endTime').datepicker().on('changeDate', function(){
-	var d = d3.select("#interval .selected").datum();
-	updateLine(d.interval, $('#startTime').val(), this.value);	
+$('#endTime').datepicker().on('changeDate', function(e){
+	var start = new Date($('#startTime').val());
+		end   = new Date(e.date);
+		
+	updateLine(getIncrement(start, end), start, end);	
 	$(this).datepicker('hide');
 });
 
@@ -142,14 +164,15 @@ var formatDate  = d3.time.format.utc("%m/%d/%Y %H:%M:%S"),
 var intervalA = d3.select("#interval").selectAll("a")
     .data([
       //{name: "1s",  increment:"second", offset: function(d) { return d3.time.day.offset(d, -1); }},
-      //{name: "10m", increment:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
-      //{name: "1h",  increment:"second", offset: function(d) { return d3.time.hour.offset(d, -1); }},
-      //{name: "12h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
-      //{name: "24h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -24); }},
+      {name: "10m", increment:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
+      {name: "1h",  increment:"second", offset: function(d) { return d3.time.hour.offset(d, -1); }},
+      {name: "12h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
+      {name: "24h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -24); }},
       {name: "3d",  increment:"minute", offset: function(d) { return d3.time.day.offset(d, -3); }},
       {name: "1m",  increment:"hour",   offset: function(d) { return d3.time.month.offset(d, -1); }},
       {name: "6m",  increment:"day",    offset: function(d) { return d3.time.month.offset(d, -6); }},
-      {name: "max", increment:"day",    offset: function(d) { return d3.time.year.offset(d, -100); }},
+      {name: "max", increment:"day",    offset: function(d) { return d3.time.year.offset(d, -10); }},
+      {name: "custom"}
     ])
 	.enter().append("a")
     .attr("href", "#")
@@ -159,10 +182,12 @@ var intervalA = d3.select("#interval").selectAll("a")
     	d3.event.preventDefault();
     	var that = this;
   		intervalA.classed("selected", function() { return this === that; });
-    	selectInterval(d);
+  		if (d.name == "custom") {
+  			$('#range').slideToggle();		
+  		} else selectRange (d);
     });
 
-function selectInterval (d) {
+function selectRange (d) {
 
   	var end   = new Date;
   	var start = d.offset(end);
@@ -170,28 +195,28 @@ function selectInterval (d) {
   	console.log(start);
   	$('#startTime').datepicker('setValue', start);
   	$('#endTime').datepicker('setValue', end);
-  	updateLine(d.interval, start, end);
+  	updateLine(d.increment, start, end);
 }
 
 //load intital graph
-selectInterval(intervalA.data()[0]);
+$('#interval a').eq(3).d3Click();
 
+function updateLine(increment, start, end) {
+	console.log(increment);
+  $('#line').fadeOut(100);
 
-function updateLine(interval, start, end) {
-	data = d3.select("#interval").select(".selected").datum();
-	
   var request = d3.xhr(accountsCreated);
   var data  = {
   	startTime     : end,
     endTime       : start,
-    timeIncrement : data.increment,
+    timeIncrement : increment,
     //descending    : false,
-    //format        : 'json',
+    format        : 'json',
   }
    
   request.header("Content-type","application/x-www-form-urlencoded");
   request.post(params(data), function(error, xhr) {
-  	
+
   	data = JSON.parse(xhr.response);
   	data.splice(0,1);
   	data.reverse();
@@ -245,6 +270,7 @@ function redrawLineChart() {
   	svg.on("mousemove.hover", mousemove);
   	svg.select(".status").remove();
   	var status = svg.append("text").attr("class", "status").attr({"y":"1em","fill":"#999"});
+  	$('#line').fadeIn(300);
   	
 	function mousemove() {
 	  var tx = Math.max(0, Math.min(width, d3.mouse(svg.node())[0])),
@@ -266,5 +292,16 @@ function params(o) {
   }
   return s.join("&");
 }
+
+function getIncrement (start, end) {
+	var difference = Math.ceil((end - start) / 86400000);
+	
+	if      (difference<2)   return "second"; //1 day or less
+	else if (difference<15)  return "minute"; //2 weeks
+	else if (difference<90)  return "hour";   //3 months
+	else if (difference<720) return "day";    //2 years
+	else 					 return "month";	
+}
+
 </script>
 
