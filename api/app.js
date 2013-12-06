@@ -248,10 +248,15 @@ function gatewayCapitalizationHandler( req, res ) {
 
   }, function(err, accountResults){
 
+    console.log(JSON.stringify(accountResults));
+
     var results = [];
 
     // TODO format results and send them
     // currencies.forEach(function(currency))
+
+    res.send(404, 'Oops! This API route is still under development, try again soon.\n');
+
 
   });
 
