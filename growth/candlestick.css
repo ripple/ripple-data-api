@@ -1,0 +1,30 @@
+line {
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+rect {
+  fill: #f00;
+}
+
+.up rect {
+  fill: #0b0;
+}
+
+.line {
+  fill: none;
+  stroke: #ccc;
+}
+
+.background {
+  fill: none;
+  pointer-events: all;
+}
+
+.axis .title {
+  text-anchor: end;
+}
+
+.status {
+  font: 10px sans-serif;
+}
