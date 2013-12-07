@@ -83,6 +83,15 @@ h3 {font-size:21px}
 	font-size:12px;	
 }
 
+.hover {
+  stroke: #999;
+  stroke-width: .5;
+}
+
+.focus circle {
+  fill: rgba(255,255,255,.5);
+  stroke: #999;
+}
 div.tooltip {   
   position: absolute;           
   text-align: center;           
@@ -199,12 +208,44 @@ function selectRange (d) {
 }
 
 //load intital graph
-$('#interval a').eq(3).d3Click();
+$('#interval a').eq(7).d3Click();
+
+
+	var margin = {top: 20, right: 50, bottom: 50, left: 50},
+		width  = 960 - margin.left - margin.right,
+      	height = 500 - margin.top - margin.bottom;
+      	
+	var svg = d3.select("#line").selectAll("svg").data([0]); 	
+  	var svgEnter = svg.enter().append("svg")
+    	.attr("width", width + margin.left + margin.right)
+      	.attr("height", height + margin.top + margin.bottom);
+
+	var status = svg.append("text").attr("class", "status").attr({y:"1em", x:margin.left ,fill:"#999"});
+	
+  	var borderPath = svg.append("rect")
+	  .attr("x", margin.left)
+	  .attr("y", margin.top)
+	  .attr("height", height)
+	  .attr("width", width)
+	  .style("stroke", "#999")
+	  .style("fill", "none")
+	  .style("stroke-width", 1); 
+
+	var hover = svg.append("line")
+        .attr("class", "hover")
+        .attr("y1", margin.top)
+        .attr("y2", height+margin.top)
+        .style("opacity", 0);	 
+        
+    var horizontal = svg.append("line")
+    	.attr("class", "hover")
+    	.style("opacity", 0);     
 
 function updateLine(increment, start, end) {
 	console.log(increment);
   $('#line').fadeOut(100);
-
+	d3.selectAll(".hover").style("opacity", 0);
+	
   var request = d3.xhr(accountsCreated);
   var data  = {
   	startTime     : end,
@@ -232,11 +273,9 @@ function updateLine(increment, start, end) {
     redrawLineChart();
   });
 }
- 
+          
 function redrawLineChart() {
-	var margin = {top: 20, right: 50, bottom: 50, left: 50},
-		width  = 960 - margin.left - margin.right,
-      	height = 500 - margin.top - margin.bottom;
+
   
     
   	var x = d3.time.scale().range([0, width]).domain(d3.extent(lineData, function(d) { return d.time; })),
@@ -247,10 +286,6 @@ function redrawLineChart() {
         	.x(function(d) { return x(d.time); })
         	.y(function(d) { return y(d.total); });
         	
-	var svg      = d3.select("#line").selectAll("svg").data([0]); 
-  	var svgEnter = svg.enter().append("svg")
-    	.attr("width", width + margin.left + margin.right)
-      	.attr("height", height + margin.top + margin.bottom);
   	var gEnter = svgEnter.append("g")
       	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
   	gEnter.append("path").attr("class", "line");
@@ -262,26 +297,53 @@ function redrawLineChart() {
       	.attr("transform", "translate(" + x.range()[1] + ")");
   	var g = svg.select("g");
   	g.select(".line").datum(lineData).attr("d", line);
-  	g.select(".x.axis").call(xAxis).attr("fill","#aaa");
+  	g.select(".x.axis").call(xAxis).attr({"fill":"#aaa"});
   	g.select(".y.axis.right").call(yAxis.orient("right")).attr({"font-size":"12px","fill":"#999"});
-  	d3.selectAll(".symbol-base").text("Date");
-  	d3.selectAll(".symbol-quote").text("Time");
+  	//d3.selectAll(".symbol-base").text("Date");
+  	//d3.selectAll(".symbol-quote").text("Time");
   	
-  	svg.on("mousemove.hover", mousemove);
-  	svg.select(".status").remove();
-  	var status = svg.append("text").attr("class", "status").attr({"y":"1em","fill":"#999"});
-  	$('#line').fadeIn(300);
-  	
-	function mousemove() {
-	  var tx = Math.max(0, Math.min(width, d3.mouse(svg.node())[0])),
-		i = d3.bisect(lineData.map(function(d) { return d.time; }), x.invert(tx));
-	    d = lineData[i];
-		
-	 	if (d) {
-	  	status.text(d.time + " created:" + d.count + " total:" + d.total);
-	  	}
-	}	
+  	d3.select(".focus").remove();
+   	var focus = svg.append("g")
+ 		.attr("class", "focus")
+ 		.style("opacity", 0);	
+      
+    focus.append("circle").attr("r", 4.5);	
 
+  	$('#line').fadeIn(300);
+	
+	function mousemove(e) {
+	  var tx = Math.max(margin.left, Math.min(width+margin.left, d3.mouse(this)[0])),
+		i = d3.bisect(lineData.map(function(d) { return d.time; }), x.invert(tx-margin.left));
+		console.log(i);
+		console.log(x.invert(tx-margin.left));
+	    d = lineData[i-1];
+		console.log(d);
+		
+	    mouseX = d3.mouse(this)[0];
+	    if (mouseX<0 || mouseX>width+margin.left+margin.right) {
+	    	hover.style("opacity", 0);
+	    	focus.style("opacity", 0);
+	    	horizontal.style("opacity", 0);
+	    } else {
+	    	hover.style("opacity", 1);
+	    	focus.style("opacity", 1);
+	    	horizontal.style("opacity", 1);
+	    }
+	 	if (d) {
+	 		tx = x(d.time)+margin.left;
+	 		ty = y(d.total)+margin.top;
+	 		var status = svg.select('.status');
+	  		status.text(d.time + " created:" + d.count + " total:" + d.total);
+	  		hover.attr("transform", "translate(" + tx + ")");
+	  		focus.attr("transform", "translate(" + tx + "," + ty + ")");
+	  		horizontal.attr("x1", tx);
+	  		horizontal.attr("x2", width+margin.left);
+	  		horizontal.attr("y1", ty);
+	  		horizontal.attr("y2", ty);
+	  	}
+	}
+	
+	svg.on("mousemove.hover", mousemove);
 }
 
 
