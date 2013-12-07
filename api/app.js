@@ -24,7 +24,8 @@ var apiHandlers = {
   'accountscreated': accountsCreatedHandler,
   'gatewaycapitalization': gatewayCapitalizationHandler,
   'exchangerates': exchangeRatesHandler,
-  'gettransaction': getTransactionHandler
+  'gettransaction': getTransactionHandler,
+  'numaccounts': numAccountsHandler
 };
 
 // TODO handle hot wallets
@@ -630,8 +631,55 @@ function offersExercisedHandler( req, res ) {
 }
 
 
+/**
+ *  numAccounts returns the total number of accounts that existed
+ *  in each time period, as well as the number of accounts created in that period
+ *
+ *  expects:
+ *  {
+ *    time: (any momentjs-readable data) // optional, defaults to now
+ *
+ *    // if time is not used you can use the following options
+ *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "all"
+ *    startTime: (any momentjs-readable date), // optional
+ *    endTime: (any momentjs-readable date), // optional
+ *    descending: true/false, // optional, defaults to true
+ *    format: 'json', 'csv', or 'json_verbose'
+ *  }
+ */
+function numAccountsHandler( req, res ) {
+
+  var numGenesisAccounts = 136,
+    viewOpts = {};
 
 
+  if (req.body.time) {
+
+    viewOpts.endkey = moment.utc(req.body.time).toArray.slice(0,6);
+    viewOpts.reduce = true;
+    viewOpts.group = false;
+
+    db.view('accounts', 'accountsCreated', viewOpts, function(err, couchRes){
+      if (err) {
+        res.send(500, { error: err });
+        return;
+      }
+
+      if (couchRes.rows && couchRes.rows.length > 0) {
+        var numAccounts = parseInt(couchRes.rows[0].value, 10);
+        res.send({totalAccounts: numAccounts, accountsCreated: numAccounts});
+        return;
+      }
+    });
+
+  } else {
+
+    res.send(500, 'Sorry, currently this API only supports the time feature, try again soon.\n');
+    return;
+
+  }
+
+}
 
 /**
  *  accountsCreated returns the number of accounts created per time increment
@@ -672,9 +720,6 @@ function accountsCreatedHandler( req, res ) {
     var tempTime = startTime;
     startTime = endTime;
     endTime = tempTime;
-  } else {
-    // TODO handle incorrect values
-    winton.error('Inccorect descending value. descending: ' + req.body.descending);
   }
 
   // set startkey and endkey for couchdb query
