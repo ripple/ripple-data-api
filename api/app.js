@@ -652,10 +652,13 @@ function numAccountsHandler( req, res ) {
   var numGenesisAccounts = 136,
     viewOpts = {};
 
+  if (req.body.time || !(req.body.timeIncrement || req.body.startTime || req.body.endTime)) {
 
-  if (req.body.time) {
-
-    viewOpts.endkey = moment.utc(req.body.time).toArray.slice(0,6);
+    var time = moment.utc(req.body.time);
+    if (!time || !time.isValid()) {
+      time = moment.utc();
+    }
+    viewOpts.endkey = time.toArray.slice(0,6);
     viewOpts.reduce = true;
     viewOpts.group = false;
 
@@ -673,6 +676,8 @@ function numAccountsHandler( req, res ) {
     });
 
   } else {
+
+    // TODO add support for other features
 
     res.send(500, 'Sorry, currently this API only supports the time feature, try again soon.\n');
     return;
