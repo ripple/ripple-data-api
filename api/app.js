@@ -658,7 +658,7 @@ function numAccountsHandler( req, res ) {
     if (!time || !time.isValid()) {
       time = moment.utc();
     }
-    viewOpts.endkey = time.toArray.slice(0,6);
+    viewOpts.endkey = time.toArray().slice(0,6);
     viewOpts.reduce = true;
     viewOpts.group = false;
 
