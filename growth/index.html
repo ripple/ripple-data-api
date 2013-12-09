@@ -4,8 +4,9 @@
 <link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
 <style>
 @import url(lib/bootstrap/bootstrap.min.css);
-@import url(charts.css);
 @import url(lib/datepicker.css);
+@import url(linechart.css);
+
 body {
 	font-family:"Open Sans", Helvetica, Arial, sans-serif;
 	text-align:center;
@@ -14,102 +15,22 @@ body {
 h2 {font-size:36px; margin:.5em}
 h3 {font-size:21px}
 
-#last-price {
-  font-size: 3em;
-  font-weight: 300;
-}
-
-.grey {
-  color: #ccc;
-}
-
-#line path {
-  fill: none;
-  stroke: #3369a8;
-}
-
-#trades {
-  float: right;
-  font-size: 12px;
-}
-
-#trades td {
-  text-align: right;
-  padding: 3px 8px;
-}
-
-#trades th {
-  background: #eee;
-}
-
-#currency-pair h3 {
-  margin: 0 0 .5em;
-  background: #f6f6f6;
-}
-
-#base, #quote {
-  width: 300px;
-  display: inline-block;
-}
-
-#chart { display: none; }
-
-#interval {
-	margin-bottom:2em;
-}
+#interval {margin-bottom:2em;}
 #interval a {
-  font-size:14px;
-  display: inline-block;
-  text-decoration: none;
-  color:#666;
-  margin:0 1em;
+	font-size:14px;
+ 	display: inline-block;
+ 	text-decoration: none;
+  	color:#666;
+  	margin:0 1em;
 }
 
 #interval a:hover {
-  color: #999;
+  	color: #999;
 }
 
 #interval a.selected {
-  color: #3369a8;
-  font-weight:bold;
-}
-
-#line {
-	display:inline-block;
-}
-
-.status {
-	color:#999;
-	font-size:12px;	
-}
-
-.hover {
-  stroke: #999;
-  stroke-width: .5;
-}
-
-.focus circle {
-  fill: rgba(255,255,255,.5);
-  stroke: #999;
-}
-
-div.details {   
-  position: absolute;           
-  text-align: center;           
-  width: 180px;                  
-  height: 65px;                 
-  padding: 10px;             
-  font-size:14px;   
-  background: rgba(255,255,255,.9);   
-  border: 1px solid #999;               
-  pointer-events: none; 
-  color:#333;        
-}
-
-div.details span {
-	font-size:10px;
-	color:#999;
-	margin-right:.5em;
+  	color: #3369a8;
+  	font-weight:bold;
 }
 
 #range {
@@ -121,21 +42,19 @@ div.details span {
 </style>
 
 <h2>Growth of The Ripple Network</h2>
+
 <div id="interval"></div>
 <div id="range">
 	<input id="startTime"/>
 	<span>to</span>
 	<input id="endTime"/>
 </div>
-<h3>Total Accounts</h3>
-<div id="line"></div>
-<div id="chart"></div>
 
 <script src="lib/d3/d3.min.js"></script>
 <script src="lib/jquery/jquery.min.js"></script>
 <script src="lib/bootstrap/bootstrap.min.js"></script>
 <script src="lib/bootstrap-datepicker.js"></script>
-    
+<script src="lib/linechart.js"></script>  
 <script>
 
 //used to load intital chart
@@ -153,7 +72,7 @@ $('#startTime').datepicker().on('changeDate', function(e){
 	var start = new Date(e.date);
 	var end   = new Date($('#endTime').val());
 
-	updateLine(getIncrement(start, end), start, end);	
+	updateCharts(getIncrement(start, end), start, end);	
 	$(this).datepicker('hide');
 });
 
@@ -161,24 +80,19 @@ $('#endTime').datepicker().on('changeDate', function(e){
 	var start = new Date($('#startTime').val());
 		end   = new Date(e.date);
 		
-	updateLine(getIncrement(start, end), start, end);	
+	updateCharts(getIncrement(start, end), start, end);	
 	$(this).datepicker('hide');
 });
 
-var apiBase = "http://ct.ripple.com:5993/api/";
-
-var accountsCreated = apiBase + "accountsCreated?";
-//var accountsCreated = "acSample.txt";
+var apiBase     = "http://ct.ripple.com:5993/api/";
+var offersURL   = apiBase + "offersExercised";
 var numAccounts = apiBase + "numAccounts";
+var accountsURL = apiBase + "accountsCreated";
+//var accountsCreated = "acSample.txt";
 
-var formatDate  = d3.time.format.utc("%m/%d/%Y %H:%M:%S"),
-    formatPrice = d3.format(",.5f"),
-
-    lineData = [],
-    offset = function(d) { return d3.time.day.utc.offset(d, -1); }; // 1d
-
-var accountBasis;  //number of accounts at the begining of the chart
-var intervalA = d3.select("#interval").selectAll("a")
+var lineData     = [];
+var accountBasis = 0;  //number of accounts at the begining of the chart
+var intervalA    = d3.select("#interval").selectAll("a")
     .data([
       //{name: "1s",  increment:"second", offset: function(d) { return d3.time.day.offset(d, -1); }},
       {name: "10m", increment:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
@@ -204,99 +118,59 @@ var intervalA = d3.select("#interval").selectAll("a")
   		} else selectRange (d);
     });
 
-function selectRange (d) {
-
-  	var end   = new Date;
-  	var start = d.offset(end);
-  	console.log(end);
-  	console.log(start);
-  	$('#startTime').datepicker('setValue', start);
-  	$('#endTime').datepicker('setValue', end);
-  	updateLine(d.increment, start, end);
-}
-
-//load intital graph
-$('#interval a').eq(7).d3Click();
-
 var monthNames = [ "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December" ];
 
-	var margin = {top: 20, right: 50, bottom: 50, left: 50},
-		width  = 960 - margin.left - margin.right,
-      	height = 500 - margin.top - margin.bottom;
-      	
-	var svg = d3.select("#line").selectAll("svg").data([0]); 	
-  	var svgEnter = svg.enter().append("svg")
-    	.attr("width", width + margin.left + margin.right)
-      	.attr("height", height + margin.top + margin.bottom);
+totalAccounts = new LineChart({
+	title : "Total Accounts",
+	tooltip : function (d, increment) {
+		return "<div>"+parseDate(d.time, increment) + 
+			"</div><span>Accounts Created:</span>" + d.count + 
+			"<br/><span>Total Accounts:</span>" + d.total
+		},
+});
 
-	//var status = svg.append("text").attr("class", "status").attr({y:"1em", x:margin.left ,fill:"#999"});
-	var details = d3.select("body").append("div")   
-    .attr("class", "details")               
-    .style("opacity", 0);
-	
-  	var borderPath = svg.append("rect")
-	  .attr("x", margin.left)
-	  .attr("y", margin.top)
-	  .attr("height", height)
-	  .attr("width", width)
-	  .style("stroke", "#999")
-	  .style("fill", "none")
-	  .style("stroke-width", 1); 
+totalAccounts.update = function (increment, start, end) {
+	totalAccounts.fadeOut();
 
-	var hover = svg.append("line")
-        .attr("class", "hover")
-        .attr("y1", margin.top)
-        .attr("y2", height+margin.top)
-        .style("opacity", 0);	 
-        
-    var horizontal = svg.append("line")
-    	.attr("class", "hover")
-    	.style("opacity", 0);     
-
-function updateLine(increment, start, end) {
-	$('#line').fadeOut(100);
-	d3.selectAll(".hover").style("opacity", 0);
-	d3.selectAll(".details").style("opacity",0);
-	
-	if (start.getYear()<2005) { //because of bug in API for earlier dates		
-		accountBasis = 0;
-  		updateLineHelper({
+	if (start.getFullYear()<2005) { //because of bug in API for earlier dates		
+		totalAccounts.basis = 0;
+  		totalAccounts.updateHelper({
 	  		startTime     : start,
 	    	endTime       : end,
 	    	timeIncrement : increment,
 	  	}); 
 	  			
 	} else {
-		var basisRequest = d3.xhr(numAccounts);
-		var basisData = {time:start};
+		var request = d3.xhr(numAccounts);
+		var data = {time:start};
 		
-		basisRequest.header("Content-type","application/x-www-form-urlencoded");
-	  	basisRequest.post(params(basisData), function(error, xhr) {
+		request.header("Content-type","application/x-www-form-urlencoded");
+	  	request.post(params(data), function(error, xhr) {
 	  		data = JSON.parse(xhr.response);
-	  		accountBasis = data.totalAccounts;
-	  		
-	  		updateLineHelper({
+	  		totalAccounts.basis = data.totalAccounts;
+	  		totalAccounts.updateHelper({
 		  		startTime     : start,
 		    	endTime       : end,
 		    	timeIncrement : increment,
 		  	});  	
 	  	});		
-	}
-}
+	}	
+}  
 
-function updateLineHelper (data) {
-	var request = d3.xhr(accountsCreated);
-	   	
+totalAccounts.updateHelper = function (data) {
+	var request  = d3.xhr(accountsURL);
+	var lineData = [];
+	 	
   	request.header("Content-type","application/x-www-form-urlencoded");
   	request.post(params(data), function(error, xhr) {
 
   	points = JSON.parse(xhr.response);
-  	console.log(points);
-  	
   	points.splice(0,1);
   	points.reverse();
-  	total = accountBasis;
+  	//console.log(points);
+  	
+  	total    = totalAccounts.basis;
     lineData = points.map(function(d){
     	total += d[1];
    		return {
@@ -305,92 +179,67 @@ function updateLineHelper (data) {
    			total : total}
   	});
   	
-  	console.log(lineData);
-    if (lineData.length) redrawLineChart(data.timeIncrement);
+  	//console.log(lineData);
+    totalAccounts.redraw(data.timeIncrement, lineData);
   }); 
-}   
-       
-function redrawLineChart(increment) {
+} 
 
-  
-    
-  	var x = d3.time.scale().range([0, width]).domain(d3.extent(lineData, function(d) { return d.time; })),
-    	y = d3.scale.linear().range([height, 0]).domain(d3.extent(lineData, function(d) { return d.total; })).nice(),
-      	xAxis = d3.svg.axis().scale(x),
-      	yAxis = d3.svg.axis().scale(y),
-      	line = d3.svg.line()
-        	.x(function(d) { return x(d.time); })
-        	.y(function(d) { return y(d.total); });
-        	
-  	var gEnter = svgEnter.append("g")
-      	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-  	gEnter.append("path").attr("class", "line");
-  	gEnter.append("g")
-      	.attr("class", "x axis")
-      	.attr("transform", "translate(0," + y.range()[0] + ")")
-  	gEnter.append("g")
-    	.attr("class", "y axis right")
-      	.attr("transform", "translate(" + x.range()[1] + ")");
-  	var g = svg.select("g");
-  	g.select(".line").datum(lineData).attr("d", line);
-  	g.select(".x.axis").call(xAxis).attr({"fill":"#aaa"});
-  	g.select(".y.axis.right").call(yAxis.orient("right")).attr({"font-size":"12px","fill":"#999"});
-  	//d3.selectAll(".symbol-base").text("Date");
-  	//d3.selectAll(".symbol-quote").text("Time");
-  	
-  	d3.select(".focus").remove();
-   	var focus = svg.append("g")
- 		.attr("class", "focus")
- 		.style("opacity", 0);	
-      
-    focus.append("circle").attr("r", 4.5);	
-
-  	$('#line').fadeIn(300);
-	
-	function mousemove(e) {
-	  var tx = Math.max(margin.left, Math.min(width+margin.left, d3.mouse(this)[0])),
-		i = d3.bisect(lineData.map(function(d) { return d.time; }), x.invert(tx-margin.left));
-	    d = lineData[i-1];
-	    
-	    //console.log(i);
-		//console.log(x.invert(tx-margin.left));
-		//console.log(d);
-		
-		var details = d3.select('.details');
-	    mouseX = d3.mouse(this)[0];
-	    if (mouseX<0 || mouseX>width+margin.left+margin.right) {
-	    	hover.style("opacity", 0);
-	    	focus.style("opacity", 0);
-	    	horizontal.style("opacity", 0);
-	    	details.style("opacity", 0);
-	    	
-	    } else {
-	    	hover.style("opacity", 1);
-	    	focus.style("opacity", 1);
-	    	horizontal.style("opacity", 1);
-	    }
-	    
-	 	if (d) {
-	 		tx = x(d.time)+margin.left;
-	 		ty = y(d.total)+margin.top;
-	 		
-	  		details.html("<div>"+parseDate(d.time, increment) + "</div><span>Accounts Created:</span>" + d.count + "<br/><span>Total Accounts:</span>" + d.total)
-	  			.style("left", (tx+45) + "px")     
-                .style("top", (ty+75) + "px") 
-	  			.style("opacity",1);
-	  		
-	  		hover.attr("transform", "translate(" + tx + ")");
-	  		focus.attr("transform", "translate(" + tx + "," + ty + ")");
-	  		horizontal.attr("x1", tx);
-	  		horizontal.attr("x2", width+margin.left);
-	  		horizontal.attr("y1", ty);
-	  		horizontal.attr("y2", ty);
-	  	}
+offersExercised = new LineChart({
+	title : "Offers Exercised (Bitstamp USD/XRP)",
+	tooltip : function (d, increment) {
+		return "<div>"+parseDate(d.time, increment) + 
+			"</div><span>Offers Exercised:</span>" + d.count + 
+			"<br/><span>Total:</span>" + d.total;
 	}
+});
+
+offersExercised.update = function (increment, start, end) {
+	offersExercised.fadeOut();
 	
-	svg.on("mousemove.hover", mousemove);
+	var request  = d3.xhr(offersURL);
+	var lineData = [];
+		
+  	request.header("Content-type","application/x-www-form-urlencoded");
+  	request.post(params({
+  		startTime     : start,
+    	endTime       : end,
+    	timeIncrement : increment,
+    	"base[currency]"  : "XRP",
+    	"trade[currency]" : "USD",
+    	"trade[issuer]"   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"
+    	}), function(error, xhr) {
+
+	  	points = JSON.parse(xhr.response);
+	  	points.splice(0,1);
+	  	points.reverse();
+	  	//console.log(points);
+	  	
+	  	total    = 0;
+	    lineData = points.map(function(d){
+	    	total += d[3];
+	   		return {
+	   			time  : new Date(d[0]),
+	   			count : d[3],
+	   			total : total}
+	  	});
+	  	
+	  	//console.log(lineData);
+	    offersExercised.redraw(increment, lineData);	
+	});
 }
 
+//load intital graphs
+$('#interval a').eq(3).d3Click();
+
+function selectRange (d) {
+  	var end   = new Date;
+  	var start = d.offset(end);
+  	
+  	$('#startTime').datepicker('setValue', start);
+  	$('#endTime').datepicker('setValue', end);
+  	totalAccounts.update(d.increment, start, end);
+  	offersExercised.update(d.increment, start, end);
+} 
 
 function params(o) {
   var s = [];
