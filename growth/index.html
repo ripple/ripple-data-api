@@ -92,17 +92,24 @@ h3 {font-size:21px}
   fill: rgba(255,255,255,.5);
   stroke: #999;
 }
-div.tooltip {   
+
+div.details {   
   position: absolute;           
   text-align: center;           
-  width: 60px;                  
-  height: 28px;                 
-  padding: 2px;             
-  font: 12px sans-serif;        
-  background: lightsteelblue;   
-  border: 0px;      
-  border-radius: 8px;           
-  pointer-events: none;         
+  width: 180px;                  
+  height: 65px;                 
+  padding: 10px;             
+  font-size:14px;   
+  background: rgba(255,255,255,.9);   
+  border: 1px solid #999;               
+  pointer-events: none; 
+  color:#333;        
+}
+
+div.details span {
+	font-size:10px;
+	color:#999;
+	margin-right:.5em;
 }
 
 #range {
@@ -162,6 +169,7 @@ var apiBase = "http://ct.ripple.com:5993/api/";
 
 var accountsCreated = apiBase + "accountsCreated?";
 //var accountsCreated = "acSample.txt";
+var numAccounts = apiBase + "numAccounts";
 
 var formatDate  = d3.time.format.utc("%m/%d/%Y %H:%M:%S"),
     formatPrice = d3.format(",.5f"),
@@ -169,7 +177,7 @@ var formatDate  = d3.time.format.utc("%m/%d/%Y %H:%M:%S"),
     lineData = [],
     offset = function(d) { return d3.time.day.utc.offset(d, -1); }; // 1d
 
-
+var accountBasis;  //number of accounts at the begining of the chart
 var intervalA = d3.select("#interval").selectAll("a")
     .data([
       //{name: "1s",  increment:"second", offset: function(d) { return d3.time.day.offset(d, -1); }},
@@ -210,6 +218,8 @@ function selectRange (d) {
 //load intital graph
 $('#interval a').eq(7).d3Click();
 
+var monthNames = [ "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December" ];
 
 	var margin = {top: 20, right: 50, bottom: 50, left: 50},
 		width  = 960 - margin.left - margin.right,
@@ -220,7 +230,10 @@ $('#interval a').eq(7).d3Click();
     	.attr("width", width + margin.left + margin.right)
       	.attr("height", height + margin.top + margin.bottom);
 
-	var status = svg.append("text").attr("class", "status").attr({y:"1em", x:margin.left ,fill:"#999"});
+	//var status = svg.append("text").attr("class", "status").attr({y:"1em", x:margin.left ,fill:"#999"});
+	var details = d3.select("body").append("div")   
+    .attr("class", "details")               
+    .style("opacity", 0);
 	
   	var borderPath = svg.append("rect")
 	  .attr("x", margin.left)
@@ -242,39 +255,62 @@ $('#interval a').eq(7).d3Click();
     	.style("opacity", 0);     
 
 function updateLine(increment, start, end) {
-	console.log(increment);
-  $('#line').fadeOut(100);
+	$('#line').fadeOut(100);
 	d3.selectAll(".hover").style("opacity", 0);
+	d3.selectAll(".details").style("opacity",0);
 	
-  var request = d3.xhr(accountsCreated);
-  var data  = {
-  	startTime     : end,
-    endTime       : start,
-    timeIncrement : increment,
-    //descending    : false,
-    format        : 'json',
-  }
-   
-  request.header("Content-type","application/x-www-form-urlencoded");
-  request.post(params(data), function(error, xhr) {
+	if (start.getYear()<2005) { //because of bug in API for earlier dates		
+		accountBasis = 0;
+  		updateLineHelper({
+	  		startTime     : start,
+	    	endTime       : end,
+	    	timeIncrement : increment,
+	  	}); 
+	  			
+	} else {
+		var basisRequest = d3.xhr(numAccounts);
+		var basisData = {time:start};
+		
+		basisRequest.header("Content-type","application/x-www-form-urlencoded");
+	  	basisRequest.post(params(basisData), function(error, xhr) {
+	  		data = JSON.parse(xhr.response);
+	  		accountBasis = data.totalAccounts;
+	  		
+	  		updateLineHelper({
+		  		startTime     : start,
+		    	endTime       : end,
+		    	timeIncrement : increment,
+		  	});  	
+	  	});		
+	}
+}
 
-  	data = JSON.parse(xhr.response);
-  	data.splice(0,1);
-  	data.reverse();
-  	total = 0;
-    lineData = data.map(function(d){
+function updateLineHelper (data) {
+	var request = d3.xhr(accountsCreated);
+	   	
+  	request.header("Content-type","application/x-www-form-urlencoded");
+  	request.post(params(data), function(error, xhr) {
+
+  	points = JSON.parse(xhr.response);
+  	console.log(points);
+  	
+  	points.splice(0,1);
+  	points.reverse();
+  	total = accountBasis;
+    lineData = points.map(function(d){
     	total += d[1];
    		return {
-   			time  : new Date(d[0]), //TODO: handle UTC, local time
+   			time  : new Date(d[0]),
    			count : d[1],
    			total : total}
   	});
   	
-    redrawLineChart();
-  });
-}
-          
-function redrawLineChart() {
+  	console.log(lineData);
+    if (lineData.length) redrawLineChart(data.timeIncrement);
+  }); 
+}   
+       
+function redrawLineChart(increment) {
 
   
     
@@ -314,26 +350,35 @@ function redrawLineChart() {
 	function mousemove(e) {
 	  var tx = Math.max(margin.left, Math.min(width+margin.left, d3.mouse(this)[0])),
 		i = d3.bisect(lineData.map(function(d) { return d.time; }), x.invert(tx-margin.left));
-		console.log(i);
-		console.log(x.invert(tx-margin.left));
 	    d = lineData[i-1];
-		console.log(d);
+	    
+	    //console.log(i);
+		//console.log(x.invert(tx-margin.left));
+		//console.log(d);
 		
+		var details = d3.select('.details');
 	    mouseX = d3.mouse(this)[0];
 	    if (mouseX<0 || mouseX>width+margin.left+margin.right) {
 	    	hover.style("opacity", 0);
 	    	focus.style("opacity", 0);
 	    	horizontal.style("opacity", 0);
+	    	details.style("opacity", 0);
+	    	
 	    } else {
 	    	hover.style("opacity", 1);
 	    	focus.style("opacity", 1);
 	    	horizontal.style("opacity", 1);
 	    }
+	    
 	 	if (d) {
 	 		tx = x(d.time)+margin.left;
 	 		ty = y(d.total)+margin.top;
-	 		var status = svg.select('.status');
-	  		status.text(d.time + " created:" + d.count + " total:" + d.total);
+	 		
+	  		details.html("<div>"+parseDate(d.time, increment) + "</div><span>Accounts Created:</span>" + d.count + "<br/><span>Total Accounts:</span>" + d.total)
+	  			.style("left", (tx+45) + "px")     
+                .style("top", (ty+75) + "px") 
+	  			.style("opacity",1);
+	  		
 	  		hover.attr("transform", "translate(" + tx + ")");
 	  		focus.attr("transform", "translate(" + tx + "," + ty + ")");
 	  		horizontal.attr("x1", tx);
@@ -365,5 +410,12 @@ function getIncrement (start, end) {
 	else 					 return "month";	
 }
 
+function parseDate (date, increment) 
+{
+	if      (increment == "month") return monthNames[d.time.getMonth()] + " " + d.time.getYear();
+	else if (increment == "day")   return monthNames[d.time.getMonth()] + " " + d.time.getDate();
+	else return monthNames[d.time.getMonth()] + " " + d.time.getDate() + " &middot " + d.time.toLocaleTimeString();
+
+}
 </script>
 
