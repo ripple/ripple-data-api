@@ -92,7 +92,7 @@ LineChart = function (options){
 	  	g.select(".x.axis").call(xAxis).attr({"fill":"#aaa"});
 	  	g.select(".y.axis.right").call(yAxis.orient("right")).attr({"fill":"#999"});
 	  	
-	  	d3.select(".focus").remove();
+	  	svg.select(".focus").remove();
 	   	var focus = svg.append("g")
 	 		.attr("class", "focus")
 	 		.style("opacity", 0);	
