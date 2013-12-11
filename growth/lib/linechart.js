@@ -3,19 +3,19 @@ var LineChart = {};
 LineChart = function (options){
 	var lineData = [];
 	var self     = this;
-	var margin   = {top: 20, right: 50, bottom: 50, left: 50},
-		width    = 960 - margin.left - margin.right,
-	  	height   = 500 - margin.top - margin.bottom;
 	  		
-	if (options.title) d3.select("body").append("h3").html(options.title);
+	if (options.title)   d3.select("body").append("h3").html(options.title);
+	if (!options.margin) options.margin = {top: 20, right: 50, bottom: 50, left: 50};
+	if (!options.height) options.height = 430;
+	if (!options.width)  options.width  = 860;
+	
 	var div      = d3.select("body").append("div").attr("class","lineChart");
-		
-	var svg = div.selectAll("svg").data([0]); 	
+	var svg      = div.selectAll("svg").data([0]); 	
 	var svgEnter = svg.enter().append("svg")
-		.attr("width", width + margin.left + margin.right)
-	  	.attr("height", height + margin.top + margin.bottom);
+		.attr("width", options.width + options.margin.left + options.margin.right)
+	  	.attr("height", options.height + options.margin.top + options.margin.bottom);
 	  	
-	 //var status = svg.append("text").attr("class", "status").attr({y:"1em", x:margin.left ,fill:"#999"});
+	 //var status = svg.append("text").attr("class", "status").attr({y:"1em", x:options.margin.left ,fill:"#999"});
 	var status  = div.append("h4")
 		.attr("class", "status")
 		.style("opacity", 0);
@@ -25,18 +25,18 @@ LineChart = function (options){
 		.style("opacity", 0);
 		
 	var borderPath = svg.append("rect")
-		.attr("x", margin.left)
-	  	.attr("y", margin.top)
-	  	.attr("height", height)
-	  	.attr("width", width)
+		.attr("x", options.margin.left)
+	  	.attr("y", options.margin.top)
+	  	.attr("height", options.height)
+	  	.attr("width", options.width)
 	  	.style("stroke", "#999")
 	  	.style("fill", "none")
 	  	.style("stroke-width", 1); 
 	
 	var hover = svg.append("line")
 	    .attr("class", "hover")
-	    .attr("y1", margin.top)
-	    .attr("y2", height+margin.top)
+	    .attr("y1", options.margin.top)
+	    .attr("y2", options.height+options.margin.top)
 	    .style("opacity", 0);	 
 	    
 	var horizontal = svg.append("line")
@@ -68,16 +68,16 @@ LineChart = function (options){
 		
 		self.lineData = lineData;
 		
-	  	var x     = d3.time.scale().range([0, width]).domain(d3.extent(self.lineData, function(d) { return d.time; })),
-	    	y     = d3.scale.linear().range([height, 0]).domain(d3.extent(self.lineData, function(d) { return d.total; })).nice(),
+	  	var x     = d3.time.scale().range([0, options.width]).domain(d3.extent(self.lineData, function(d) { return d.x; })),
+	    	y     = d3.scale.linear().range([options.height, 0]).domain(d3.extent(self.lineData, function(d) { return d.y; })).nice(),
 	      	xAxis = d3.svg.axis().scale(x),
 	      	yAxis = d3.svg.axis().scale(y),
 	      	line  = d3.svg.line()
-	        	.x(function(d) { return x(d.time); })
-	        	.y(function(d) { return y(d.total); });
+	        	.x(function(d) { return x(d.x); })
+	        	.y(function(d) { return y(d.y); });
 	    	        	
 	  	var gEnter = svgEnter.append("g")
-	      	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+	      	.attr("transform", "translate(" + options.margin.left + "," + options.margin.top + ")");
 	      	
 	  	gEnter.append("path").attr("class", "line");
 	  	gEnter.append("g")
@@ -103,17 +103,17 @@ LineChart = function (options){
 		loader.transition().duration(300).style("opacity", 0);
 		
 		function mousemove(e) {
-			var tx = Math.max(margin.left, Math.min(width+margin.left, d3.mouse(this)[0])),
-				i  = d3.bisect(self.lineData.map(function(d) { return d.time; }), x.invert(tx-margin.left));
+			var tx = Math.max(options.margin.left, Math.min(options.width+options.margin.left, d3.mouse(this)[0])),
+				i  = d3.bisect(self.lineData.map(function(d) { return d.x; }), x.invert(tx-options.margin.left));
 		    	d  = self.lineData[i-1];
 		    
 		    //console.log(i);
-			//console.log(x.invert(tx-margin.left));
+			//console.log(x.invert(tx-options.margin.left));
 			//console.log(d);
 			
 			var details = div.select('.details');
 		    mouseX = d3.mouse(this)[0];
-		    if (mouseX<0 || mouseX>width+margin.left+margin.right) {
+		    if (mouseX<0 || mouseX>options.width+options.margin.left+options.margin.right) {
 		    	hover.style("opacity", 0);
 		    	focus.style("opacity", 0);
 		    	horizontal.style("opacity", 0);
@@ -126,8 +126,8 @@ LineChart = function (options){
 		    }
 		    
 		 	if (d) {
-		 		tx = x(d.time)+margin.left;
-		 		ty = y(d.total)+margin.top;
+		 		tx = x(d.x)+options.margin.left;
+		 		ty = y(d.y)+options.margin.top;
 		 		
 		  		details.html(options.tooltip(d, increment))
 		  			.style("left", (tx-100) + "px")     
@@ -137,7 +137,7 @@ LineChart = function (options){
 		  		hover.attr("transform", "translate(" + tx + ")");
 		  		focus.attr("transform", "translate(" + tx + "," + ty + ")");
 		  		horizontal.attr("x1", tx);
-		  		horizontal.attr("x2", width+margin.left);
+		  		horizontal.attr("x2", options.width+options.margin.left);
 		  		horizontal.attr("y1", ty);
 		  		horizontal.attr("y2", ty);
 		  	}

@@ -124,9 +124,9 @@ var monthNames = [ "January", "February", "March", "April", "May", "June",
 totalAccounts = new LineChart({
 	title : "Total Accounts",
 	tooltip : function (d, increment) {
-		return "<div>"+parseDate(d.time, increment) + 
-			"</div><span>Accounts Created:</span>" + d.count + 
-			"<br/><span>Total Accounts:</span>" + d.total
+		return "<div>"+parseDate(d.x, increment) + 
+			"</div><span>Accounts Created:</span>" + d.y2 + 
+			"<br/><span>Total Accounts:</span>" + d.y
 		},
 });
 
@@ -174,9 +174,9 @@ totalAccounts.updateHelper = function (data) {
     lineData = points.map(function(d){
     	total += d[1];
    		return {
-   			time  : new Date(d[0]),
-   			count : d[1],
-   			total : total}
+   			x  : new Date(d[0]),
+   			y  : total,
+   			y2 : d[1]}
   	});
   	
   	//console.log(lineData);
@@ -187,9 +187,9 @@ totalAccounts.updateHelper = function (data) {
 offersExercised = new LineChart({
 	title : "Offers Exercised (Bitstamp USD/XRP)",
 	tooltip : function (d, increment) {
-		return "<div>"+parseDate(d.time, increment) + 
-			"</div><span>Offers Exercised:</span>" + d.count + 
-			"<br/><span>Total:</span>" + d.total;
+		return "<div>"+parseDate(d.x, increment) + 
+			"</div><span>Offers Exercised:</span>" + d.y2 + 
+			"<br/><span>Total:</span>" + d.y;
 	}
 });
 
@@ -218,9 +218,9 @@ offersExercised.update = function (increment, start, end) {
 	    lineData = points.map(function(d){
 	    	total += d[3];
 	   		return {
-	   			time  : new Date(d[0]),
-	   			count : d[3],
-	   			total : total}
+	   			x  : new Date(d[0]),
+	   			y  : total,
+	   			y2 : d[3]}
 	  	});
 	  	
 	  	//console.log(lineData);
@@ -261,9 +261,9 @@ function getIncrement (start, end) {
 
 function parseDate (date, increment) 
 {
-	if      (increment == "month") return monthNames[d.time.getMonth()] + " " + d.time.getYear();
-	else if (increment == "day")   return monthNames[d.time.getMonth()] + " " + d.time.getDate();
-	else return monthNames[d.time.getMonth()] + " " + d.time.getDate() + " &middot " + d.time.toLocaleTimeString();
+	if      (increment == "month") return monthNames[d.x.getMonth()] + " " + d.x.getYear();
+	else if (increment == "day")   return monthNames[d.x.getMonth()] + " " + d.x.getDate();
+	else return monthNames[d.x.getMonth()] + " " + d.x.getDate() + " &middot " + d.x.toLocaleTimeString();
 
 }
 </script>

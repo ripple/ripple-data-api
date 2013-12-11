@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
+<title>Ripple Trades</title>
+<style>
+@import url(linechart.css);
+@import url(candlestick.css);
+body {
+	font-family:"Open Sans", Helvetica, Arial, sans-serif;
+}
+
+#currency-pair {
+	display:inline-block;	
+}
+
+#currency-pair h3 {
+	margin: 0 0 .5em;
+  	background: #f6f6f6;
+}
+
+#base, #quote {
+  	display: inline-block;
+}
+
+#flip {
+	margin: 0 10px;
+	font-size:12px;	
+	cursor:pointer;
+}
+
+#interval {}
+#interval a, #chartType a {
+	font-size:12px;
+ 	display: inline-block;
+ 	text-decoration: none;
+  	color:#666;
+  	margin:0 .5em;
+}
+
+#interval a:hover, #chartType a:hover {
+  	color: #999;
+}
+
+#interval a.selected, #chartType a.selected {
+  	color: #3369a8;
+  	font-weight:bold;
+}
+
+#chartType {
+	display:inline-block;
+	margin:0 2em;
+}
+</style>
+
+<div id="currency-pair">
+	<div id="base"></div>
+	<span id="flip">Flip</span>
+	<div id="quote"></div>
+</div>
+<div id="chartType"></div>
+<div id="interval"></div>
+<div class="chart">
+	<div id="lineChart"></div>
+	<div id="candlestickChart"></div>
+</div>
+
+
+<script src="d3/d3.min.js"></script>
+<script src="ripple/ripple.min.js"></script>
+<script src="rippleCharts.js"></script>
+<script src="currency.js"></script>
+<script src="transactionFeed.js"></script>
+<script>
+
+var base      = "http://ct.ripple.com:5993/api/";
+var offersURL = base + "offersexercised";
+
+var loaded = false;
+var trade  = {currency:"USD", issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    base   = {currency:"XRP", issuer:""},
+    dropdownB = ripple.currencyDropdown().selected(trade)
+    	.on("change", function(d) {
+      		if (loaded) updateChart(base, trade = d, d3.select("#interval .selected").datum());
+      	}),
+    dropdownA = ripple.currencyDropdown().selected(base)
+      .on("change", function(d) {
+			if (loaded) updateChart(base = d, trade, d3.select("#interval .selected").datum());
+      });
+
+d3.select("#base").call(dropdownA);
+
+d3.select("#quote").call(dropdownB);
+d3.select("#flip").on("click", function(){
+	dropdownA.selected(trade);
+	dropdownB.selected(base);
+	d3.select("#base").selectAll("select").remove();
+	d3.select("#quote").selectAll("select").remove();
+	loaded = false;
+	d3.select("#base").call(dropdownA);
+	d3.select("#quote").call(dropdownB);
+	loaded = true;
+	swap   = trade;
+	trade  = base;
+	base   = swap;
+	updateChart(base, trade, d3.select("#interval .selected").datum());
+});
+    
+var intervalA = d3.select("#interval").selectAll("a")
+    .data([
+      {name: "10m", interval:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},	
+      {name: "1h",  interval:"second", offset: function(d) { return d3.time.hour.offset(d, -1); }},	
+      {name: "12h", interval:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},	
+      {name: "24h", interval:"minute", offset: function(d) { return d3.time.day.offset(d, -1); }},
+      {name: "3d",  interval:"hour",   offset: function(d) { return d3.time.day.offset(d, -3); }},
+      {name: "1m",  interval:"hour",   offset: function(d) { return d3.time.month.offset(d, -1); }},
+      {name: "6m",  interval:"day",    offset: function(d) { return d3.time.month.offset(d, -6); }},
+      {name: "1y",  interval:"day",    offset: function(d) { return d3.time.year.offset(d, -1); }},
+      {name: "max", interval:"day",    offset: function(d) { return d3.time.year.offset(d, -10); }}
+    ])
+  .enter().append("a")
+    .attr("href", "#")
+    .classed("selected", function(_, i) { return !i; })
+    .text(function(d) { return d.name; })
+    .on("click", function(d) {
+      d3.event.preventDefault();
+      var that = this;
+      intervalA.classed("selected", function() { return this === that; });
+      updateChart(base, trade, d);
+    });
+
+var chartType = d3.select("#chartType").selectAll("a")
+	.data(["line", "candlestick"])
+	.enter().append("a")
+    .attr("href", "#")
+    .classed("selected", function(_, i) { return !i; })
+    .text(function(d) { return d })		
+	.on("click", function(d) {
+		d3.event.preventDefault();
+      	var that = this;
+      	chartType.classed("selected", function() { return this === that; });
+      	chartType.selected = d;
+      	updateChart(base, trade, d3.select("#interval .selected").datum());
+    });
+    
+    chartType.selected = "line";
+    
+var line   = new RippleCharts.line({
+	id  : "#lineChart",
+	url : offersURL,
+	});
+var candle = new RippleCharts.candlestick({
+	id  : "#candlestickChart",
+	url : offersURL,
+	});
+
+function updateChart(base, trade, d) {
+	if (chartType.selected=="line") {
+		candle.fadeOut();
+		d3.select("#candlestickChart").style("display","none");
+		d3.select("#lineChart").style("display","");
+		line.update(base, trade, d);
+		
+	} else {
+		line.fadeOut();
+		d3.select("#lineChart").style("display","none");
+		d3.select("#candlestickChart").style("display","");	
+		candle.update(base, trade, d);	
+	}	
+}
+
+setTimeout(function(){
+	loaded = true;
+	d3.select("#interval a:nth-child(4)")[0][0].click();
+},	100);
+
+
+function params(o) {
+  var s = [];
+  for (var key in o) {
+  s.push(key + "=" + encodeURIComponent(o[key]));
+  }
+  return s.join("&");
+}
+
+function arrayEqual(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; ++i) {
+      if (!arrayEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a === b;
+}
+</script>

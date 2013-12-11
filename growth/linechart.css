@@ -42,6 +42,7 @@ h1, h2, h3, h4 {
 
 
 .lineChart .status {
+	text-align:center;
 	color:#aaa;
 	position:absolute;
 	width:100%;

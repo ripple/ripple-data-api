@@ -1,0 +1,83 @@
+
+h1, h2, h3, h4 {
+	font-weight: 300;
+}
+
+.chart .loader {
+	width:40px;
+	position:absolute;
+	top:50%;
+	left:50%;	
+	margin-top:-50px;
+	margin-left:-20px;
+}
+
+.chart .axis {
+	shape-rendering: crispEdges;
+}
+
+.chart .axis path, .axis line {
+	fill: none;
+	stroke: #000;
+	stroke-width: .5;
+}
+
+.chart .axis text {
+	font-size:10px;
+}
+
+.chart .axis.y text, .chart .axis.left text {
+	font-size:12px;
+}
+
+.chart, #candlestickChart {
+	display: inline-block;
+	position: relative;
+}
+
+.chart path {
+	fill: none;
+	stroke: #3369a8;
+}
+
+
+.chart .status {
+	text-align:center;
+	color:#aaa;
+	position:absolute;
+	width:100%;
+	top:30%;
+}
+
+.chart .hover {
+	stroke: #999;
+	stroke-width: .5;
+}
+
+.chart .focus circle {
+	fill: rgba(255,255,255,.5);
+	stroke: #999;
+}
+
+div.chartDetails {   
+	position: absolute;  
+	top: -20px;
+	left: 400px;         
+	text-align: left;                                      
+	font-size:14px;   
+	color:#333;      
+}
+
+div.chartDetails span {
+	font-size:12px;
+	color:#999;
+	margin: 0 .25em;
+	display:inline-block;
+}
+
+div.chartDetails b {margin:0 .25em}
+
+div.chartDetails .date {min-width:150px}
+div.chartDetails .high {color:#090}
+div.chartDetails .low {color:#900}
+div.chartDetails .volume {color:#369}
