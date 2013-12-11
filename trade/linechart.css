@@ -59,6 +59,21 @@ h1, h2, h3, h4 {
 	stroke: #999;
 }
 
+.candlesticks rect {
+  fill: #c33;
+  stroke: #622;
+  stroke-width: .5;
+}
+
+.candlesticks .up rect {
+  fill: #3c5;
+  stroke: #262;
+}
+
+.candlesticks line {
+	stroke-width : 1.5;	
+}
+
 div.chartDetails {   
 	position: absolute;  
 	top: -20px;
