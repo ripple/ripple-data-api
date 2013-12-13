@@ -20,16 +20,15 @@ RippleCharts.line = function (options){
 	var svg      = div.selectAll("svg").data([0]); 	
 	var svgEnter = svg.enter().append("svg")
 		.attr("width", options.width + options.margin.left + options.margin.right)
-	  	.attr("height", options.height + options.margin.top + options.margin.bottom);
+	  	.attr("height", options.height + options.margin.top + options.margin.bottom)
+	  	.style("opacity",0);
 
-	var borderPath = svg.append("rect")
+	var background = svg.append("rect")
+		.attr("class", "background")
 		.attr("x", options.margin.left)
 	  	.attr("y", options.margin.top)
 	  	.attr("height", options.height)
-	  	.attr("width", options.width)
-	  	.style("stroke", "#999")
-	  	.style("fill", "none")
-	  	.style("stroke-width", 1); 
+	  	.attr("width", options.width); 
 	  		  	
 	 //var status = svg.append("text").attr("class", "status").attr({y:"1em", x:options.margin.left ,fill:"#999"});
 	var status  = div.append("h4")
@@ -77,7 +76,7 @@ RippleCharts.line = function (options){
 	  	self.request.post(params({
 	  		startTime     : start,
 	  		endTime       : end,
-	  		timeIncrement : d.interval,
+	  		timeIncrement : d.lineInterval,
 	  		descending    : true,
 	  		"trade[currency]" : trade.currency,
 	  		"trade[issuer]"   : trade.issuer ? trade.issuer : "",
@@ -97,12 +96,12 @@ RippleCharts.line = function (options){
 			        	high   : d[6],
 			        	low    : d[7],
 			        	vwap   : d[8],
-			        	volume : d[2],
+			        	volume : d[1],
 					};	    		
 			    });   			
 	  		}
 	
-			self.redraw(d.interval, lineData);   
+			self.redraw(d.lineInterval, lineData);   
 	  	});
 	}
 	
@@ -136,8 +135,8 @@ RippleCharts.line = function (options){
 	  	var g = svg.select("g");
 	  	
 	  	g.select(".line").datum(self.lineData).attr("d", line);
-	  	g.select(".x.axis").call(xAxis).attr({"fill":"#aaa"});
-	  	g.select(".y.axis.right").call(yAxis.orient("right")).attr({"fill":"#999"});
+	  	g.select(".x.axis").call(xAxis);
+	  	g.select(".y.axis.right").call(yAxis.orient("right"));
 	  	
 	  	svg.select(".focus").remove();
 	   	var focus = svg.append("g")
@@ -184,12 +183,13 @@ RippleCharts.line = function (options){
 					"<span class='volume'>Volume:<b>" + d.volume.toFixed(4) + " " + self.trade.currency + "</b></span>")
 		  			.style("opacity",1);
 		  		
-		  		hover.attr("transform", "translate(" + tx + ")");
-		  		focus.attr("transform", "translate(" + tx + "," + ty + ")");
-		  		horizontal.attr("x1", tx);
-		  		horizontal.attr("x2", options.width+options.margin.left);
-		  		horizontal.attr("y1", ty);
-		  		horizontal.attr("y2", ty);
+		  		hover.transition().duration(50).attr("transform", "translate(" + tx + ")");
+		  		focus.transition().duration(50).attr("transform", "translate(" + tx + "," + ty + ")");
+		  		horizontal.transition().duration(50)
+		  			.attr("x1", tx)
+		  			.attr("x2", options.width+options.margin.left)
+		  			.attr("y1", ty)
+		  			.attr("y2", ty);
 		  	}
 		}
 		
@@ -201,11 +201,11 @@ RippleCharts.candlestick = function (options) {
 	var self = this,
     	candleWidth = 10,
       	xScale      = d3.time.scale.utc(),
-      	yScale      = d3.scale.linear(),
+      	priceScale  = d3.scale.linear(),
       	volumeScale = d3.scale.linear(),
       	xAxis       = d3.svg.axis().scale(xScale),
       	leftAxis    = d3.svg.axis().scale(volumeScale).orient("left").tickFormat(d3.format("s")),
-      	yAxis       = d3.svg.axis().scale(yScale).orient("right");
+      	rightAxis   = d3.svg.axis().scale(priceScale).orient("right");
 
 	if (!options.margin) options.margin = {top: 10, right: 50, bottom: 50, left: 50};
 	if (!options.height) options.height = 500;
@@ -233,17 +233,46 @@ RippleCharts.candlestick = function (options) {
   	var gEnter = svg.append("g")
   		.attr("transform", "translate(" + options.margin.left + "," + options.margin.top + ")");
   	gEnter.append("rect").attr("class", "background").attr("width", options.width).attr("height", options.height);
-  	gEnter.append("g").attr("class", "volume");
+  	gEnter.append("g").attr("class", "volume")
+  		.attr("width", options.width + options.margin.left + options.margin.right)
+	  	.attr("height", options.height + options.margin.top + options.margin.bottom);   
   	gEnter.append("g").attr("class", "candlesticks").attr("clip-path", "url(#clip)");
   	gEnter.append("g").attr("class", "x axis");
-  	gEnter.append("g").attr("class", "left axis").append("text").attr("class", "title").attr("transform", "rotate(-90)").attr("dy", "10px").attr("y", 6).text("Volume");
-  	gEnter.append("g").attr("class", "y axis").append("text").attr("class", "title").attr("transform", "rotate(-90)").attr("dy", "10px").attr("y", 950).text("Price");
+  	gEnter.append("g").attr("class", "left axis")
+  		.append("text").text("Volume")
+  		.attr("class", "title")
+  		.attr("transform", "rotate(-90)")
+  		.attr("y",15).attr("x",-60);
+  	gEnter.append("g")
+  		.attr("class", "y axis")
+  		.append("text").text("Price")
+  		.attr("class", "title")
+  		.attr("transform", "rotate(-90)")
+  		.attr("y",-10).attr("x",-80);
     gEnter.append("circle").attr("class", "focus").attr("r",3).attr("fill", "#555");
     
     var hover      = gEnter.append("line").attr("class", "hover").attr("y2", options.height);
   	var horizontal = gEnter.append("line").attr("class", "hover");
   	      
+	// gradient for volume bars	    
+    var gradient = svg.append("svg:defs")
+		.append("svg:linearGradient")
+		.attr("id", "gradient")
+		.attr("x1", "0%")
+		.attr("y1", "0%")
+		.attr("x2", "0%")
+		.attr("y2", "100%")
+		.attr("spreadMethod", "pad");
+
+	gradient.append("svg:stop")
+	    .attr("offset", "0%")
+	    .attr("stop-color", "#ddd")
+	    .attr("stop-opacity", 1);
 	
+	gradient.append("svg:stop")
+	    .attr("offset", "100%")
+	    .attr("stop-color", "#eee")
+	    .attr("stop-opacity", 1);	
 	          
 	this.fadeOut = function () {
 		div.selectAll("svg").transition().duration(100).style("opacity", 0);
@@ -271,7 +300,7 @@ RippleCharts.candlestick = function (options) {
 	  	self.request.post(params({
 	  		startTime     : start,
 	  		endTime       : end,
-	  		timeIncrement : d.interval,
+	  		timeIncrement : d.candleInterval,
 	  		descending    : true,
 	  		"trade[currency]" : trade.currency,
 	  		"trade[issuer]"   : trade.issuer ? trade.issuer : "",
@@ -291,12 +320,12 @@ RippleCharts.candlestick = function (options) {
 			        	high   : d[6],
 			        	low    : d[7],
 			        	vwap   : d[8],
-			        	volume : d[2],
+			        	volume : d[1],
 					};	    		
 			    });   			
 	  		}
 	
-			self.redraw(d.interval, lineData);   
+			self.redraw(d.candleInterval, lineData);   
 	  	});
 	}
 	
@@ -304,7 +333,7 @@ RippleCharts.candlestick = function (options) {
 
 		candleWidth = options.width/(lineData.length*1.15);
 		if (candleWidth<4) candleWidth = 4; 
-	
+		
 	    svg.datum(lineData).on("mousemove.candlestick", mousemove);
 	
 	    var g      = svg.select("g");
@@ -313,60 +342,73 @@ RippleCharts.candlestick = function (options) {
 		
 		var line = g.select(".volume").selectAll(".line").data(function(d) { return [d]; });
 	    line.enter().append("path").attr("class", "line");
-	
-	    // Update the candlesticks.
+		
+		g.select(".volume").selectAll("rect").data(lineData).enter().append("rect");  
+		g.select(".axis.y").select("text").text("Price ("+self.trade.currency+")");
+		
+	    // add the candlesticks.
 	    var candle = g.select(".candlesticks").selectAll("g").data(function(d) { return d; }, function(d) { return d.time; });
 	    var candleEnter = candle.enter().append("g")
 	        .attr("transform", function(d) { return "translate(" + xScale(d.time) + ")"; });
 	    candleEnter.append("line")
-	        .attr("y1", function(d) { return yScale(.5 * (d.low + d.high)); })
-	        .attr("y2", function(d) { return yScale(.5 * (d.low + d.high)); });
+	        .attr("y1", function(d) { return priceScale(.5 * (d.low + d.high)); })
+	        .attr("y2", function(d) { return priceScale(.5 * (d.low + d.high)); });
 	    candleEnter.append("rect")
 	        .attr("x", -candleWidth / 2)
-	        .attr("y", function(d) { return yScale(.5 * (d.open + d.close)); })
-	        .attr("height", function(d) { return Math.abs(yScale(d.open) - yScale(d.close))+.5; })
+	        .attr("y", function(d) { return priceScale(.5 * (d.open + d.close)); })
+	        .attr("height", function(d) { return Math.abs(priceScale(d.open) - priceScale(d.close))+.5; })
 	        .attr("width", candleWidth);
 	    candleEnter.append("line")
-	    	.attr("class", "high")
-	    	.attr("x1", -candleWidth / 4)
-	    	.attr("x2", candleWidth / 4);
+	    	.attr("class", "high");
 	    candleEnter.append("line")
-	    	.attr("class", "low")
-	    	.attr("x1", -candleWidth / 4)
-	    	.attr("x2", candleWidth / 4);	
-	
+	    	.attr("class", "low")	
+
 	    // Update the x-scale.
 	    xScale
-	        .domain(d3.extent(lineData, function(d) { return d.time; }))
+	        .domain(getExtents(lineData))
 	        .range([0, options.width]);
 	
 	    // Update the volume scale.
+
 	    volumeScale
-	        .domain(d3.extent(lineData, function(d) { return d.volume; }))
+	        .domain([0, d3.max(lineData, function (d) {return d.volume})*2])
 	        .range([options.height, 0]);
 	
 	    // Update the y-scale.
-	    yScale
+	    priceScale
 	    	.domain([
-	        	d3.min(lineData, function(d) { return Math.min(d.open, d.close, d.high, d.low); }),
-	            d3.max(lineData, function(d) { return Math.max(d.open, d.close, d.high, d.low); })
+	        	d3.min(lineData, function(d) { return Math.min(d.open, d.close, d.high, d.low); })*.975,
+	            d3.max(lineData, function(d) { return Math.max(d.open, d.close, d.high, d.low); })*1.025
 	        ])
 	  		.range([options.height, 0]);
-	
+
+		//add the volume bars
+		g.select('.volume').selectAll("rect").data(lineData)
+			.attr("x", function(d){return xScale(d.time)-candleWidth/3})
+			.attr("y", function(d){return volumeScale(d.volume)})
+			.attr("width", candleWidth/1.5)
+			.attr("height", function(d){return options.height - volumeScale(d.volume)})
+			.style("fill", "url(#gradient)")
+			.exit().remove();
+			
 	    var candleUpdate = d3.transition(candle.classed("up", function(d) { return d.open <= d.close; }))
 	        .attr("transform", function(d) { return "translate(" + xScale(d.time) + ")"; });
 	    candleUpdate.select("line")
-	        .attr("y1", function(d) { return yScale(d.low); })
-	        .attr("y2", function(d) { return yScale(d.high); });
+	        .attr("y1", function(d) { return priceScale(d.low); })
+	        .attr("y2", function(d) { return priceScale(d.high); });
 	    candleUpdate.select("rect")
 	        .attr("x", -candleWidth / 2)
 	        .attr("width", candleWidth)
-	        .attr("y", function(d) { return yScale(Math.max(d.open, d.close)); })
-	        .attr("height", function(d) { return Math.abs(yScale(d.open) - yScale(d.close))+.5; });
+	        .attr("y", function(d) { return priceScale(Math.max(d.open, d.close)); })
+	        .attr("height", function(d) { return Math.abs(priceScale(d.open) - priceScale(d.close))+.5; });
 	    candleUpdate.select(".high")
-	    	.attr("transform", function(d) { return "translate(0," + yScale(d.high) + ")"; });
+	    	.attr("x1", -candleWidth / 4)
+	    	.attr("x2", candleWidth / 4)
+	    	.attr("transform", function(d) { return "translate(0," + priceScale(d.high) + ")"; });
 	    candleUpdate.select(".low")
-	    	.attr("transform", function(d) { return "translate(0," + yScale(d.low) + ")"; });	
+	    	.attr("x1", -candleWidth / 4)
+	    	.attr("x2", candleWidth / 4)
+	    	.attr("transform", function(d) { return "translate(0," + priceScale(d.low) + ")"; });	
 	    d3.transition(candle.exit())
 	        .attr("transform", function(d) { return "translate(" + xScale(d.time) + ")"; })
 	        .style("opacity", 1e-6).remove();
@@ -375,7 +417,7 @@ RippleCharts.candlestick = function (options) {
 	
 	    // Update the x-axis.
 	    g.select(".x.axis")
-	        .attr("transform", "translate(0," + yScale.range()[0] + ")")
+	        .attr("transform", "translate(0," + priceScale.range()[0] + ")")
 	        .call(xAxis);
 	
 	    // Update the left axis.
@@ -385,38 +427,55 @@ RippleCharts.candlestick = function (options) {
 	    // Update the y-axis.
 	    g.select(".y.axis")
 	    	.attr("transform", "translate(" + xScale.range()[1] + ", 0)")
-	        .call(yAxis);
-	
-	    hover.style("opacity",1);
-		horizontal.style("opacity",1);
-	  	focus.style("opacity",1);
+	        .call(rightAxis);
 	  	
 	  	svg.transition().duration(300).style("opacity", 1);
 		loader.transition().duration(300).style("opacity", 0);
 					
 	    function mousemove() {
-	        var tx = Math.max(options.margin.left, Math.min(options.width+options.margin.left, d3.mouse(this)[0])),
+	        var tx = Math.max(0, Math.min(options.width+options.margin.left, d3.mouse(this)[0])),
 	        	x = d3.bisect(lineData.map(function(d) { return d.time; }), xScale.invert(tx-options.margin.left));
 	            d = lineData[x];
 	  	    
 	        if (d) {
+	  	
 	        	var details = div.select('.chartDetails');
 		        details.html("<span class='date'>"+ parseDate(d, increment) + 
 					"</span><span>O:<b>" + d.open.toFixed(4)  + "</b></span>" +
 					"<span class='high'>H:<b>" + d.high.toFixed(4) + "</b></span>" +
 					"<span class='low'>L:<b>" + d.low.toFixed(4) + "</b></span>" +
 					"<span>C:<b>" + d.close.toFixed(4)  + "</b></span>" +
-					"<span class='volume'>Volume:<b>" + d.volume.toFixed(4) + " " + self.trade.currency + "</b></span>")
+					"<span class='volume'>Volume:<b>" + d.volume.toFixed(4) + " " + self.base.currency + "</b></span>")
 			  		.style("opacity",1);
 			  		
-				hover.attr("transform", "translate(" + xScale(d.time) + ")");
-				focus.attr("transform", "translate(" + xScale(d.time) + "," + yScale(d.close) + ")");
-				horizontal.attr("x1", xScale(d.time));
-		  		horizontal.attr("x2", options.width);
-		  		horizontal.attr("y1", yScale(d.close));
-		  		horizontal.attr("y2", yScale(d.close));
+				hover.transition().duration(50).attr("transform", "translate(" + xScale(d.time) + ")");
+				focus.transition().duration(50).attr("transform", "translate(" + xScale(d.time) + "," + priceScale(d.close) + ")");
+				horizontal.transition().duration(50)
+					.attr("x1", xScale(d.time))
+		  			.attr("x2", options.width)
+		  			.attr("y1", priceScale(d.close))
+		  			.attr("y2", priceScale(d.close));
+		  		
+		  		hover.style("opacity",1);
+				horizontal.style("opacity",1);
+	  			focus.style("opacity",1);
 			}
 	    }	    	
+	}
+	
+	function getExtents (lineData) {
+		if (lineData.length>1) {
+			var difference = (lineData[1].time - lineData[0].time)/2000;
+			console.log(difference);
+			
+			return [
+				d3.time.second.offset(d3.min(lineData, function(d) { return d.time }), -difference),
+				d3.time.second.offset(d3.max(lineData, function(d) { return d.time }), difference)
+			]
+			
+		}
+		
+		return d3.extent(lineData, function(d) { return d.volume; });	
 	}
 }	
 

@@ -3,6 +3,12 @@ h1, h2, h3, h4 {
 	font-weight: 300;
 }
 
+.chart .background {
+  fill: none;
+  stroke : #999;
+  pointer-events: all;
+} 
+
 .chart .loader {
 	width:40px;
 	position:absolute;
@@ -13,13 +19,20 @@ h1, h2, h3, h4 {
 }
 
 .chart .axis {
+	fill: #999;
 	shape-rendering: crispEdges;
 }
 
-.chart .axis path, .axis line {
+.chart .axis .title {
+	font-weight:bold;
+	color:#bbb;
+}
+
+
+.chart .axis path, .chart .axis line {
 	fill: none;
-	stroke: #000;
-	stroke-width: .5;
+	stroke: #999;
+	stroke-width: 1;
 }
 
 .chart .axis text {
@@ -40,6 +53,10 @@ h1, h2, h3, h4 {
 	stroke: #3369a8;
 }
 
+.chart line {
+  stroke: #999;
+  shape-rendering: crispEdges;
+}
 
 .chart .status {
 	text-align:center;
@@ -51,7 +68,7 @@ h1, h2, h3, h4 {
 
 .chart .hover {
 	stroke: #999;
-	stroke-width: .5;
+	stroke-width: 1;
 }
 
 .chart .focus circle {
@@ -62,7 +79,7 @@ h1, h2, h3, h4 {
 .candlesticks rect {
   fill: #c33;
   stroke: #622;
-  stroke-width: .5;
+  stroke-width: 1;
 }
 
 .candlesticks .up rect {
@@ -71,7 +88,16 @@ h1, h2, h3, h4 {
 }
 
 .candlesticks line {
-	stroke-width : 1.5;	
+	stroke-width : 2;	
+}
+
+.chart .volume rect {
+	fill : #ddd;	
+	stroke : #bbb;
+}
+
+.chart .title {
+	font-size:15px;
 }
 
 div.chartDetails {   

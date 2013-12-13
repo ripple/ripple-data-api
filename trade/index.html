@@ -4,7 +4,7 @@
 <title>Ripple Trades</title>
 <style>
 @import url(linechart.css);
-@import url(candlestick.css);
+
 body {
 	font-family:"Open Sans", Helvetica, Arial, sans-serif;
 }
@@ -107,15 +107,15 @@ d3.select("#flip").on("click", function(){
     
 var intervalA = d3.select("#interval").selectAll("a")
     .data([
-      {name: "10m", interval:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},	
-      {name: "1h",  interval:"second", offset: function(d) { return d3.time.hour.offset(d, -1); }},	
-      {name: "12h", interval:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},	
-      {name: "24h", interval:"minute", offset: function(d) { return d3.time.day.offset(d, -1); }},
-      {name: "3d",  interval:"hour",   offset: function(d) { return d3.time.day.offset(d, -3); }},
-      {name: "1m",  interval:"hour",   offset: function(d) { return d3.time.month.offset(d, -1); }},
-      {name: "6m",  interval:"day",    offset: function(d) { return d3.time.month.offset(d, -6); }},
-      {name: "1y",  interval:"day",    offset: function(d) { return d3.time.year.offset(d, -1); }},
-      {name: "max", interval:"day",    offset: function(d) { return d3.time.year.offset(d, -10); }}
+      {name: "10m", lineInterval:"second", candleInterval:"minute", offset: function(d) { return d3.time.minute.offset(d, -10); }},	
+      {name: "1h",  lineInterval:"second", candleInterval:"minute", offset: function(d) { return d3.time.hour.offset(d, -1); }},	
+      {name: "12h", lineInterval:"minute", candleInterval:"hour", offset: function(d) { return d3.time.hour.offset(d, -12); }},	
+      {name: "24h", lineInterval:"minute", candleInterval:"hour", offset: function(d) { return d3.time.day.offset(d, -1); }},
+      {name: "3d",  lineInterval:"minute", candleInterval:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
+      {name: "1m",  lineInterval:"hour",   candleInterval:"day", offset: function(d) { return d3.time.month.offset(d, -1); }},
+      {name: "6m",  lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.month.offset(d, -6); }},
+      {name: "1y",  lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.year.offset(d, -1); }},
+      {name: "max", lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.year.offset(d, -10); }}
     ])
   .enter().append("a")
     .attr("href", "#")
@@ -170,7 +170,7 @@ function updateChart(base, trade, d) {
 
 setTimeout(function(){
 	loaded = true;
-	d3.select("#interval a:nth-child(4)")[0][0].click();
+	d3.select("#interval a:nth-child(3)")[0][0].click();
 },	100);
 
 
