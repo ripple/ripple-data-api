@@ -3,6 +3,10 @@ h1, h2, h3, h4 {
 	font-weight: 300;
 }
 
+.chart svg {
+	opacity : 0;	
+}
+
 .chart .background {
   fill: none;
   stroke : #999;
@@ -24,8 +28,9 @@ h1, h2, h3, h4 {
 }
 
 .chart .axis .title {
-	font-weight:bold;
-	color:#bbb;
+	stroke-width:1;
+	stroke: #666;
+	fill: #666;
 }
 
 
@@ -39,7 +44,7 @@ h1, h2, h3, h4 {
 	font-size:10px;
 }
 
-.chart .axis.y text, .chart .axis.left text {
+.chart .axis.price text, .chart .axis.volume text {
 	font-size:12px;
 }
 
@@ -51,6 +56,7 @@ h1, h2, h3, h4 {
 .chart path {
 	fill: none;
 	stroke: #3369a8;
+	stroke-width:2;
 }
 
 .chart line {
@@ -71,9 +77,14 @@ h1, h2, h3, h4 {
 	stroke-width: 1;
 }
 
-.chart .focus circle {
+.chart .focus {
 	fill: rgba(255,255,255,.5);
 	stroke: #999;
+}
+
+.chart .focus.dark {
+	fill:#555;
+	stroke: none;
 }
 
 .candlesticks rect {
@@ -91,7 +102,7 @@ h1, h2, h3, h4 {
 	stroke-width : 2;	
 }
 
-.chart .volume rect {
+.chart .volumeBars rect {
 	fill : #ddd;	
 	stroke : #bbb;
 }

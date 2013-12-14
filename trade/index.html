@@ -59,14 +59,12 @@ body {
 </div>
 <div id="chartType"></div>
 <div id="interval"></div>
-<div class="chart">
-	<div id="lineChart"></div>
-	<div id="candlestickChart"></div>
-</div>
+<div id="priceChart"></div>
 
 
 <script src="d3/d3.min.js"></script>
 <script src="ripple/ripple.min.js"></script>
+<script src="priceChart.js"></script>
 <script src="rippleCharts.js"></script>
 <script src="currency.js"></script>
 <script src="transactionFeed.js"></script>
@@ -80,17 +78,16 @@ var trade  = {currency:"USD", issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     base   = {currency:"XRP", issuer:""},
     dropdownB = ripple.currencyDropdown().selected(trade)
     	.on("change", function(d) {
-      		if (loaded) updateChart(base, trade = d, d3.select("#interval .selected").datum());
+      		if (loaded) priceChart.load(base, trade = d, d3.select("#interval .selected").datum());
       	}),
     dropdownA = ripple.currencyDropdown().selected(base)
       .on("change", function(d) {
-			if (loaded) updateChart(base = d, trade, d3.select("#interval .selected").datum());
+			if (loaded) priceChart.load(base = d, trade, d3.select("#interval .selected").datum());
       });
 
 d3.select("#base").call(dropdownA);
-
 d3.select("#quote").call(dropdownB);
-d3.select("#flip").on("click", function(){
+d3.select("#flip").on("click", function(){ //probably better way to do this
 	dropdownA.selected(trade);
 	dropdownB.selected(base);
 	d3.select("#base").selectAll("select").remove();
@@ -102,17 +99,17 @@ d3.select("#flip").on("click", function(){
 	swap   = trade;
 	trade  = base;
 	base   = swap;
-	updateChart(base, trade, d3.select("#interval .selected").datum());
+	priceChart.load(base, trade, d3.select("#interval .selected").datum());
 });
     
 var intervalA = d3.select("#interval").selectAll("a")
     .data([
       {name: "10m", lineInterval:"second", candleInterval:"minute", offset: function(d) { return d3.time.minute.offset(d, -10); }},	
       {name: "1h",  lineInterval:"second", candleInterval:"minute", offset: function(d) { return d3.time.hour.offset(d, -1); }},	
-      {name: "12h", lineInterval:"minute", candleInterval:"hour", offset: function(d) { return d3.time.hour.offset(d, -12); }},	
-      {name: "24h", lineInterval:"minute", candleInterval:"hour", offset: function(d) { return d3.time.day.offset(d, -1); }},
-      {name: "3d",  lineInterval:"minute", candleInterval:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
-      {name: "1m",  lineInterval:"hour",   candleInterval:"day", offset: function(d) { return d3.time.month.offset(d, -1); }},
+      {name: "12h", lineInterval:"minute", candleInterval:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},	
+      {name: "24h", lineInterval:"hour",   candleInterval:"hour", offset: function(d) { return d3.time.day.offset(d, -1); }},
+      {name: "3d",  lineInterval:"hour",   candleInterval:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
+      {name: "1m",  lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.month.offset(d, -1); }},
       {name: "6m",  lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.month.offset(d, -6); }},
       {name: "1y",  lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.year.offset(d, -1); }},
       {name: "max", lineInterval:"day",    candleInterval:"day", offset: function(d) { return d3.time.year.offset(d, -10); }}
@@ -125,7 +122,7 @@ var intervalA = d3.select("#interval").selectAll("a")
       d3.event.preventDefault();
       var that = this;
       intervalA.classed("selected", function() { return this === that; });
-      updateChart(base, trade, d);
+      priceChart.load(base, trade, d);
     });
 
 var chartType = d3.select("#chartType").selectAll("a")
@@ -139,38 +136,23 @@ var chartType = d3.select("#chartType").selectAll("a")
       	var that = this;
       	chartType.classed("selected", function() { return this === that; });
       	chartType.selected = d;
-      	updateChart(base, trade, d3.select("#interval .selected").datum());
+      	priceChart.setType(d);
     });
     
     chartType.selected = "line";
     
-var line   = new RippleCharts.line({
-	id  : "#lineChart",
-	url : offersURL,
-	});
-var candle = new RippleCharts.candlestick({
-	id  : "#candlestickChart",
-	url : offersURL,
-	});
-
-function updateChart(base, trade, d) {
-	if (chartType.selected=="line") {
-		candle.fadeOut();
-		d3.select("#candlestickChart").style("display","none");
-		d3.select("#lineChart").style("display","");
-		line.update(base, trade, d);
-		
-	} else {
-		line.fadeOut();
-		d3.select("#lineChart").style("display","none");
-		d3.select("#candlestickChart").style("display","");	
-		candle.update(base, trade, d);	
-	}	
-}
+var priceChart = new PriceChart ({
+	id   : "#priceChart",
+	url  : offersURL,	
+	type : chartType.selected,
+	width: 1000,
+	height: 500,
+});	
+ 
 
 setTimeout(function(){
 	loaded = true;
-	d3.select("#interval a:nth-child(3)")[0][0].click();
+	d3.select("#interval a:nth-child(5)")[0][0].click();
 },	100);
 
 
