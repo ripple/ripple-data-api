@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
-<title>Ripple Trades</title>
+<title>Ripple Charts</title>
 <style>
 @import url(priceChart.css);
 @import url(orderBook.css);
 
 body {
   font-family:"Open Sans", Helvetica, Arial, sans-serif;
+  text-align:center;
 }
+.wrap {
+  text-align:left;
+  display:inline-block;
+  width:1120px;  
+}
+
+h2 {text-align:center}
 
 #currency-pair {
   margin-left:55px;
@@ -67,19 +75,20 @@ body {
     <tbody></tbody>
   </table>
 </div>
-
-<div id="currency-pair">
-  <div id="base"></div>
-  <span id="flip">Flip</span>
-  <div id="quote"></div>
+<div class="wrap">
+  <div id="currency-pair">
+    <div id="base"></div>
+    <span id="flip">Flip</span>
+    <div id="quote"></div>
+  </div>
+  
+  <div id="chartType"></div>
+  <div id="interval"></div>
+  <div id="priceChart"></div>
+  <h2>Order Book</h2>
+  <div id="bookChart"></div>
+  <div id="bookTables"></div>
 </div>
-
-<div id="chartType"></div>
-<div id="interval"></div>
-<div id="priceChart"></div>
-<div id="bookChart"></div>
-<div id="bookTables"></div>
-
 <script src="d3/d3.min.js"></script>
 <script src="ripple/ripple-0.7.30-min.js"></script>
 <script src="priceChart.js"></script>
@@ -195,7 +204,8 @@ book = new OrderBook ({
   chartID : "bookChart",
   tableID : "bookTables",
 });
-  
+
+book.resetChart();
   
 remote.connect();
 remote.on('connect', function(){

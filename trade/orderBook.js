@@ -5,7 +5,7 @@ var OrderBook = function (options) {
   var chart  = d3.select("#"+options.chartID).attr('class','chart');
   var width  = 1000,
     height   = 200,
-    margin   = {top: 5, left: 60, right: 60, bottom: 50},
+    margin   = {top: 5, left: 60, right: 60, bottom: 30},
     xScale   = d3.scale.linear(),
     yScale   = d3.scale.linear(),
     lineData = [];
@@ -39,7 +39,7 @@ var OrderBook = function (options) {
     .attr("src", "images/throbber5.gif")
     .style("opacity", 0); 
   
-  function priceFilter (price, opts) {
+  function valueFilter (price, opts) {
     return ripple.Amount.from_json(price).to_human(
       opts ? opts : {
         precision      : 8,
@@ -92,11 +92,11 @@ var OrderBook = function (options) {
       if (sum) sum = offer.sum = sum.add(offer[type]);
       else sum = offer.sum = offer[type];
       
-      offer.showSum   = parseFloat(priceFilter(offer.sum));
-      offer.showPrice = parseFloat(priceFilter(offer.price));
+      offer.showSum   = parseFloat(valueFilter(offer.sum));
+      offer.showPrice = parseFloat(valueFilter(offer.price));
       
       var showValue = action === 'bids' ? 'TakerPays' : 'TakerGets';
-      offer['show' + showValue] = parseFloat(priceFilter(offer[showValue]));
+      offer['show' + showValue] = parseFloat(valueFilter(offer[showValue]));
       //console.log(offer.showPrice, offer.showSum, offer['show' + showValue]);
     });
 
@@ -111,7 +111,7 @@ var OrderBook = function (options) {
     self.offers   = {};
 
     bookTables.transition().style("opacity",.5);
-    resetChart();
+    self.resetChart();
     
     if (asks) {
       asks.removeListener('model', handleAskModel);
@@ -143,9 +143,9 @@ var OrderBook = function (options) {
     bids.on('model', handleBidModel); 
   }
             
-  function resetChart() {
-    depth.transition(100).style("opacity",.5); 
-    loader.transition(100).style("opacity",1);
+  this.resetChart =  function () {
+    depth.transition().style("opacity",.5); 
+    loader.transition().style("opacity",1);
     details.style("opacity",0);
     hover.style("opacity",0);
     focus.style("opacity",0); 
@@ -155,11 +155,16 @@ var OrderBook = function (options) {
     if (!self.offers.bids || !self.offers.asks) return;
     
     lineData = self.offers.bids.slice(0).reverse().concat(self.offers.asks);
+    if (!lineData.length) {
+      loader.transition().style("opacity",0); 
+      path.transition().style("opacity",0);  
+      return;
+    }
+    
     var extent = d3.extent(lineData, function(d) { return d.showPrice; });
        
     xScale.domain(extent).range([0, width]);
     yScale.domain([0, d3.max(lineData, function(d) { return d.showSum; })]).range([height, 0]);
-   
   
     path.datum(lineData)
         .transition()
@@ -172,8 +177,9 @@ var OrderBook = function (options) {
     leftAxis.attr("transform", "translate(" + xScale.range()[0] + ",0)").call(d3.svg.axis().scale(yScale).orient("left"));
     rightAxis.attr("transform", "translate(" + xScale.range()[1] + ",0)").call(d3.svg.axis().scale(yScale).orient("right"));
     
-    depth.transition(100).style("opacity",1); 
-    loader.transition(100).style("opacity",0);      
+    path.style("opacity",1);
+    depth.transition().style("opacity",1); 
+    loader.transition().style("opacity",0);      
   }
   
   function mousemove () {
@@ -235,10 +241,12 @@ var OrderBook = function (options) {
   function redrawBook () {
     // create a row for each object in the data
     if (!self.offers.bids || !self.offers.asks) return;
-    bookTables.transition().style("opacity",1);
+    if (self.offers.bids.length || self.offers.asks.length)
+      bookTables.transition().style("opacity",1);
 
     
     function filter (d) {
+      if (!d) return "&nbsp";
       value = ripple.Amount.from_human(d).to_human({
           precision      : 5,
           min_precision  : 5,
@@ -259,8 +267,10 @@ var OrderBook = function (options) {
     asksHead.select(".headerRow th:nth-child(2) span").html(options.base.currency);
     asksHead.select(".headerRow th:nth-child(3) span").html(options.base.currency);
     
-    var row = bidsBody.selectAll("tr").data(self.offers.bids.slice(0,20));
+    var length   = 20; 
+    var row      = bidsBody.selectAll("tr").data(pad(self.offers.bids.slice(0,length),length));
     var rowEnter = row.enter().append("tr");
+    
     rowEnter.append("td").attr("class","sum");
     rowEnter.append("td").attr("class","size");
     rowEnter.append("td").attr("class","price");
@@ -270,8 +280,9 @@ var OrderBook = function (options) {
     row.select(".size").html(function(offer){return filter(offer.showTakerPays)});
     row.select(".price").html(function(offer){return filter(offer.showPrice)});
     
-    var row = asksBody.selectAll("tr").data(self.offers.asks.slice(0,20));
+    var row      = asksBody.selectAll("tr").data(pad(self.offers.asks.slice(0,length),length));
     var rowEnter = row.enter().append("tr");
+    
     rowEnter.append("td").attr("class","price");
     rowEnter.append("td").attr("class","size");
     rowEnter.append("td").attr("class","sum");
@@ -280,5 +291,28 @@ var OrderBook = function (options) {
     row.select(".sum").html(function(offer){return filter(offer.showSum)});
     row.select(".size").html(function(offer){return filter(offer.showTakerGets)});
     row.select(".price").html(function(offer){return filter(offer.showPrice)}); 
+    
+    updateTitle();
+  }
+  
+  function pad(data, length) {
+    length -= data.length;
+    if (length<1) return data;
+    
+    var newArray = [];
+    for (var i=0; i<length; i++) {newArray[i] = {};}
+    return data.concat(newArray);
+  }
+  
+  function updateTitle () {
+    var opts = {
+          precision      : 4,
+          min_precision  : 4,
+          max_sig_digits : 10,
+      }
+        
+    bestBid = self.offers.bids[0] ? ripple.Amount.from_human(self.offers.bids[0].showPrice).to_human(opts) : "0.0";
+    bestAsk = self.offers.asks[0] ? ripple.Amount.from_human(self.offers.asks[0].showPrice).to_human(opts) : "0.0";
+    document.title = bestBid + "/" + bestAsk + " " + options.base.currency + "/" + options.trade.currency + " - Ripple Charts";    
   }
 }

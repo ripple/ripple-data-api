@@ -153,6 +153,7 @@ PriceChart = function (options) {
   function drawChart () {	
     if (!self.lineData || !self.lineData.length) {
       loader.style("opacity",0);
+      div.selectAll("svg").transition().style("opacity",0);
       status.html("No Data for this Period").style("opacity",1);
       return;	
     }
