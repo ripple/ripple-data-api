@@ -1,39 +1,6 @@
-/* Loading ripple-lib with Node.js */
-//var Remote = require( 'ripple-lib' ).Remote;
-//var Amount = require( 'ripple-lib' ).Amount;
 
-/* Loading ripple-lib in a webpage */
-var Remote = ripple.Remote;
-var Amount = ripple.Amount;
-
-/* Connect to rippled through ripple-lib */
-/*var remote = new Remote( {
-  // trace: true,
-  servers: [ {
-    host: 's_west.ripple.com',
-    port: 443
-  } ]
-} );
-remote.connect( );
-*/
-
-var remote = ripple.Remote.from_config({
-  //"trace" : true,
-  "websocket_ip" : "s_west.ripple.com",
-  "websocket_port" : 443,
-  "websocket_ssl" : true
-});
-remote.connect();
-
-/* views maps the available txProcessor functions to their view names */
-var views = {
-  "offersExercised": extractOffersExercised
-  // TODO add more views
-};
-
-
-
-
+//var Remote = ripple.Remote;
+//var Amount = ripple.Amount;
 
 
 /**
@@ -41,141 +8,88 @@ var views = {
  *  specified by viewName and the displayFn, along with
  *  the given options object to the live ripple transaction feed
  */
-function createTransactionListener( viewName, displayFn, opts ) {
+var TransactionFeed = function (options) {
+    var self   = this;
 
-  var txProcessor;
+    self.base  = options.base,
+    self.trade = options.trade;
+        
+    this.listen = function () {
+        options.remote.on( 'transaction_all', function(tx) {
+            if (tx.engine_result !== 'tesSUCCESS') return;
 
-  if ( views[ viewName ] ) {
-    txProcessor = views[ viewName ];
-  } else {
-    return;
-  }
-
-  remote.on( 'transaction_all', function( txData ) {
-    if ( txData.engine_result !== 'tesSUCCESS' ) {
-      return;
+            if (tx.transaction.TransactionType !== 'Payment' && 
+                tx.transaction.TransactionType !== 'OfferCreate' ) {
+                return;
+            }
+                        
+            handleTransaction (tx);
+        });        
+    }  
+    
+    this.setCurrencies = function (base, trade) {
+        self.base  = base;
+        self.trade = trade;    
     }
+    
+    function handleTransaction(tx) {
+        tx.meta.AffectedNodes.forEach( function( affNode ) {
 
-    var time = new Date( );
-    txData.utcTimeArray = [ time.getUTCFullYear( ), time.getUTCMonth( ), time.getUTCDate( ),
-      time.getUTCHours( ), time.getUTCMinutes( ), time.getUTCSeconds( )
-    ];
-
-
-    txProcessor( txData, displayFn, opts );
-  } );
+            var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
+    
+            if ( node.LedgerEntryType !== 'Offer' || 
+                !node.PreviousFields || 
+                !node.PreviousFields.TakerPays || 
+                !node.PreviousFields.TakerGets ) {
+                return;
+            }
+    
+            var date = new Date((tx.transaction.date + 0x386D4380) * 1000);
+            //var exchange_rate = ripple.Amount.from_quality(node.FinalFields.BookDirectory).to_json().value,
+            var pays, gets;
+    
+            //extract assets exchanged
+            if ( typeof node.PreviousFields.TakerPays === "object" ) {
+                pays = {
+                    currency : node.PreviousFields.TakerPays.currency, 
+                    issuer   : node.PreviousFields.TakerPays.issuer,
+                    amount   : node.PreviousFields.TakerPays.value - node.FinalFields.TakerPays.value};
+                    
+            } else {
+                pays = {
+                    currency : "XRP", 
+                    issuer   : "",
+                    amount   : (node.PreviousFields.TakerPays - node.FinalFields.TakerPays) / 1000000.0}; // convert from drops
+            }
+    
+            if ( typeof node.PreviousFields.TakerGets === "object" ) {
+                gets = {
+                    currency : node.PreviousFields.TakerGets.currency, 
+                    issuer   : node.PreviousFields.TakerGets.issuer,
+                    amount   : node.PreviousFields.TakerGets.value - node.FinalFields.TakerGets.value};
+            } else {
+                gets = {
+                    currency : "XRP", 
+                    issuer   : "",
+                    amount   : (node.PreviousFields.TakerGets - node.FinalFields.TakerGets) / 1000000.0}; // convert from drops
+            }
+        
+            if (assetEquals(self.base, pays) && assetEquals (self.trade, gets)) {
+                handleOffer (pays, gets, date);
+            } else if (assetEquals (self.base, gets) && assetEquals (self.trade, pays)) {
+                handleOffer (gets, pays, date);
+            }
+        });
+    }
+    
+    function handleOffer (a, b, date) {
+        console.log(a, b, date);   
+    }
+    
+    function assetEquals(a, b) {
+        if (a.currency == b.currency &&
+            a.issuer   == b.issuer) return true;
+            return false; 
+    }
 }
 
-/**
- *  extractOffersExercised takes txData and if the txData contains
- *  an offer exercised it will call the given displayFn with an
- *  object of the following form:
- *
- *  {
- *    key: [["USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"], ["XRP"], 2013, 11, 19, 14, 51, 10],
- *    value: [usd_volume, xrp_volume, exchange_rate]
- *  }
- *
- *  ** note that "exchange_rate" represents usd_volume/xrp_volume **
- *
- *  opts can include:
- *
- *  {
- *    curr0: [["USD", "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"],
- *    curr1: ["XRP"]
- *  }
- *  
- *  setting opts.curr0 and opts.curr1 will limit the offers displayed
- *  to the ones for that currency pair
- */
-function extractOffersExercised( txData, displayFn, opts ) {
-
-  if ( txData.transaction.TransactionType !== 'Payment' && txData.transaction.TransactionType !== 'OfferCreate' ) {
-    return;
-  }
-
-  txData.meta.AffectedNodes.forEach( function( affNode ) {
-
-    var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
-
-    if ( node.LedgerEntryType !== 'Offer' || !node.PreviousFields || !node.PreviousFields.TakerPays || !node.PreviousFields.TakerGets ) {
-      return;
-    }
-
-    var exchange_rate = Amount.from_quality( node.FinalFields.BookDirectory ).to_json( ).value,
-      pay_curr,
-      pay_amnt,
-      get_curr,
-      get_amnt,
-      currPair,
-      revCurrPair;
-
-    if ( typeof node.PreviousFields.TakerPays === "object" ) {
-      pay_curr = [ node.PreviousFields.TakerPays.currency, node.PreviousFields.TakerPays.issuer ];
-      pay_amnt = node.PreviousFields.TakerPays.value - node.FinalFields.TakerPays.value;
-    } else {
-      pay_curr = [ "XRP" ];
-      pay_amnt = ( node.PreviousFields.TakerPays - node.FinalFields.TakerPays ) / 1000000.0; // convert from drops
-      exchange_rate = exchange_rate / 1000000.0;
-    }
-
-    if ( typeof node.PreviousFields.TakerGets === "object" ) {
-      get_curr = [ node.PreviousFields.TakerGets.currency, node.PreviousFields.TakerGets.issuer ];
-      get_amnt = node.PreviousFields.TakerGets.value - node.FinalFields.TakerGets.value;
-    } else {
-      get_curr = [ "XRP" ];
-      get_amnt = ( node.PreviousFields.TakerGets - node.FinalFields.TakerGets ) / 1000000.0;
-      exchange_rate = exchange_rate * 1000000.0;
-    }
-
-    currPair = {
-      key: [ pay_curr, get_curr ].concat( txData.utcTimeArray ),
-      value: [ pay_amnt, get_amnt, exchange_rate ]
-    };
-    revCurrPair = {
-      key: [ get_curr, pay_curr ].concat( txData.utcTimeArray ),
-      value: [ get_amnt, pay_amnt, 1 / exchange_rate ]
-    };
-
-    // call displayFn if the curr options are not set
-    if (!opts || (!opts.curr0 && !opts.curr1)) {
-      displayFn( currPair, opts );
-      displayFn( revCurrPair, opts );
-      return;
-    }
-
-    // call displayFn if the curr options match this offer
-    if (opts && opts.curr0 && opts.curr1) {
-
-      if (arrayEquals( opts.curr0, currPair.key[ 0 ] ) && arrayEquals( opts.curr1, currPair.key[ 1 ] )) {
-        displayFn( currPair, opts );
-      }
-
-      if (arrayEquals( opts.curr0, revCurrPair.key[ 0 ] ) && arrayEquals( opts.curr1, revCurrPair.key[ 1 ] )) {
-        displayFn( revCurrPair, opts );
-      }
-    }
-
-  } );
-}
-
-function arrayEquals( a, b ) {
-
-  if ( a.length !== b.length ) {
-    return false;
-  }
-
-  for ( var i = 0; i < a.length; i++ ) {
-    if ( typeof a[ i ] === "object" && typeof b[ i ] === "object" ) {
-      if ( !arrayEquals( a[ i ], b[ i ] ) ) {
-        return false;
-      }
-    } else {
-      if ( a[ i ] !== b[ i ] ) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}

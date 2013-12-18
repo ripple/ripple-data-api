@@ -93,9 +93,19 @@ h1, h2, h3, h4 {
     stroke-width: 1;
 }
 
+.candlesticks line {
+    stroke: #777;    
+}
+
+.candlesticks .filled rect{    
+}
+
 .candlesticks .up rect {
     fill: #3c5;
     stroke: #262;
+}
+
+.candlesticks .up.filled rect{ 
 }
 
 .candlesticks line {
@@ -114,7 +124,7 @@ h1, h2, h3, h4 {
 div.chartDetails {   
     position: absolute;  
     top: -20px;
-    left: 400px;         
+    right: 60px;         
     text-align: left;      
     font-size:14px;   
     color:#333;      
