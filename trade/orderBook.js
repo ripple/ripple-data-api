@@ -1,11 +1,47 @@
 var OrderBook = function (options) {
-  var self = this;
+  var self    = this, asks, bids;
+  self.offers = {};
   
-  self.orders = {};
+  var chart  = d3.select("#"+options.chartID).attr('class','chart');
+  var width  = 1000,
+    height   = 200,
+    margin   = {top: 5, left: 60, right: 60, bottom: 50},
+    xScale   = d3.scale.linear(),
+    yScale   = d3.scale.linear(),
+    lineData = [];
+    
+  var svg   = chart.selectAll("svg").data([0]);       
+  var depth = svg.enter().append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom) 
+    .on("mousemove", mousemove);
+
+  var gEnter = depth.append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+    
+    
+  var xAxis     = gEnter.append("g").attr("class", "x axis");
+  var leftAxis  = gEnter.append("g").attr("class", "y axis");
+  var rightAxis = gEnter.append("g").attr("class", "y axis");
+
+  var hover     = gEnter.append("line").attr("class", "hover").attr("y2", height).style("opacity",0);   
+  var focus     = gEnter.append("circle").attr("class", "focus dark").attr("r",3).style("opacity",0);
+  var path      = gEnter.append("path").attr("class","line");
   
-  function priceFilter (price) {
+  var details   = chart.append("div")   
+        .attr("class", "chartDetails")               
+        .style("opacity", 0);  
+  
+  gEnter.append("rect").attr("class", "background").attr("width", width).attr("height", height);  
+  
+  var loader = chart.append("img")
+    .attr("class", "loader")
+    .attr("src", "images/throbber5.gif")
+    .style("opacity", 0); 
+  
+  function priceFilter (price, opts) {
     return ripple.Amount.from_json(price).to_human(
-      opts = {
+      opts ? opts : {
         precision      : 8,
         min_precision  : 0,
         max_sig_digits : 8,
@@ -14,10 +50,10 @@ var OrderBook = function (options) {
   }
   
 
-  var handleBook = function(data,action) {
+  function handleBook (data,action) {
     var max_rows = options.max_rows || 100;
     var rowCount = 0;
-    var orders   = [];
+    var offers   = [];
     
     for (var i=0; i<data.length; i++) {
       var d = data[i];
@@ -46,25 +82,25 @@ var OrderBook = function (options) {
 
       if (rowCount++ > max_rows) break;
 
-      orders.push(d);              
+      offers.push(d);              
     }
     
     var type = action === "asks" ? "TakerGets" : "TakerPays";
     var sum;
     
-    orders.forEach(function(order,index) {
-      if (sum) sum = order.sum = sum.add(order[type]);
-      else sum = order.sum = order[type];
+    offers.forEach(function(offer,index) {
+      if (sum) sum = offer.sum = sum.add(offer[type]);
+      else sum = offer.sum = offer[type];
       
-      order.showSum   = parseFloat(priceFilter(order.sum));
-      order.showPrice = parseFloat(priceFilter(order.price));
+      offer.showSum   = parseFloat(priceFilter(offer.sum));
+      offer.showPrice = parseFloat(priceFilter(offer.price));
       
       var showValue = action === 'bids' ? 'TakerPays' : 'TakerGets';
-      order['show' + showValue] = parseFloat(priceFilter(order[showValue],opts));
-      //console.log(order.showPrice, order.showSum, order['show' + showValue]);
+      offer['show' + showValue] = parseFloat(priceFilter(offer[showValue]));
+      //console.log(offer.showPrice, offer.showSum, offer['show' + showValue]);
     });
 
-    return orders;
+    return offers;
   };
 
   //subscribe to market data for trading pair
@@ -72,8 +108,9 @@ var OrderBook = function (options) {
     options.base  = base;
     options.trade = trade;
     lineData      = [];
-    self.orders   = {};
+    self.offers   = {};
 
+    bookTables.transition().style("opacity",.5);
     resetChart();
     
     if (asks) {
@@ -91,57 +128,20 @@ var OrderBook = function (options) {
     bids = remote.book(options.trade.currency, options.trade.issuer, options.base.currency, options.base.issuer);         
     
     function handleAskModel (offers) {
-      self.orders.asks = handleBook(offers,'asks');
-      redrawChart();      
+      self.offers.asks = handleBook(offers,'asks');
+      redrawChart(); 
+      redrawBook();     
     }
     
     function handleBidModel (offers) {
-      self.orders.bids = handleBook(offers,'bids');
-      self.orders.bids.reverse();
-      redrawChart();      
+      self.offers.bids = handleBook(offers,'bids');
+      redrawChart(); 
+      redrawBook();      
     }
     
     asks.on('model', handleAskModel);   
     bids.on('model', handleBidModel); 
   }
-
-  var asks, bids;
-  var div = d3.select("#"+options.id).attr('class','chart');
-  var width  = 1000,
-    height   = 200,
-    margin   = {top: 5, left: 60, right: 60, bottom: 50},
-    xScale   = d3.scale.linear(),
-    yScale   = d3.scale.linear(),
-    lineData = [];
-    
-  var svg   = div.selectAll("svg").data([0]);       
-  var depth = svg.enter().append("svg")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom) 
-    .on("mousemove", mousemove);
-
-  var gEnter = depth.append("g")
-    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
-    
-    
-  var xAxis     = gEnter.append("g").attr("class", "x axis");
-  var leftAxis  = gEnter.append("g").attr("class", "y axis");
-  var rightAxis = gEnter.append("g").attr("class", "y axis");
-
-  var hover     = gEnter.append("line").attr("class", "hover").attr("y2", height).style("opacity",0);   
-  var focus     = gEnter.append("circle").attr("class", "focus dark").attr("r",3).style("opacity",0);
-  var path      = gEnter.append("path").attr("class","line");
-  
-  var details   = div.append("div")   
-        .attr("class", "chartDetails")               
-        .style("opacity", 0);  
-  
-  gEnter.append("rect").attr("class", "background").attr("width", width).attr("height", height);  
-  
-  var loader = div.append("img")
-    .attr("class", "loader")
-    .attr("src", "images/throbber5.gif")
-    .style("opacity", 0); 
             
   function resetChart() {
     depth.transition(100).style("opacity",.5); 
@@ -152,9 +152,9 @@ var OrderBook = function (options) {
   }  
   
   function redrawChart () {
-    if (!self.orders.bids || !self.orders.asks) return;
+    if (!self.offers.bids || !self.offers.asks) return;
     
-    lineData = self.orders.bids.concat(self.orders.asks);
+    lineData = self.offers.bids.slice(0).reverse().concat(self.offers.asks);
     var extent = d3.extent(lineData, function(d) { return d.showPrice; });
        
     xScale.domain(extent).range([0, width]);
@@ -177,8 +177,8 @@ var OrderBook = function (options) {
   }
   
   function mousemove () {
-    var tx = Math.max(margin.left, Math.min(width+margin.left, d3.mouse(this)[0]))-margin.left,
-        i = d3.bisect(lineData.map(function(d) { return d.showPrice; }), xScale.invert(tx));
+    var tx = Math.max(0, Math.min(width+margin.left, d3.mouse(this)[0])),
+        i = d3.bisect(lineData.map(function(d) { return d.showPrice; }), xScale.invert(tx-margin.left));
         d = lineData[i];
 
     if (d) {
@@ -190,5 +190,95 @@ var OrderBook = function (options) {
         "<span> @ <b>" + d.showPrice + " " + options.trade.currency + "</b></span>")
         .style("opacity",1);
     }
+  }
+  
+  var bookTables = d3.select("#"+options.tableID).attr("class","bookTables");
+  var bidsTable = bookTables.append("table").attr("class","bidsTable"),
+    bidsHead    = bidsTable.append("thead"),
+    bidsBody    = bidsTable.append("tbody");
+
+  // append the top header
+  bidsHead.append("tr").selectAll("th")
+    .data(["Bids"])
+    .enter().append("th")
+    .attr("class","type")
+    .attr("colspan",3)
+    .text(function(d) {return d;}); 
+  
+  //append second header      
+  bidsHead.append("tr").attr("class","headerRow").selectAll("th")
+    .data(["Total","Size","Bid Price"])
+    .enter().append("th")
+    .text(function(d) {return d;})
+    .append("span"); 
+    
+  var asksTable = bookTables.append("table").attr("class","asksTable"),
+    asksHead    = asksTable.append("thead"),
+    asksBody    = asksTable.append("tbody");
+
+  // append the top header
+  asksHead.append("tr").selectAll("th")
+    .data(["Asks"])
+    .enter().append("th")
+    .attr("class","type")
+    .attr("colspan",3)
+    .text(function(d) {return d;}); 
+  
+  //append second header      
+  asksHead.append("tr").attr("class","headerRow").selectAll("th")
+    .data(["Ask Price","Size","Total"])
+    .enter().append("th")
+    .text(function(d) {return d;})
+    .append("span");  
+  
+  
+  function redrawBook () {
+    // create a row for each object in the data
+    if (!self.offers.bids || !self.offers.asks) return;
+    bookTables.transition().style("opacity",1);
+
+    
+    function filter (d) {
+      value = ripple.Amount.from_human(d).to_human({
+          precision      : 5,
+          min_precision  : 5,
+          max_sig_digits : 7,
+      }); 
+      
+      var parts = value.split(".");
+      var decimalPart = parts[1] ?  parts[1].replace(/0(0+)$/, '0<span class="insig">$1</span>') : null;
+      value = decimalPart && decimalPart.length > 0 ? parts[0] + "." + decimalPart : parts[0];
+      return value;        
+    }
+    
+    bidsHead.select(".headerRow th:nth-child(1) span").html(options.base.currency);
+    bidsHead.select(".headerRow th:nth-child(2) span").html(options.base.currency);
+    bidsHead.select(".headerRow th:nth-child(3) span").html(options.trade.currency);
+    
+    asksHead.select(".headerRow th:nth-child(1) span").html(options.trade.currency);
+    asksHead.select(".headerRow th:nth-child(2) span").html(options.base.currency);
+    asksHead.select(".headerRow th:nth-child(3) span").html(options.base.currency);
+    
+    var row = bidsBody.selectAll("tr").data(self.offers.bids.slice(0,20));
+    var rowEnter = row.enter().append("tr");
+    rowEnter.append("td").attr("class","sum");
+    rowEnter.append("td").attr("class","size");
+    rowEnter.append("td").attr("class","price");
+    row.exit().remove();
+    
+    row.select(".sum").html(function(offer){return filter(offer.showSum)});
+    row.select(".size").html(function(offer){return filter(offer.showTakerPays)});
+    row.select(".price").html(function(offer){return filter(offer.showPrice)});
+    
+    var row = asksBody.selectAll("tr").data(self.offers.asks.slice(0,20));
+    var rowEnter = row.enter().append("tr");
+    rowEnter.append("td").attr("class","price");
+    rowEnter.append("td").attr("class","size");
+    rowEnter.append("td").attr("class","sum");
+    row.exit().remove();
+    
+    row.select(".sum").html(function(offer){return filter(offer.showSum)});
+    row.select(".size").html(function(offer){return filter(offer.showTakerGets)});
+    row.select(".price").html(function(offer){return filter(offer.showPrice)}); 
   }
 }

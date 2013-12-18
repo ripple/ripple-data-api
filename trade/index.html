@@ -3,7 +3,8 @@
 <link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
 <title>Ripple Trades</title>
 <style>
-@import url(linechart.css);
+@import url(priceChart.css);
+@import url(orderBook.css);
 
 body {
   font-family:"Open Sans", Helvetica, Arial, sans-serif;
@@ -52,7 +53,7 @@ body {
   margin:0 2em;
 }
 
-#bookChart {margin-top:2em}
+#bookChart {margin-top:1em}
 </style>
 
 <div id="trades" style="display:none">
@@ -77,6 +78,7 @@ body {
 <div id="interval"></div>
 <div id="priceChart"></div>
 <div id="bookChart"></div>
+<div id="bookTables"></div>
 
 <script src="d3/d3.min.js"></script>
 <script src="ripple/ripple-0.7.30-min.js"></script>
@@ -179,7 +181,7 @@ setTimeout(function(){
 }, 100);
 
 var remote = new ripple.Remote.from_config({
-  "trace" : true,
+  //"trace" : true,
   "websocket_ip"   : "s_west.ripple.com",
   "websocket_port" : 443,
   "websocket_ssl"  : true
@@ -190,7 +192,8 @@ var remote = new ripple.Remote.from_config({
 //feed.listen();
 
 book = new OrderBook ({
-  id : "bookChart",
+  chartID : "bookChart",
+  tableID : "bookTables",
 });
   
   

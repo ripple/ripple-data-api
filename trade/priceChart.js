@@ -183,18 +183,10 @@ PriceChart = function (options) {
     var candle = gEnter.select(".candlesticks").selectAll("g").data(self.lineData);
     var candleEnter = candle.enter().append("g")
       .attr("transform", function(d) { return "translate(" + xScale(d.time) + ")"; });
-    candleEnter.append("line")
-      .attr("y1", function(d) { return priceScale(.5 * (d.low + d.high)); })
-      .attr("y2", function(d) { return priceScale(.5 * (d.low + d.high)); });
-    candleEnter.append("line")
-      .attr("class", "high");
-    candleEnter.append("line")
-      .attr("class", "low")    
-    candleEnter.append("rect")
-      .attr("x", -candleWidth / 2)
-      .attr("y", function(d) { return priceScale(.5 * (d.open + d.close)); })
-      .attr("height", function(d) { return Math.abs(priceScale(d.open) - priceScale(d.close))+.5; })
-      .attr("width", candleWidth);	
+    candleEnter.append("line").attr("class","extent");
+    candleEnter.append("line").attr("class", "high");
+    candleEnter.append("line").attr("class", "low");    
+    candleEnter.append("rect");	
         
     // Update the x-scale.
     xScale
@@ -248,7 +240,7 @@ PriceChart = function (options) {
       .transition()
       .attr("transform", function(d) { return "translate(" + xScale(d.time) + ")"; });
         
-    candleUpdate.select("line")
+    candleUpdate.select(".extent")
       .attr("y1", function(d) { return priceScale(d.low); })
       .attr("y2", function(d) { return priceScale(d.high); });
     candleUpdate.select("rect")
