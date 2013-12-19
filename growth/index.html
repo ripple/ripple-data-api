@@ -72,16 +72,18 @@ $('#startTime').datepicker().on('changeDate', function(e){
 	var start = new Date(e.date);
 	var end   = new Date($('#endTime').val());
 
-	updateCharts(getIncrement(start, end), start, end);	
+  totalAccounts.update(getIncrement(start, end), start, end);
+  offersExercised.update(getIncrement(start, end), start, end); 
 	$(this).datepicker('hide');
 });
 
 $('#endTime').datepicker().on('changeDate', function(e){
 	var start = new Date($('#startTime').val());
-		end   = new Date(e.date);
-		
-	updateCharts(getIncrement(start, end), start, end);	
-	$(this).datepicker('hide');
+	var end   = new Date(e.date);
+	
+	totalAccounts.update(getIncrement(start, end), start, end);
+  offersExercised.update(getIncrement(start, end), start, end);	
+  $(this).datepicker('hide');
 });
 
 var apiBase     = "http://ct.ripple.com:5993/api/";
@@ -174,7 +176,7 @@ totalAccounts.updateHelper = function (data) {
     lineData = points.map(function(d){
     	total += d[1];
    		return {
-   			x  : new Date(d[0]),
+   			x  : isoDate(d[0]),
    			y  : total,
    			y2 : d[1]}
   	});
@@ -218,7 +220,7 @@ offersExercised.update = function (increment, start, end) {
 	    lineData = points.map(function(d){
 	    	total += d[3];
 	   		return {
-	   			x  : new Date(d[0]),
+	   			x  : isoDate(d[0]),
 	   			y  : total,
 	   			y2 : d[3]}
 	  	});
@@ -266,5 +268,10 @@ function parseDate (date, increment)
 	else return monthNames[d.x.getMonth()] + " " + d.x.getDate() + " &middot " + d.x.toLocaleTimeString();
 
 }
+
+function isoDate (string) {
+    var a = string.split(/[^0-9]/);
+    return new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5] );      
+  }
 </script>
 
