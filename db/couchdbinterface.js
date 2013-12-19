@@ -4,7 +4,7 @@ var winston = require('winston'),
     moment = require('moment'),
     fs = require('fs');
 
-var config = require('../config');
+var config = require('./config');
 var db = require('nano')('http://' + config.couchdb.username + ':' + config.couchdb.password + '@' + config.couchdb.host + ':' + config.couchdb.port + '/' + config.couchdb.database);
 
 var GENESIS_LEDGER = require('./32570_full.json').result.ledger,

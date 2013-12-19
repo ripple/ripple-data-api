@@ -7,7 +7,7 @@ var Remote = require( 'ripple-lib' ).Remote,
   Amount = require( 'ripple-lib' ).Amount,
     Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger;
 
-var config = require( '../config' ),
+var config = require( './config' ),
   db = require( 'nano' )( 'http://' + config.couchdb.username +
     ':' + config.couchdb.password +
     '@' + config.couchdb.host +
