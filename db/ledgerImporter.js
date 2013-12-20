@@ -10,7 +10,6 @@ var rippleds = [
   'http://s_east.ripple.com:51234'
   ];
 
-var startTime = moment();
 
 /**
  *  ledgerImporter.js uses the rippled API to import
@@ -43,6 +42,7 @@ if (process.argv.length === 3) {
   processOptions.batchSize = parseInt(process.argv[4], 10);
 }
 
+var startTime = moment();
 getLedgerBatch(processOptions, function(err, res){
   if (err) {
     console.log(err);
@@ -61,7 +61,7 @@ getLedgerBatch(processOptions, function(err, res){
  *  {
  *    lastLedger: ledger_hash or ledger_index, defaults to last closed ledger
  *    batchSize: number, defaults to 1000
- *    minLedgerIndex: number, if none given it will stop after a single batch
+ *    minLedger: ledger_hash or ledger_index, if none given it will stop after a single batch
  *  }
  */
 function getLedgerBatch (opts, callback) {
@@ -90,8 +90,8 @@ function getLedgerBatch (opts, callback) {
       return;
     }
 
-    if (!opts.minLedgerIndex) {
-      opts.minLedgerIndex = ledger.ledger_index - opts.batchSize + 1;
+    if (!opts.minLedger) {
+      opts.minLedger = ledger.ledger_index - opts.batchSize + 1;
     }
 
     if (opts.minLedgerIndex < 32570) {
@@ -105,7 +105,9 @@ function getLedgerBatch (opts, callback) {
     // if the number of results exceeds the batch size or
     // if the process has reached the minLedgerIndex,
     // call the callback with the results
-    if (opts.batchSize <= opts.results.length || opts.minLedgerIndex >= ledger.ledger_index) {
+    if (opts.batchSize <= opts.results.length || 
+      (typeof opts.minLedger === 'string' && opts.minLedger === ledger.ledger_hash) || 
+      (typeof opts.minLedger === 'number' && opts.minLedger >= ledger.ledger_index) {
       callback(null, opts.results.slice());
       opts.results = [];
     }
