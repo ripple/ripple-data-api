@@ -29,8 +29,8 @@ h1, h2, h3, h4 {
 
 .chart .axis .title {
     stroke-width:1;
-    stroke: #666;
-    fill: #666;
+    stroke: #bbb;
+    fill: #bbb;
 }
 
 

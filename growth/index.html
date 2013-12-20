@@ -41,6 +41,10 @@ h3 {font-size:21px}
 #range input {text-align:center}
 </style>
 
+<h3 style="color: red;">INTERNAL USE ONLY</h3>
+<h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+<hr>
+
 <h2>Growth of The Ripple Network</h2>
 
 <div id="interval"></div>
@@ -125,6 +129,8 @@ var monthNames = [ "January", "February", "March", "April", "May", "June",
 
 totalAccounts = new LineChart({
 	title : "Total Accounts",
+	leftTitle : "Accounts Created",
+  rightTitle : "Total",
 	tooltip : function (d, increment) {
 		return "<div>"+parseDate(d.x, increment) + 
 			"</div><span>Accounts Created:</span>" + d.y2 + 
@@ -188,6 +194,8 @@ totalAccounts.updateHelper = function (data) {
 
 offersExercised = new LineChart({
 	title : "Offers Exercised (Bitstamp USD/XRP)",
+	leftTitle : "Offers Excercised",
+	rightTitle : "Total",
 	tooltip : function (d, increment) {
 		return "<div>"+parseDate(d.x, increment) + 
 			"</div><span>Offers Exercised:</span>" + d.y2 + 
