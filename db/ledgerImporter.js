@@ -61,7 +61,7 @@ function getLedgerBatch (opts, callback) {
     }
 
     if (!opts.minLedgerIndex) {
-      opts.minLedgerIndex = ledger.ledger_index - opts.batchSize;
+      opts.minLedgerIndex = ledger.ledger_index - opts.batchSize + 1;
     }
 
     if (opts.minLedgerIndex < 32570) {
