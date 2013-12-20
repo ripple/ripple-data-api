@@ -432,6 +432,7 @@ function saveBatchToCouchDb (ledgerBatch) {
 
       // console.log('\n\n\n' + JSON.stringify(ledgerBatch[index]) + '\n\n\n' + JSON.stringify(row.doc) + '\n\n\n');
 
+      // don't update docs that haven't been modified
       if (equal(ledgerBatch[index], row.doc, {strict: true})) {
         ledgerBatch[index].noUpdate = true;
       }
@@ -459,7 +460,4 @@ function saveBatchToCouchDb (ledgerBatch) {
   });
 
 }
-
-
-
 
