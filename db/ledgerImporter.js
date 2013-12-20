@@ -449,7 +449,7 @@ function saveBatchToCouchDb (ledgerBatch) {
 
       console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
         ' to ' + lastLedger + 
-        ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' docs)');
+        ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
     });
 
   });
