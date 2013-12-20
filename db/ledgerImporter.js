@@ -390,6 +390,10 @@ function addLeadingZeros (number, digits) {
  */
 function saveBatchToCouchDb (ledgerBatch) {
 
+  ledgerBatch.sort(function(a, b){
+    return a.ledger_index - b.ledger_index;
+  });
+
   // add doc ids to the ledgers
   _.each(ledgerBatch, function(ledger){
     ledger._id = addLeadingZeros(ledger.ledger_index);
