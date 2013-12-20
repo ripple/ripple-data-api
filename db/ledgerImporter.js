@@ -10,16 +10,39 @@ var rippleds = [
   'http://s_east.ripple.com:51234'
   ];
 
+var startTime = moment();
 
-var start = moment();
+/**
+ *  ledgerImporter.js uses the rippled API to import
+ *  ledgers into a CouchDB instance
+ *
+ *  Available command line options:
+ *
+ *  - node ledgerImporter.js
+ *  - node ledgerImporter.js <lastLedger>
+ *  - node ledgerImporter.js <minLedgerIndex> <lastLedger>
+ *  - node ledgerImporter.js <minLedgerIndex> <lastLedger> <batchSize>
+ */
 
-getLedgerBatch({batchSize: 1000, minLedgerIndex: 3983700}, function(err, res){
+var processOptions = {};
+if (process.argv.length === 3) {
+  processOptions.lastLedger = parseInt(process.argv[2], 10);
+} else if (process.argv.length === 4) {
+  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.minLedger = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+} else if (process.argv.length === 5) {
+  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.minLedger = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.batchSize = parseInt(process.argv[4], 10);
+}
+
+getLedgerBatch(processOptions, function(err, res){
   if (err) {
     console.log(err);
     return;
   }
   console.log('Got ' + res.length + ' ledgers.');
-  console.log('Process took: ' + moment().diff(start, 'seconds') + ' seconds.');
+  console.log('Process took ' + moment().diff(startTime, 'seconds') + ' seconds');
 });
 
 /**
@@ -92,6 +115,14 @@ function getLedgerBatch (opts, callback) {
 
 }
 
+
+/**
+ *  getLedger uses the rippled API to get the ledger
+ *  corresponding to the given identifier, or the last 
+ *  closed ledger if identifier is null
+ *
+ *  identifier: ledger_index or ledger_hash
+ */
 function getLedger (identifier, callback, serverNum) {
 
   if (typeof identifier === 'function' && !callback) {
@@ -100,7 +131,8 @@ function getLedger (identifier, callback, serverNum) {
   }
 
   if (serverNum && serverNum >= rippleds.length) {
-    callback(new Error('could not get ledger: ' + identifier + ' from any of the rippleds'));
+    callback(new Error('could not get ledger: ' + identifier + 
+      ' from any of the rippleds'));
     return;
   }
 
@@ -129,8 +161,10 @@ function getLedger (identifier, callback, serverNum) {
     json: reqData
   }, function(err, res){
     if (err) {
-      console.log('Error getting ledger: ' + (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
-        ' from server: ' + server + ' err: ' + JSON.stringify(err) + '\nTrying next server...');
+      console.log('Error getting ledger: ' + 
+        (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
+        ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
+        '\nTrying next server...');
       setImmediate(function(){
         getLedger (identifier, callback, serverNum + 1);
       });
@@ -147,7 +181,8 @@ function getLedger (identifier, callback, serverNum) {
     }
 
     if (!res || !res.body || !res.body.result || (!res.body.result.ledger && !res.body.result.closed)) {
-      console.log('error getting ledger ' + (identifier || 'closed') + ', server responded with: ' + JSON.stringify(res));
+      console.log('error getting ledger ' + (identifier || 'closed') + 
+        ', server responded with: ' + JSON.stringify(res));
       setImmediate(function(){
         getLedger (identifier, callback, serverNum + 1);
       });
@@ -161,7 +196,7 @@ function getLedger (identifier, callback, serverNum) {
     var ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
     if (ledgerJsonTxHash !== ledger.transaction_hash) {
 
-      cconsole.log('transactions do not hash to the expected value for ' + 
+      console.log('transactions do not hash to the expected value for ' + 
         'ledger_index: ' + ledger.ledger_index + '\n' +
         'ledger_hash: ' + ledger.ledger_hash + '\n' +
         'actual transaction_hash:   ' + ledgerJsonTxHash + '\n' +
@@ -180,6 +215,10 @@ function getLedger (identifier, callback, serverNum) {
 
 }
 
+/**
+ *  formatRemoteLedger makes slight modifications to the
+ *  ledger json format, according to the format used in the CouchDB database
+ */
 
 function formatRemoteLedger( ledger ) {
 
