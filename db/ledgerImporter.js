@@ -13,7 +13,7 @@ var rippleds = [
 
 var start = moment();
 
-getLedgerBatch({batchSize: 1000}, function(err, res){
+getLedgerBatch({batchSize: 1000, minLedgerIndex: 3983700}, function(err, res){
   if (err) {
     console.log(err);
     return;
