@@ -73,8 +73,6 @@ if (!processOptions.minLedger) {
  */
 function importIntoCouchDb(opts) {
 
-  var startTime = moment();
-
   console.log('Starting importIntoCouchDb at ' + startTime.format() + ' with options: ' + JSON.stringify(opts));
 
   getLedgerBatch(opts, function(err, res){
@@ -83,9 +81,6 @@ function importIntoCouchDb(opts) {
       return;
     }
 
-    console.log('Got ' + res.length + ' ledgers.');
-    console.log('Process took ' + moment().diff(startTime, 'seconds') + ' seconds');
-  
     saveBatchToCouchDb(res);
   });
 }
@@ -403,7 +398,7 @@ function saveBatchToCouchDb (ledgerBatch) {
   var firstLedger = Math.min(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index),
     lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
 
-  console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
+  // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
 
   db.fetch({
     keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
@@ -452,9 +447,9 @@ function saveBatchToCouchDb (ledgerBatch) {
         return;
       }
 
-      console.log('Saved ledgers ' + firstLedger + 
+      console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
         ' to ' + lastLedger + 
-        ' to CouchDB (' + docs.length + ' docs)');
+        ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' docs)');
     });
 
   });
