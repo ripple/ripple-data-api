@@ -73,7 +73,7 @@ if (!processOptions.minLedger) {
  */
 function importIntoCouchDb(opts) {
 
-  console.log('Starting importIntoCouchDb at ' + startTime.format() + ' with options: ' + JSON.stringify(opts));
+  console.log('Starting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
 
   getLedgerBatch(opts, function(err, res){
     if (err) {
