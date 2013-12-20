@@ -207,7 +207,9 @@ function getLedger (identifier, callback, serverNum) {
 
   var server = config.rippleds[(serverNum ? serverNum : 0)];
 
-  console.log('getting ledger from: ' + server);
+  if (serverNum > 0) {
+    console.log('getting ledger from: ' + server);
+  }
 
   // get ledger using JSON API
   request({
@@ -218,8 +220,6 @@ function getLedger (identifier, callback, serverNum) {
   }, requestHandler);
 
   function requestHandler (err, res) {
-
-    console.log('in requestHandler, serverNum is: ' + serverNum);
 
     if (err) {
       console.log('Error getting ledger: ' + 
