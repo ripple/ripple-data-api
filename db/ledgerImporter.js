@@ -4,7 +4,7 @@ var request = require('request'),
   Ledger = require( '../node_modules/ripple-lib/src/js/ripple/ledger' ).Ledger;
 
 var rippleds = [
-  // 'http://0.0.0.0:51234',
+  'http://0.0.0.0:51234',
   'http://ct.ripple.com:51234',
   'http://s_west.ripple.com:51234',
   'http://s_east.ripple.com:51234'
@@ -13,7 +13,7 @@ var rippleds = [
 
 var start = moment();
 
-getLedgerBatch({batchSize: 10}, function(err, res){
+getLedgerBatch({batchSize: 1000}, function(err, res){
   if (err) {
     console.log(err);
     return;
@@ -107,7 +107,7 @@ function getLedger (identifier, callback, serverNum) {
     }
 
     if (typeof res.body === 'string') {
-      // XXX
+      // TODO consider changing this to try the next server
       console.log('rippled returned a buffer instead of a JSON object. Trying again...');
       setImmediate(function(){
         getLedger (identifier, callback, serverNum);
