@@ -239,7 +239,7 @@ function getLedger (identifier, callback, serverNum) {
 
     if (!res || !res.body || !res.body.result || (!res.body.result.ledger && !res.body.result.closed)) {
       console.log('error getting ledger ' + (identifier || 'closed') + 
-        ', server responded with: ' + JSON.stringify(res.error));
+        ', server responded with: ' + JSON.stringify(res.error || res.body || res));
       setImmediate(function(){
         getLedger (identifier, callback, serverNum + 1);
       });
@@ -403,6 +403,8 @@ function saveBatchToCouchDb (ledgerBatch) {
     lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
 
   // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
+
+  // TODO optimize this by using list first
 
   db.fetch({
     keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
