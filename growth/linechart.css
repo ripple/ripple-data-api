@@ -26,6 +26,11 @@ h1, h2, h3, h4 {
 	font-size:10px;
 }
 
+.lineChart .axis .title {
+  fill : #ccc;
+  stroke :none;  
+}
+
 .lineChart .axis.y text {
 	font-size:12px;
 }
@@ -38,8 +43,13 @@ h1, h2, h3, h4 {
 .lineChart path {
 	fill: none;
 	stroke: #3369a8;
+	stroke-width:2;
 }
 
+.lineChart path.line2 {
+  stroke:#bcd;
+  stroke-width:1;
+}
 
 .lineChart .status {
 	text-align:center;
@@ -50,7 +60,7 @@ h1, h2, h3, h4 {
 }
 
 .lineChart .hover {
-	stroke: #999;
+	stroke: #666;
 	stroke-width: .5;
 }
 

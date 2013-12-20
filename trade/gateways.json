@@ -116,5 +116,12 @@
             "currencies": ["CNY"],
             "hotwallets": []
             }]
+    }, {
+        "name": "Peercover",
+        "accounts": [{
+            "address": "ra9eZxMbJrUcgV8ui7aPc161FgrqWScQxV",
+            "currencies": ["USD"],
+            "hotwallets": []
+            }]
     }
 ]

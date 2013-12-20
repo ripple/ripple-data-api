@@ -3,6 +3,8 @@
 <link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
 <title>Ripple Charts</title>
 <style>
+
+@import url(bootstrap/bootstrap.min.css);
 @import url(priceChart.css);
 @import url(orderBook.css);
 
@@ -17,6 +19,10 @@ body {
 }
 
 h2 {text-align:center}
+select {
+  width:auto;
+  margin:2px;
+}
 
 #currency-pair {
   margin-left:55px;
@@ -64,6 +70,10 @@ h2 {text-align:center}
 #bookChart {margin-top:1em}
 </style>
 
+<h3 style="color: red;">INTERNAL USE ONLY</h3>
+<h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+<hr>
+    
 <div id="trades" style="display:none">
   <div><span id="last-price"></span><span class="symbol-quote"></span></div>
   <table>
