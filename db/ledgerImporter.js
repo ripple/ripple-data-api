@@ -18,13 +18,22 @@ getLedgerBatch({batchSize: 1000}, function(err, res){
     console.log(err);
     return;
   }
-
+  console.log('Got ' + res.length + ' ledgers.');
   console.log('Process took: ' + moment().diff(start, 'seconds') + ' seconds.');
-  // res.forEach(function(ledger){
-  //   console.log('index: ' + ledger.ledger_index + ' hash: ' + ledger.ledger_hash + ' prev: ' + ledger.parent_hash);
-  // });
 });
 
+/**
+ *  getLedgerBatch starts from a specified ledger or the most recently
+ *  closed one and uses the rippled API to get the batch of ledgers
+ *  one by one, walking the ledger hash chain backwards until it reaches the minLedger
+ *
+ *  available options:
+ *  {
+ *    lastLedger: ledger_hash or ledger_index, defaults to last closed ledger
+ *    batchSize: number, defaults to 1000
+ *    minLedgerIndex: number, if none given it will stop after a single batch
+ *  }
+ */
 function getLedgerBatch (opts, callback) {
 
   if (typeof opts === 'function') {
@@ -32,36 +41,52 @@ function getLedgerBatch (opts, callback) {
     opts = {};
   }
 
-  if (opts.batchSize === 0) {
-    callback(null, opts.results);
-    return;
-  }
-
-  if (!opts.lastLedgerIdentifier) {
-    opts.lastLedgerIdentifier = null;
+  if (!opts.lastLedger) {
+    opts.lastLedger = null;
   }
 
   if (!opts.batchSize) {
-    opts.batchSize = 100;
+    opts.batchSize = 1000;
   }
 
   if (!opts.results) {
     opts.results = [];
   }
 
-  getLedger(opts.lastLedgerIdentifier, function(err, ledger){
+  // get ledger from rippled API
+  getLedger(opts.lastLedger, function(err, ledger){
     if (err) {
       callback(err);
       return;
     }
 
-    opts.results.push(ledger);
-    opts.lastLedgerIdentifier = ledger.parent_hash;
-    opts.batchSize = opts.batchSize - 1;
+    if (!opts.minLedgerIndex) {
+      opts.minLedgerIndex = ledger.ledger_index - opts.batchSize;
+    }
 
-    setImmediate(function(){
-      getLedgerBatch(opts, callback);
-    });
+    if (opts.minLedgerIndex < 32570) {
+      opts.minLedgerIndex = 32570;
+    }
+
+    opts.results.push(ledger);
+    opts.lastLedger = ledger.parent_hash;
+
+
+    // if the number of results exceeds the batch size or
+    // if the process has reached the minLedgerIndex,
+    // call the callback with the results
+    if (opts.batchSize <= opts.results.length || opts.minLedgerIndex >= ledger.ledger_index) {
+      callback(null, opts.results.slice());
+      opts.results = [];
+    }
+
+    // if the process has not yet reached the minLedgerIndex
+    // continue with the next ledger
+    if (opts.minLedgerIndex < ledger.ledger_index) {
+      setImmediate(function(){
+        getLedgerBatch(opts, callback);
+      });
+    }
 
   });
 
@@ -72,6 +97,11 @@ function getLedger (identifier, callback, serverNum) {
   if (typeof identifier === 'function' && !callback) {
     callback = identifier;
     identifier = null;
+  }
+
+  if (serverNum && serverNum >= rippleds.length) {
+    callback(new Error('could not get ledger: ' + identifier + ' from any of the rippleds'));
+    return;
   }
 
   var reqData = { 
@@ -101,8 +131,9 @@ function getLedger (identifier, callback, serverNum) {
     if (err) {
       console.log('Error getting ledger: ' + (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + '\nTrying next server...');
-      // XXX
-      callback(err);
+      setImmediate(function(){
+        getLedger (identifier, callback, serverNum + 1);
+      });
       return;
     }
 
@@ -116,12 +147,12 @@ function getLedger (identifier, callback, serverNum) {
     }
 
     if (!res || !res.body || !res.body.result || (!res.body.result.ledger && !res.body.result.closed)) {
-      // XXX
-      callback(new Error('error getting ledger ' + (identifier || 'closed') + ', server responded with: ' + JSON.stringify(res)));
+      console.log('error getting ledger ' + (identifier || 'closed') + ', server responded with: ' + JSON.stringify(res));
+      setImmediate(function(){
+        getLedger (identifier, callback, serverNum + 1);
+      });
       return;
     }
-
-    // TODO handle what happens if the server does not have that ledger
 
     var remoteLedger = (res.body.result.closed ? res.body.result.closed.ledger : res.body.result.ledger),
       ledger = formatRemoteLedger(remoteLedger);
@@ -130,13 +161,14 @@ function getLedger (identifier, callback, serverNum) {
     var ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
     if (ledgerJsonTxHash !== ledger.transaction_hash) {
 
-      // TODO handle incorrect transaction hash better
-      // XXX
-      callback(new Error('transactions do not hash to the expected value for ' + 
+      cconsole.log('transactions do not hash to the expected value for ' + 
         'ledger_index: ' + ledger.ledger_index + '\n' +
         'ledger_hash: ' + ledger.ledger_hash + '\n' +
         'actual transaction_hash:   ' + ledgerJsonTxHash + '\n' +
-        'expected transaction_hash: ' + ledger.transaction_hash));
+        'expected transaction_hash: ' + ledger.transaction_hash);
+      setImmediate(function(){
+        getLedger (identifier, callback, serverNum + 1);
+      });
       return;
     }
 
