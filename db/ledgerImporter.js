@@ -22,11 +22,18 @@ var startTime = moment();
  *  - node ledgerImporter.js <lastLedger>
  *  - node ledgerImporter.js <minLedgerIndex> <lastLedger>
  *  - node ledgerImporter.js <minLedgerIndex> <lastLedger> <batchSize>
+ *  - node ledgerImporter.js all
  */
 
 var processOptions = {};
 if (process.argv.length === 3) {
-  processOptions.lastLedger = parseInt(process.argv[2], 10);
+
+  if (process.argv[2].toLowerCase() === 'all') {
+    processOptions.minLedger = 32570;
+  } else {
+    processOptions.lastLedger = parseInt(process.argv[2], 10);
+  }
+
 } else if (process.argv.length === 4) {
   processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedger = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
