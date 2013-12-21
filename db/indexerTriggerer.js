@@ -56,7 +56,7 @@ function pingCouchDB() {
 
             res.forEach(function(process){
               if (process.design_document === '_design/' + ddoc) {
-                winston.info('triggered an update of design doc: ' + ddoc);
+                winston.info('triggered update of _design/' + ddoc);
               }
             });
 
