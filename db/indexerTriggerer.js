@@ -1,5 +1,6 @@
 var winston = require('winston'),
   _ = require('lodash'),
+  async = require('async'),
   config = require('./config'),
   nano = require('nano')('http://' + config.couchdb.username + 
     ':' + config.couchdb.password + 
@@ -7,7 +8,7 @@ var winston = require('winston'),
     ':' + config.couchdb.port),
   db = nano.use(config.couchdb.database);
 
-setInterval(pingCouchDB, 30000);
+setInterval(pingCouchDB, 5000);
 // pingCouchDB();
 
 /**
@@ -28,10 +29,12 @@ function pingCouchDB() {
 
     // get design docs
     db.fetch({keys: designDocIds}, function(err, res){
-      res.rows.forEach(function(row){
+
+      async.each(res.rows, function(row, asyncCallback){
 
         if (!row.key || !row.doc) {
-          return;
+          asyncCallback(null, null);
+          return
         }
 
         var ddoc = row.key.slice(8),
@@ -40,24 +43,32 @@ function pingCouchDB() {
         // query one view per design doc
         db.view(ddoc, view, { limit:1, stale:'update_after' }, function(err, res){
           if (err) {
-            winston.error('problem pinging ddoc: ' + ddoc + ' view: ' + view + ' err: ' + err);
+            asyncCallback(err);
             return;
           }
 
           winston.info('called ' + ddoc + '/' + view);
           nano.request({path: '_active_tasks'}, function(err, res){
             if (err) {
-              winston.error('problem getting active tasks: ' + err);
+              asyncCallback(err);
               return;
             }
 
+            // TODO check when this triggers an update
             winston.info('active tasks now: ' + JSON.stringify(res));
+            asyncCallback(null, null);
           });
 
 
         });
-      });
 
+      }, function(err){
+        if (err) {
+          winston.error(err);
+          return;
+        }
+
+      });
     });
 
   });
