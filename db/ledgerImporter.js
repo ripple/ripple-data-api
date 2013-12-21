@@ -185,7 +185,7 @@ function getLedgerBatch (opts, callback) {
     // determine whether the process has reached the minLedgerHash or minLedgerIndex
     var reachedMinLedger = ((opts.minLedgerIndex && opts.minLedgerIndex >= ledger.ledger_index) || opts.minLedgerHash === ledger.ledger_hash);
 
-    if (opts.results.length > opts.batchSize || reachedMinLedger) {
+    if (opts.results.length >= opts.batchSize || reachedMinLedger) {
       callback(null, {
         results: opts.results.slice(),
         reachedMinLedger: reachedMinLedger
