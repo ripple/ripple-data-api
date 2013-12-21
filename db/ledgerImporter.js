@@ -439,76 +439,76 @@ function addLeadingZeros (number, digits) {
  */
 function saveBatchToCouchDb (ledgerBatch, callback) {
 
-  console.log('Saving ' + ledgerBatch.length + ' ledgers');
+  // console.log('Saving ' + ledgerBatch.length + ' ledgers');
 
-  // ledgerBatch.sort(function(a, b){
-  //   return a.ledger_index - b.ledger_index;
-  // });
+  ledgerBatch.sort(function(a, b){
+    return a.ledger_index - b.ledger_index;
+  });
 
-  // // add doc ids to the ledgers
-  // _.each(ledgerBatch, function(ledger){
-  //   ledger._id = addLeadingZeros(ledger.ledger_index);
-  // });
+  // add doc ids to the ledgers
+  _.each(ledgerBatch, function(ledger){
+    ledger._id = addLeadingZeros(ledger.ledger_index);
+  });
 
-  // var firstLedger = Math.min(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index),
-  //   lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
+  var firstLedger = Math.min(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index),
+    lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
 
-  // // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
+  // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
 
-  // // TODO optimize this by using list first
+  // TODO optimize this by using list first
 
-  // db.fetch({
-  //   keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
-  // }, function(err, res){
-  //   if (err) {
-  //     console.log('problem listing docs from couchdb from ledger ' + 
-  //       firstLedger + ' to ' + lastLedger + ' err: ' + err);
-  //     return;
-  //   }
+  db.fetch({
+    keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
+  }, function(err, res){
+    if (err) {
+      console.log('problem listing docs from couchdb from ledger ' + 
+        firstLedger + ' to ' + lastLedger + ' err: ' + err);
+      return;
+    }
 
-  //   // console.log(JSON.stringify(res));
+    // console.log(JSON.stringify(res));
 
-  //   // add _rev values to the docs that will be updated
-  //   _.each(res.rows, function(row){
-  //     var index = _.findIndex(ledgerBatch, function(ledger){
-  //       return (row.id === ledger._id);
-  //     });
+    // add _rev values to the docs that will be updated
+    _.each(res.rows, function(row){
+      var index = _.findIndex(ledgerBatch, function(ledger){
+        return (row.id === ledger._id);
+      });
 
-  //     // console.log(JSON.stringify(row));
+      // console.log(JSON.stringify(row));
 
-  //     if (row.error) {
-  //       return;
-  //     }
+      if (row.error) {
+        return;
+      }
 
-  //     ledgerBatch[index]._rev = row.value.rev;
+      ledgerBatch[index]._rev = row.value.rev;
 
-  //     // console.log('\n\n\n' + JSON.stringify(ledgerBatch[index]) + '\n\n\n' + JSON.stringify(row.doc) + '\n\n\n');
+      // console.log('\n\n\n' + JSON.stringify(ledgerBatch[index]) + '\n\n\n' + JSON.stringify(row.doc) + '\n\n\n');
 
-  //     // don't update docs that haven't been modified
-  //     if (equal(ledgerBatch[index], row.doc, {strict: true})) {
-  //       ledgerBatch[index].noUpdate = true;
-  //     }
+      // don't update docs that haven't been modified
+      if (equal(ledgerBatch[index], row.doc, {strict: true})) {
+        ledgerBatch[index].noUpdate = true;
+      }
 
-  //   });
+    });
 
-  //   var docs = _.filter(ledgerBatch, function(ledger){
-  //     return !ledger.noUpdate;
-  //   });
+    var docs = _.filter(ledgerBatch, function(ledger){
+      return !ledger.noUpdate;
+    });
 
-  //   db.bulk({docs: docs}, function(err){
-  //     if (err) {
-  //       callback(err);
-  //       return;
-  //     }
+    db.bulk({docs: docs}, function(err){
+      if (err) {
+        callback(err);
+        return;
+      }
 
-  //     console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
-  //       ' to ' + lastLedger + 
-  //       ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
+      console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
+        ' to ' + lastLedger + 
+        ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
 
-  //     callback(null, docs.length);
-  //   });
+      callback(null, docs.length);
+    });
 
-  // });
+  });
 
 }
 
