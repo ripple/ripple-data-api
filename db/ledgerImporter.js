@@ -86,32 +86,47 @@ function importIntoCouchDb(opts) {
         return;
       }
 
-      // save the batch to CouchDB, then start the next batch
-      // immediately if this batch actually updated some ledgers
-      // or wait a couple of seconds before starting again if not
-      saveBatchToCouchDb(res, function(err, numLedgersSaved){
-        if (err) {
-          console.log('problem saving ledger batch to CouchDB: ' + err);
-          return;
-        }
-
-        if (numLedgersSaved > 0) {
-          // start next batch
-          // disregard previous options so that it continues with the most recent data
-          // TODO is this the right way to handle continous importing?
-          setImmediate(function(){
+      // skip empty batches
+      if (res.results.length === 0) {
+        setTimeout(function(){
             importIntoCouchDb({batchSize: opts.batchSize});
-          });
-        } else {
-          // wait a couple of seconds before trying again
-          setTimeout(function(){
-            importIntoCouchDb({batchSize: opts.batchSize});
-          }, 5000);
-        }
+        }, 5000);
+        return;
+      }
 
-        
+      // check if the process was finished before starting another importIntoCouchDb process
+      if (!res.processFinished) {
+        saveBatchToCouchDb(res.results, function(err, numLedgersSaved){
+          if (err) {
+            console.log('problem saving ledger batch to CouchDB: ' + err);
+            return;
+          }
+        });
+      } else {
+        // save the batch to CouchDB, then start the next batch
+        // immediately if this batch actually updated some ledgers
+        // or wait a couple of seconds before starting again if not
+        saveBatchToCouchDb(res.results, function(err, numLedgersSaved){
+          if (err) {
+            console.log('problem saving ledger batch to CouchDB: ' + err);
+            return;
+          }
 
-      });
+          if (numLedgersSaved > 0) {
+            // start next batch
+            // disregard previous options so that it continues with the most recent data
+            // TODO is this the right way to handle continous importing?
+            setImmediate(function(){
+              importIntoCouchDb({batchSize: opts.batchSize});
+            });
+          } else {
+            // wait a couple of seconds before trying again
+            setTimeout(function(){
+              importIntoCouchDb({batchSize: opts.batchSize});
+            }, 5000);
+          }  
+        });
+      }
     });
   }
 }
@@ -170,19 +185,24 @@ function getLedgerBatch (opts, callback) {
     opts.results.push(ledger);
     opts.lastLedger = ledger.parent_hash;
 
+    var continueProcess = (typeof opts.minLedger === 'number' ? opts.minLedger < ledger.ledger_index : opts.minLedger !== ledger.ledger_hash);
+
     // if the number of results exceeds the batch size or
     // if the process has reached the minLedgerIndex,
     // call the callback with the results
     if (opts.batchSize <= opts.results.length || 
       (typeof opts.minLedger === 'string' && opts.minLedger === ledger.ledger_hash) || 
       (typeof opts.minLedger === 'number' && opts.minLedger >= ledger.ledger_index)) {
-      callback(null, opts.results.slice());
+      callback(null, {
+        results: opts.results.slice(),
+        processFinished: !continueProcess
+      });
       opts.results = [];
     }
 
     // if the process has not yet reached the minLedgerIndex
     // continue with the next ledger
-    if (typeof opts.minLedger === 'number' ? opts.minLedger < ledger.ledger_index : opts.minLedger !== ledger.ledger_hash) {
+    if (continueProcess) {
       setImmediate(function(){
         getLedgerBatch(opts, callback);
       });
