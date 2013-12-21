@@ -47,7 +47,7 @@ if (process.argv.length === 3) {
 // if the min ledger is not set, set it to the last ledger saved into CouchDB
 // and start the importIntoCouchDb process
 if (!processOptions.minLedger) {
-  getLastLedgerSavedToCouchDb(function(err, lastLedgerIndex){
+  getLatestLedgerInCouchDb(function(err, lastLedgerIndex){
     if (err) {
       console.log('problem getting last ledger saved to CouchDB: ' + err);
       return;
@@ -82,6 +82,13 @@ function importIntoCouchDb(opts) {
     }
 
     saveBatchToCouchDb(res);
+
+    // start next batch
+    // disregard previous options so that it continues with the most recent data
+    // TODO is this the right way to handle continous importing?
+    setImmediate(function(){
+      importIntoCouchDb({batchSize: opts.batchSize});
+    });
   });
 }
 
@@ -203,7 +210,7 @@ function getLedger (identifier, callback, serverNum) {
   var server = config.rippleds[(serverNum ? serverNum : 0)];
 
   if (serverNum > 0) {
-    console.log('getting ledger from: ' + server);
+    console.log('Getting ledger ' + identifier + ' from: ' + server);
   }
 
   // get ledger using JSON API
@@ -321,6 +328,29 @@ function formatRemoteLedger(ledger) {
 
 /*** COUCHDB FUNCTIONS ***/
 
+
+/**
+ *  getLatestLedgerInCouchDb gets the ledger with the highest
+ *  index saved in CouchDB
+ */
+function getLatestLedgerInCouchDb(callback) {
+  db.list({descending:true, startkey:'_c', limit: 20}, function(err, res){
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    var latestIndex = _.find(res.rows, function(row){      
+      try {
+        return (row.id.length === 10 && parseInt(row.id, 10) > 32570);
+      } catch (e) {
+        return false;
+      }
+    }).id;
+    
+    callback(null, latestIndex);
+  });
+}
 
 /**
  *  getLastLedgerSavedToCouchDb uses the CouchDB changes stream
