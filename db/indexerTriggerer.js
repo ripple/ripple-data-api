@@ -54,8 +54,14 @@ function pingCouchDB() {
               return;
             }
 
-            // TODO check when this triggers an update
-            winston.info('active tasks now: ' + JSON.stringify(res));
+            winston.info('ddoc: ' + ddoc);
+
+            res.forEach(function(process){
+              if (process.design_document === '_design/' + ddoc) {
+                winston.info('triggered an update of design doc: ' + ddoc);
+              }
+            });
+
             asyncCallback(null, null);
           });
 
@@ -70,7 +76,6 @@ function pingCouchDB() {
 
       });
     });
-
   });
 
 }
