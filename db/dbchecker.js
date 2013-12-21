@@ -69,6 +69,14 @@ function verifyFromLedgerIndex (ledgerIndex, prevLedgerHash) {
           var row = body.rows[r],
             ledger = row.doc;
 
+          if (!ledger) {
+            winston.info('ledger ' + (ledgerIndex + r) + ' not in database, trying again in a few seconds');
+            setTimeout(function(){
+              verifyFromLedgerIndex(ledgerIndex + r, prevLedgerHash);
+            }, 5000);
+            return;
+          }
+
           // check index number is correct
           if (parseInt(row.id, 10) !== parseInt(ledger.ledger_index, 10)) {
             winston.error('db has wrong ledger at ledgerIndex: ' + parseInt(row.id, 10) + 
