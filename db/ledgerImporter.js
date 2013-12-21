@@ -29,17 +29,17 @@ var processOptions = {};
 if (process.argv.length === 3) {
 
   if (process.argv[2].toLowerCase() === 'all') {
-    processOptions.minLedger = 32570;
+    processOptions.minLedgerIndex = 32570;
   } else {
-    processOptions.minLedger = parseInt(process.argv[2], 10);
+    processOptions.minLedgerIndex = parseInt(process.argv[2], 10);
   }
 
 } else if (process.argv.length === 4) {
-  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.minLedger = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.lastLedgerIndex = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
 } else if (process.argv.length === 5) {
-  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.minLedger = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.lastLedgerIndex = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.batchSize = parseInt(process.argv[4], 10);
 }
 
@@ -62,7 +62,7 @@ importIntoCouchDb(processOptions);
 function importIntoCouchDb(opts) {
 
   // if minLedger is not set, set minLedger to be the latest ledger saved to couchdb
-  if (opts.minLedger) {
+  if (opts.minLedgerIndex || opts.minLedgerHash) {
     startImporting(opts);
   } else {
     getLatestLedgerInCouchDb(function(err, latestLedger){
@@ -71,7 +71,8 @@ function importIntoCouchDb(opts) {
         return;
       }
 
-      opts.minLedger = latestLedger;
+      opts.minLedgerHash = latestLedger.hash;
+      opts.minLedgerIndex = latestLedger.index;
       startImporting(opts);
     });
   }
@@ -95,7 +96,7 @@ function importIntoCouchDb(opts) {
       }
 
       // check if the process was finished before starting another importIntoCouchDb process
-      if (!res.processFinished) {
+      if (!res.reachedMinLedger) {
         saveBatchToCouchDb(res.results, function(err, numLedgersSaved){
           if (err) {
             console.log('problem saving ledger batch to CouchDB: ' + err);
@@ -174,10 +175,6 @@ function getLedgerBatch (opts, callback) {
       return;
     }
 
-    if (!opts.minLedger) {
-      opts.minLedger = ledger.ledger_index - opts.batchSize + 1;
-    }
-
     if (opts.minLedgerIndex < 32570) {
       opts.minLedgerIndex = 32570;
     }
@@ -185,26 +182,20 @@ function getLedgerBatch (opts, callback) {
     opts.results.push(ledger);
     opts.lastLedger = ledger.parent_hash;
 
-    console.log('opts.minLedger: ' + opts.minLedger + ' ledger.ledger_hash: ' + ledger.ledger_hash);
+    // determine whether the process has reached the minLedgerHash or minLedgerIndex
+    var reachedMinLedger = ((opts.minLedgerIndex && opts.minLedgerIndex >= ledger.ledger_index) || opts.minLedgerHash === ledger.ledger_hash);
 
-    var continueProcess = (typeof opts.minLedger === 'number' ? opts.minLedger < ledger.ledger_index : opts.minLedger !== ledger.ledger_hash);
-
-    // if the number of results exceeds the batch size or
-    // if the process has reached the minLedgerIndex,
-    // call the callback with the results
-    if (opts.batchSize <= opts.results.length || 
-      (typeof opts.minLedger === 'string' && opts.minLedger === ledger.ledger_hash) || 
-      (typeof opts.minLedger === 'number' && opts.minLedger >= ledger.ledger_index)) {
+    if (opts.results.length > opts.batchSize || reachedMinLedger) {
       callback(null, {
         results: opts.results.slice(),
-        processFinished: !continueProcess
+        reachedMinLedger: reachedMinLedger
       });
       opts.results = [];
     }
 
     // if the process has not yet reached the minLedgerIndex
     // continue with the next ledger
-    if (continueProcess) {
+    if (!reachedMinLedger) {
       setImmediate(function(){
         getLedgerBatch(opts, callback);
       });
@@ -406,7 +397,10 @@ function getLatestLedgerInCouchDb(callback) {
         ' ledger_hash ' + res.ledger_hash + 
         ' closed at ' + res.close_time_human);
 
-      callback(null, res.ledger_hash);
+      callback(null, {
+        hash: res.ledger_hash,
+        index: res.ledger_index
+      });
 
     });
   });
