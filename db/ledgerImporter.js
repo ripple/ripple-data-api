@@ -280,6 +280,7 @@ function getLedger (identifier, callback, serverNum) {
       return;
     }
 
+    // handle malformed response
     if (!res || !res.body || !res.body.result || (!res.body.result.ledger && !res.body.result.closed)) {
       console.log('error getting ledger ' + (identifier || 'closed') + 
         ', server responded with: ' + JSON.stringify(res.error || res.body || res));
@@ -386,6 +387,11 @@ function getLatestLedgerInCouchDb(callback) {
         return false;
       }
     }).id;
+    
+    // experimental -- try using not the latest ledger but the one before
+    // to increase the reliability (sometimes it seems that the latest ledger
+    // given is incorrect but when the script is run over the same range of ledgers
+    // later it corrects the data)
 
     db.get(latestIndex, function(err, res){
       if (err) {
@@ -398,8 +404,8 @@ function getLatestLedgerInCouchDb(callback) {
         ' closed at ' + res.close_time_human);
 
       callback(null, {
-        hash: res.ledger_hash,
-        index: res.ledger_index
+        hash: res.parent_hash,
+        index: (res.ledger_index - 1)
       });
 
     });
@@ -447,10 +453,6 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
   var firstLedger = Math.min(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index),
     lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
 
-  // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
-
-  // TODO optimize this by using list first
-
   db.fetch({
     keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
   }, function(err, res){
@@ -460,23 +462,17 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
       return;
     }
 
-    // console.log(JSON.stringify(res));
-
     // add _rev values to the docs that will be updated
     _.each(res.rows, function(row){
       var index = _.findIndex(ledgerBatch, function(ledger){
         return (row.id === ledger._id);
       });
 
-      // console.log(JSON.stringify(row));
-
       if (row.error) {
         return;
       }
 
       ledgerBatch[index]._rev = row.value.rev;
-
-      // console.log('\n\n\n' + JSON.stringify(ledgerBatch[index]) + '\n\n\n' + JSON.stringify(row.doc) + '\n\n\n');
 
       // don't update docs that haven't been modified
       if (equal(ledgerBatch[index], row.doc, {strict: true})) {
