@@ -489,6 +489,11 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
       return !ledger.noUpdate;
     });
 
+    if (docs.length === 0) {
+      callback(null, 0);
+      return;
+    }
+
     db.bulk({docs: docs}, function(err){
       if (err) {
         callback(err);
