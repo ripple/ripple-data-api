@@ -61,8 +61,6 @@ importIntoCouchDb(processOptions);
  */
 function importIntoCouchDb(opts) {
 
-  console.log('Starting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
-
   // if minLedger is not set, set minLedger to be the latest ledger saved to couchdb
   if (opts.minLedger) {
     startImporting(opts);
@@ -80,19 +78,39 @@ function importIntoCouchDb(opts) {
 
   function startImporting (opts) {
 
+    console.log('Starting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
+
     getLedgerBatch(opts, function(err, res){
       if (err) {
-        console.log(err);
+        console.log('problem getting ledger batch: ' + err);
         return;
       }
 
-      saveBatchToCouchDb(res);
+      // save the batch to CouchDB, then start the next batch
+      // immediately if this batch actually updated some ledgers
+      // or wait a couple of seconds before starting again if not
+      saveBatchToCouchDb(res, function(err, numLedgersSaved){
+        if (err) {
+          console.log('problem saving ledger batch to CouchDB: ' + err);
+          return;
+        }
 
-      // start next batch
-      // disregard previous options so that it continues with the most recent data
-      // TODO is this the right way to handle continous importing?
-      setImmediate(function(){
-        importIntoCouchDb({batchSize: opts.batchSize});
+        if (numLedgersSaved > 0) {
+          // start next batch
+          // disregard previous options so that it continues with the most recent data
+          // TODO is this the right way to handle continous importing?
+          setImmediate(function(){
+            importIntoCouchDb({batchSize: opts.batchSize});
+          });
+        } else {
+          // wait a couple of seconds before trying again
+          setTimeout(function(){
+            importIntoCouchDb({batchSize: opts.batchSize});
+          }, 5000);
+        }
+
+        
+
       });
     });
   }
@@ -434,7 +452,7 @@ function addLeadingZeros (number, digits) {
  *  saveBatchToCouchDb saves all of the new or updated ledgers
  *  in the given batch to the CouchDB instance
  */
-function saveBatchToCouchDb (ledgerBatch) {
+function saveBatchToCouchDb (ledgerBatch, callback) {
 
   ledgerBatch.sort(function(a, b){
     return a.ledger_index - b.ledger_index;
@@ -490,18 +508,17 @@ function saveBatchToCouchDb (ledgerBatch) {
       return !ledger.noUpdate;
     });
 
-    // console.log(JSON.stringify(docs));
-
-
     db.bulk({docs: docs}, function(err){
       if (err) {
-        console.log('problem saving batch to couchdb: ' + err);
+        callback(err);
         return;
       }
 
       console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
         ' to ' + lastLedger + 
         ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
+
+      callback(null, docs.length);
     });
 
   });
