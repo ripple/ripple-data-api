@@ -47,7 +47,7 @@ function pingCouchDB() {
             return;
           }
 
-          winston.info('called ' + ddoc + '/' + view);
+          // winston.info('called ' + ddoc + '/' + view);
           nano.request({path: '_active_tasks'}, function(err, res){
             if (err) {
               asyncCallback(err);
