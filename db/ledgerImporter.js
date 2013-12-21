@@ -43,7 +43,7 @@ if (process.argv.length === 3) {
   processOptions.batchSize = parseInt(process.argv[4], 10);
 }
 
-
+console.log('ledgerImporter.js script started again');
 importIntoCouchDb(processOptions);
 
 
@@ -185,6 +185,8 @@ function getLedgerBatch (opts, callback) {
     opts.results.push(ledger);
     opts.lastLedger = ledger.parent_hash;
 
+    console.log('opts.minLedger: ' + opts.minLedger + ' ledger.ledger_hash: ' + ledger.ledger_hash);
+
     var continueProcess = (typeof opts.minLedger === 'number' ? opts.minLedger < ledger.ledger_index : opts.minLedger !== ledger.ledger_hash);
 
     // if the number of results exceeds the batch size or
@@ -207,9 +209,7 @@ function getLedgerBatch (opts, callback) {
         getLedgerBatch(opts, callback);
       });
     }
-
   });
-
 }
 
 
@@ -265,8 +265,8 @@ function getLedger (identifier, callback, serverNum) {
     timeout: 20000
   }, requestHandler);
 
-  function requestHandler (err, res) {
 
+  function requestHandler (err, res) {
     if (err) {
       console.log('Error getting ledger: ' + 
         (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
@@ -278,13 +278,14 @@ function getLedger (identifier, callback, serverNum) {
       return;
     }
 
+    // check if the server returned a buffer/string instead of json
     if (typeof res.body === 'string') {
       // TODO consider changing this to try the next server
       console.log('rippled returned a buffer instead of a JSON object for request: ' + 
         JSON.stringify(reqData.params[0]) + '. Trying again...');
-      setImmediate(function(){
+      setTimeout(function(){
         getLedger (identifier, callback, serverNum);
-      });
+      }, 500);
       return;
     }
 
@@ -297,6 +298,7 @@ function getLedger (identifier, callback, serverNum) {
       return;
     }
 
+    // format remote ledger
     var remoteLedger = (res.body.result.closed ? res.body.result.closed.ledger : res.body.result.ledger),
       ledger = formatRemoteLedger(remoteLedger);
 
@@ -309,9 +311,11 @@ function getLedger (identifier, callback, serverNum) {
         'ledger_hash: ' + ledger.ledger_hash + '\n' +
         'actual transaction_hash:   ' + ledgerJsonTxHash + '\n' +
         'expected transaction_hash: ' + ledger.transaction_hash);
+
       setImmediate(function(){
         getLedger (identifier, callback, serverNum + 1);
       });
+
       return;
     }
 
@@ -392,58 +396,19 @@ function getLatestLedgerInCouchDb(callback) {
       }
     }).id;
 
-    console.log('Latest index in CouchDB: ' + latestIndex);
-
     db.get(latestIndex, function(err, res){
       if (err) {
         callback(err);
         return;
       }
 
+      console.log('Latest ledger in CouchDB: ledger_index ' + res.ledger_index + 
+        ' ledger_hash ' + res.ledger_hash + 
+        ' closed at ' + res.close_time_human);
+
       callback(null, res.ledger_hash);
 
     });
-  });
-}
-
-/**
- *  getLastLedgerSavedToCouchDb uses the CouchDB changes stream
- *  to identify the last ledger modified in the database
- */
-function getLastLedgerSavedToCouchDb(callback) {
-  
-  // get the most recently changed document ids
-  db.changes({
-      limit: 20,
-      descending: true
-    }, function(err, res) {
-      if (err) {
-        callback(new Error('problem connecting to CouchDB: ' + err));
-        return;
-      }
-
-      // filter out any design documents that might have been changed
-      var changedLedgers = _.filter(res.results, function(doc){
-        return (doc.id.indexOf('_design/') === -1 && parseInt(doc.id, 10) > 0);
-      });
-
-      // if the database is empty, start from ledger 32570
-      if (changedLedgers.length === 0) {
-        callback(null, '4109C6F2045FC7EFF4CDE8F9905D19C28820D86304080FF886B299F0206E42B5');
-        return;
-      }
-
-      // get the ledger hash associated with this ledger
-      db.get(changedLedgers[0].id, function(err, res){
-        if (err) {
-          callback(new Error('problem connecting to CouchDB: ' + err));
-          return;
-        }
-
-        callback(null, res.ledger_hash);
-
-      });
-
   });
 }
 
@@ -474,74 +439,76 @@ function addLeadingZeros (number, digits) {
  */
 function saveBatchToCouchDb (ledgerBatch, callback) {
 
-  ledgerBatch.sort(function(a, b){
-    return a.ledger_index - b.ledger_index;
-  });
+  console.log('Saving ' + ledgerBatch.length + ' ledgers');
 
-  // add doc ids to the ledgers
-  _.each(ledgerBatch, function(ledger){
-    ledger._id = addLeadingZeros(ledger.ledger_index);
-  });
+  // ledgerBatch.sort(function(a, b){
+  //   return a.ledger_index - b.ledger_index;
+  // });
 
-  var firstLedger = Math.min(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index),
-    lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
+  // // add doc ids to the ledgers
+  // _.each(ledgerBatch, function(ledger){
+  //   ledger._id = addLeadingZeros(ledger.ledger_index);
+  // });
 
-  // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
+  // var firstLedger = Math.min(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index),
+  //   lastLedger = Math.max(ledgerBatch[0].ledger_index, ledgerBatch[ledgerBatch.length-1].ledger_index);
 
-  // TODO optimize this by using list first
+  // // console.log('Saving batch from ' + firstLedger + ' to ' + lastLedger + ' to CouchDB');
 
-  db.fetch({
-    keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
-  }, function(err, res){
-    if (err) {
-      console.log('problem listing docs from couchdb from ledger ' + 
-        firstLedger + ' to ' + lastLedger + ' err: ' + err);
-      return;
-    }
+  // // TODO optimize this by using list first
 
-    // console.log(JSON.stringify(res));
+  // db.fetch({
+  //   keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
+  // }, function(err, res){
+  //   if (err) {
+  //     console.log('problem listing docs from couchdb from ledger ' + 
+  //       firstLedger + ' to ' + lastLedger + ' err: ' + err);
+  //     return;
+  //   }
 
-    // add _rev values to the docs that will be updated
-    _.each(res.rows, function(row){
-      var index = _.findIndex(ledgerBatch, function(ledger){
-        return (row.id === ledger._id);
-      });
+  //   // console.log(JSON.stringify(res));
 
-      // console.log(JSON.stringify(row));
+  //   // add _rev values to the docs that will be updated
+  //   _.each(res.rows, function(row){
+  //     var index = _.findIndex(ledgerBatch, function(ledger){
+  //       return (row.id === ledger._id);
+  //     });
 
-      if (row.error) {
-        return;
-      }
+  //     // console.log(JSON.stringify(row));
 
-      ledgerBatch[index]._rev = row.value.rev;
+  //     if (row.error) {
+  //       return;
+  //     }
 
-      // console.log('\n\n\n' + JSON.stringify(ledgerBatch[index]) + '\n\n\n' + JSON.stringify(row.doc) + '\n\n\n');
+  //     ledgerBatch[index]._rev = row.value.rev;
 
-      // don't update docs that haven't been modified
-      if (equal(ledgerBatch[index], row.doc, {strict: true})) {
-        ledgerBatch[index].noUpdate = true;
-      }
+  //     // console.log('\n\n\n' + JSON.stringify(ledgerBatch[index]) + '\n\n\n' + JSON.stringify(row.doc) + '\n\n\n');
 
-    });
+  //     // don't update docs that haven't been modified
+  //     if (equal(ledgerBatch[index], row.doc, {strict: true})) {
+  //       ledgerBatch[index].noUpdate = true;
+  //     }
 
-    var docs = _.filter(ledgerBatch, function(ledger){
-      return !ledger.noUpdate;
-    });
+  //   });
 
-    db.bulk({docs: docs}, function(err){
-      if (err) {
-        callback(err);
-        return;
-      }
+  //   var docs = _.filter(ledgerBatch, function(ledger){
+  //     return !ledger.noUpdate;
+  //   });
 
-      console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
-        ' to ' + lastLedger + 
-        ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
+  //   db.bulk({docs: docs}, function(err){
+  //     if (err) {
+  //       callback(err);
+  //       return;
+  //     }
 
-      callback(null, docs.length);
-    });
+  //     console.log('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
+  //       ' to ' + lastLedger + 
+  //       ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
 
-  });
+  //     callback(null, docs.length);
+  //   });
+
+  // });
 
 }
 
