@@ -347,8 +347,18 @@ function getLatestLedgerInCouchDb(callback) {
         return false;
       }
     }).id;
-    
-    callback(null, latestIndex);
+
+    console.log('Latest index in CouchDB: ' + latestIndex);
+
+    db.get(latestIndex, function(err, res){
+      if (err) {
+        callback(err);
+        return;
+      }
+
+      callback(null, res.ledger_hash);
+
+    });
   });
 }
 
