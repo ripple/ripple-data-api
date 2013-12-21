@@ -44,21 +44,9 @@ if (process.argv.length === 3) {
 }
 
 
-// if the min ledger is not set, set it to the last ledger saved into CouchDB
-// and start the importIntoCouchDb process
-if (!processOptions.minLedger) {
-  getLatestLedgerInCouchDb(function(err, lastLedgerIndex){
-    if (err) {
-      console.log('problem getting last ledger saved to CouchDB: ' + err);
-      return;
-    }
+importIntoCouchDb(processOptions);
 
-    processOptions.minLedger = lastLedgerIndex;
-    importIntoCouchDb(processOptions);
-  });
-} else {
-  importIntoCouchDb(processOptions);
-}
+
 
 /**
  *  importIntoCouchDb gets batches of ledgers using the rippled API
@@ -68,28 +56,46 @@ if (!processOptions.minLedger) {
  *  {
  *    lastLedger: ledger_hash or ledger_index, defaults to last closed ledger
  *    batchSize: number, defaults to 1000
- *    minLedger: ledger_hash or ledger_index, if none given it will stop after a single batch
+ *    minLedger: ledger_hash or ledger_index, if none given it will use the latest ledger in CouchDB
  *  }
  */
 function importIntoCouchDb(opts) {
 
   console.log('Starting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
 
-  getLedgerBatch(opts, function(err, res){
-    if (err) {
-      console.log(err);
-      return;
-    }
+  // if minLedger is not set, set minLedger to be the latest ledger saved to couchdb
+  if (opts.minLedger) {
+    startImporting(opts);
+  } else {
+    getLatestLedgerInCouchDb(function(err, latestLedger){
+      if (err) {
+        console.log('problem getting last ledger saved to CouchDB: ' + err);
+        return;
+      }
 
-    saveBatchToCouchDb(res);
-
-    // start next batch
-    // disregard previous options so that it continues with the most recent data
-    // TODO is this the right way to handle continous importing?
-    setImmediate(function(){
-      importIntoCouchDb({batchSize: opts.batchSize});
+      opts.minLedger = latestLedger;
+      startImporting(opts);
     });
-  });
+  }
+
+  function startImporting (opts) {
+
+    getLedgerBatch(opts, function(err, res){
+      if (err) {
+        console.log(err);
+        return;
+      }
+
+      saveBatchToCouchDb(res);
+
+      // start next batch
+      // disregard previous options so that it continues with the most recent data
+      // TODO is this the right way to handle continous importing?
+      setImmediate(function(){
+        importIntoCouchDb({batchSize: opts.batchSize});
+      });
+    });
+  }
 }
 
 
