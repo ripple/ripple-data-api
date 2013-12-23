@@ -163,7 +163,7 @@ function importIntoCouchDb(opts) {
 
             // newly updated ledgers break hash chain with the ledgers that come
             // immediately after this set that are already in the database
-            if (res.rows.length === 4 && res.rows[2].doc.ledger_hash !== res.rows[3].doc.parent_hash)) {
+            if (res.rows.length === 4 && res.rows[2].doc.ledger_hash !== res.rows[3].doc.parent_hash) {
               console.log('The ledger_hash of the last ledger saved in this batch ' + 
                 '(ledger_index: ' + (saveRes.earliestLedgerIndex + saveRes.numLedgersSaved) + ') ' +
                 'did not match the parent_hash of the ledger after them in the database, ' +
