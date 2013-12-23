@@ -134,7 +134,7 @@ function importIntoCouchDb(opts) {
             if (!err && res.rows.length === 2 && res.rows[0].doc.ledger_hash === res.rows[1].doc.parent_hash) {
               // results ok
               
-              console.log('ledger chain checks out, continuing the process');
+              // console.log('ledger chain checks out, continuing the process');
 
               if (saveRes.numLedgersSaved > 0) {
                 // start next batch
@@ -151,6 +151,10 @@ function importIntoCouchDb(opts) {
               }  
             } else {
               // problem in the db, restart the process with the minLedger set earlier
+              console.log('The parent_hash of the earliest ledger saved in this batch ' +
+                'did not match the ledger_hash of the ledger before it in the database, ' + 
+                'starting the process again with minLedgerIndex set earlier...');
+
               importIntoCouchDb({
                 minLedgerIndex: saveRes.earliestLedgerIndex - 1000,
                 lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
