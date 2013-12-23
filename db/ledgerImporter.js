@@ -11,6 +11,11 @@ var request = require('request'),
     ':' + config.couchdb.port),
   db = nano.use(config.couchdb.database);
 
+// TODO think about how to handle errors such that the script restarts
+// and doesn't continue with more recent ledgers while leaving an earlier
+// range of ledgers out of the database
+// maybe start two processes...
+
 
 /**
  *  ledgerImporter.js uses the rippled API to import
@@ -35,10 +40,10 @@ if (process.argv.length === 3) {
   }
 
 } else if (process.argv.length === 4) {
-  processOptions.lastLedgerIndex = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
 } else if (process.argv.length === 5) {
-  processOptions.lastLedgerIndex = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.batchSize = parseInt(process.argv[4], 10);
 }
@@ -95,9 +100,12 @@ function importIntoCouchDb(opts) {
         return;
       }
 
+      // TODO if res.reachedMinLedger check that the hash of the last one
+      // is the same as what's already in the database
+
       // check if the process was finished before starting another importIntoCouchDb process
       if (!res.reachedMinLedger) {
-        saveBatchToCouchDb(res.results, function(err, numLedgersSaved){
+        saveBatchToCouchDb(res.results, function(err, saveRes){
           if (err) {
             console.log('problem saving ledger batch to CouchDB: ' + err);
             return;
@@ -107,25 +115,52 @@ function importIntoCouchDb(opts) {
         // save the batch to CouchDB, then start the next batch
         // immediately if this batch actually updated some ledgers
         // or wait a couple of seconds before starting again if not
-        saveBatchToCouchDb(res.results, function(err, numLedgersSaved){
+        saveBatchToCouchDb(res.results, function(err, saveRes){
           if (err) {
             console.log('problem saving ledger batch to CouchDB: ' + err);
             return;
           }
 
-          if (numLedgersSaved > 0) {
-            // start next batch
-            // disregard previous options so that it continues with the most recent data
-            // TODO is this the right way to handle continous importing?
-            setImmediate(function(){
-              importIntoCouchDb({batchSize: opts.batchSize});
-            });
-          } else {
-            // wait a couple of seconds before trying again
-            setTimeout(function(){
-              importIntoCouchDb({batchSize: opts.batchSize});
-            }, 5000);
-          }  
+          // check that the earliest ledger saved in this batch is the one that
+          // should follow the the previous one in the database
+          // if that doesn't check out, start the process again with the previous
+          // one as the minLedger
+          db.fetch({keys: [
+            addLeadingZeros(saveRes.earliestLedgerIndex - 1),
+            addLeadingZeros(saveRes.earliestLedgerIndex)
+            ]}, function(err, res) {
+
+            
+            if (!err && res.rows.length === 2 && res.rows[0].doc.ledger_hash === res.rows[1].doc.parent_hash) {
+              // results ok
+              
+              console.log('ledger chain checks out, continuing the process');
+
+              if (saveRes.numLedgersSaved > 0) {
+                // start next batch
+                // disregard previous options so that it continues with the most recent data
+                // TODO is this the right way to handle continous importing?
+                setImmediate(function(){
+                  importIntoCouchDb({batchSize: opts.batchSize});
+                });
+              } else {
+                // wait a couple of seconds before trying again
+                setTimeout(function(){
+                  importIntoCouchDb({batchSize: opts.batchSize});
+                }, 5000);
+              }  
+            } else {
+              // problem in the db, restart the process with the minLedger set earlier
+              importIntoCouchDb({
+                minLedgerIndex: saveRes.earliestLedgerIndex - 1000,
+                lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
+                batchSize: opts.batchSize
+              });
+            }
+
+          });
+
+          
         });
       }
     });
@@ -311,7 +346,7 @@ function getLedger (identifier, callback, serverNum) {
       return;
     }
 
-    // console.log('Got ledger: ' + ledger.ledger_index);
+    console.log('Got ledger: ' + ledger.ledger_index);
 
     callback(null, ledger);
 
@@ -481,7 +516,10 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
     });
 
     if (docs.length === 0) {
-      callback(null, 0);
+      callback(null, {
+        numLedgersSaved: 0, 
+        earliestLedgerIndex: ledgerBatch[0].ledger_index
+      });
       return;
     }
 
@@ -495,7 +533,10 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
         ' to ' + lastLedger + 
         ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
 
-      callback(null, docs.length);
+      callback(null, {
+        numLedgersSaved: docs.length,
+        earliestLedgerIndex: ledgerBatch[0].ledger_index
+      });
     });
 
   });
