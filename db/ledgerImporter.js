@@ -424,6 +424,11 @@ function formatRemoteLedger(ledger) {
 
   // add exchange rate field to metadata entries
   ledger.transactions.forEach(function(transaction) {
+    if(!transaction.metaData) {
+      console.log('transaction in ledger: ' + ledger.ledger_index + ' does not have metaData');
+      return;
+    }
+
     transaction.metaData.AffectedNodes.forEach(function(affNode) {
 
       var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
