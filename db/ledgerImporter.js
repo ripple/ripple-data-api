@@ -433,9 +433,9 @@ function getLatestLedgerInCouchDb(callback) {
         return;
       }
 
-      console.log('Latest ledger in CouchDB: ledger_index ' + res.ledger_index + 
-        ' ledger_hash ' + res.ledger_hash + 
-        ' closed at ' + res.close_time_human);
+      // console.log('Latest ledger in CouchDB: ledger_index ' + res.ledger_index + 
+      //   ' ledger_hash ' + res.ledger_hash + 
+      //   ' closed at ' + res.close_time_human);
 
       callback(null, {
         hash: res.ledger_hash,
