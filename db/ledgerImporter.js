@@ -127,10 +127,14 @@ function importIntoCouchDb(opts) {
           // one as the minLedger
           db.fetch({keys: [
             addLeadingZeros(saveRes.earliestLedgerIndex - 1),
-            addLeadingZeros(saveRes.earliestLedgerIndex)
+            addLeadingZeros(saveRes.earliestLedgerIndex),
+            addLeaingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved),
+            addLeaingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 1)
             ]}, function(err, res) {
 
-            if (!err && res.rows.length === 2 && res.rows[0].doc.ledger_hash === res.rows[1].doc.parent_hash) {
+            if (!err 
+              && res.rows[0].doc.ledger_hash === res.rows[1].doc.parent_hash
+              && (res.rows.length === 3 || res.rows[2].doc.ledger_hash === res.rows[3].doc.parent_hash) {
               // results ok
               if (saveRes.numLedgersSaved > 0) {
                 // start next batch
