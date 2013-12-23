@@ -535,8 +535,7 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
     keys: _.map(_.range(firstLedger, lastLedger + 1), function(num){ return addLeadingZeros(num, 10); })
   }, function(err, res){
     if (err) {
-      console.log('problem listing docs from couchdb from ledger ' + 
-        firstLedger + ' to ' + lastLedger + ' err: ' + err);
+      callback(err);
       return;
     }
 
