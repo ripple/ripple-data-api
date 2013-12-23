@@ -26,7 +26,10 @@ var request = require('request'),
  *  - node ledgerImporter.js
  *  - node ledgerImporter.js <minLedger>
  *  - node ledgerImporter.js <minLedger> <lastLedger>
- *  - node ledgerImporter.js <minLedger> <lastLedger> <batchSize>
+ *  - node ledgerImporter.js <minLedger> <lastLedger> stopafter
+ *    (note that including the command 'stopafter' will make it stop after
+ *    finishing the given range of ledgers, as opposed to continuing with
+ *    the most recently closed ledgers after it is finished with the given range)
  *  - node ledgerImporter.js all
  */
 
@@ -45,7 +48,7 @@ if (process.argv.length === 3) {
 } else if (process.argv.length === 5) {
   processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.batchSize = parseInt(process.argv[4], 10);
+  processOptions.stopAfterRange = (process.argv[3].toLowerCase() === 'stopafter');
 }
 
 console.log('ledgerImporter.js script started again');
@@ -100,17 +103,16 @@ function importIntoCouchDb(opts) {
         return;
       }
 
-      // TODO if res.reachedMinLedger check that the hash of the last one
-      // is the same as what's already in the database
-
       // check if the process was finished before starting another importIntoCouchDb process
       if (!res.reachedMinLedger) {
+
         saveBatchToCouchDb(res.results, function(err, saveRes){
           if (err) {
             console.log('problem saving ledger batch to CouchDB: ' + err);
             return;
           }
         });
+
       } else {
         // save the batch to CouchDB, then start the next batch
         // immediately if this batch actually updated some ledgers
@@ -121,10 +123,10 @@ function importIntoCouchDb(opts) {
             return;
           }
 
-          // check that the earliest ledger saved in this batch is the one that
-          // should follow the the previous one in the database
-          // if that doesn't check out, start the process again with the previous
-          // one as the minLedger
+          // check that this set of ledgers doesn't break the hash chain
+          // of the ledgers already in the database,
+          // if it does rerun the script over the entire problem section
+          // (either the ledgers before this set or after it)
           db.fetch({keys: [
             addLeadingZeros(saveRes.earliestLedgerIndex - 1),
             addLeadingZeros(saveRes.earliestLedgerIndex),
@@ -132,40 +134,72 @@ function importIntoCouchDb(opts) {
             addLeadingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 1)
             ]}, function(err, res) {
 
-            if (!err 
-              && res.rows[0].doc.ledger_hash === res.rows[1].doc.parent_hash
-              && (res.rows.length === 3 || res.rows[2].doc.ledger_hash === res.rows[3].doc.parent_hash)) {
-              // results ok
+            if (err) {
+              console.log('problem determining whether hash chain is complete, trying this batch again...');
+              setImmediate(function(){
+                importIntoCouchDb(opts);
+              });
+              return;
+            } 
+
+            // newly saved ledgers don't continue hash chain of the ledgers
+            // preceding them that are already in the database
+            if (res.rows[0].doc.ledger_hash !== res.rows[1].doc.parent_hash) {
+              console.log('The parent_hash of the earliest ledger saved in this batch ' +
+                '(ledger_index: ' + saveRes.earliestLedgerIndex + ') ' +
+                'did not match the ledger_hash of the ledger before it in the database, ' + 
+                'starting the process again with minLedgerIndex set earlier...');
+              
+              setImmediate(function(){
+                importIntoCouchDb({
+                  minLedgerIndex: saveRes.earliestLedgerIndex - 100,
+                  lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
+                  batchSize: opts.batchSize
+                });
+              });
+
+              return;
+            }
+
+            // newly updated ledgers break hash chain with the ledgers that come
+            // immediately after this set that are already in the database
+            if (res.rows.length === 4 && res.rows[2].doc.ledger_hash !== res.rows[3].doc.parent_hash)) {
+              console.log('The ledger_hash of the last ledger saved in this batch ' + 
+                '(ledger_index: ' + (saveRes.earliestLedgerIndex + saveRes.numLedgersSaved) + ') ' +
+                'did not match the parent_hash of the ledger after them in the database, ' +
+                'starting the process again with lastLedger set later...');
+
+              setImmediate(function(){
+                importIntoCouchDb({
+                  minLedgerIndex: saveRes.earliestLedgerIndex,
+                  lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100,
+                  batchSize: opts.batchSize
+                });
+              });
+
+              return;
+            }
+
+            // ledger hash chain is ok, continue the process with the most
+            // recently closed ledgers unless opts.stopAfterRange is set to true
+            if (!opts.stopAfterRange) {
+
+              // start next batch
+              // disregard previous options so that it continues with the most recent data
+              // TODO is this the right way to handle continous importing?
               if (saveRes.numLedgersSaved > 0) {
-                // start next batch
-                // disregard previous options so that it continues with the most recent data
-                // TODO is this the right way to handle continous importing?
                 setImmediate(function(){
                   importIntoCouchDb({batchSize: opts.batchSize});
                 });
+
               } else {
-                // wait a couple of seconds before trying again
+                // wait a couple of seconds for new ledgers to close before trying again
                 setTimeout(function(){
                   importIntoCouchDb({batchSize: opts.batchSize});
                 }, 5000);
               }  
-            } else {
-              // problem in the db, restart the process with the minLedger set earlier
-              console.log('The parent_hash of the earliest ledger saved in this batch ' +
-                '(ledger_index: ' + saveRes.earliestLedgerIndex + ')' +
-                'did not match the ledger_hash of the ledger before it in the database, ' + 
-                'starting the process again with minLedgerIndex set earlier...');
-
-              importIntoCouchDb({
-                minLedgerIndex: saveRes.earliestLedgerIndex - 100,
-                lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 1,
-                batchSize: opts.batchSize
-              });
             }
-
           });
-
-          
         });
       }
     });
