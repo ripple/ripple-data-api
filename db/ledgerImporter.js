@@ -134,7 +134,7 @@ function importIntoCouchDb(opts) {
 
             if (!err 
               && res.rows[0].doc.ledger_hash === res.rows[1].doc.parent_hash
-              && (res.rows.length === 3 || res.rows[2].doc.ledger_hash === res.rows[3].doc.parent_hash) {
+              && (res.rows.length === 3 || res.rows[2].doc.ledger_hash === res.rows[3].doc.parent_hash)) {
               // results ok
               if (saveRes.numLedgersSaved > 0) {
                 // start next batch
