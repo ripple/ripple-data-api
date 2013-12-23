@@ -387,11 +387,6 @@ function getLatestLedgerInCouchDb(callback) {
         return false;
       }
     }).id;
-    
-    // experimental -- try using not the latest ledger but the one before
-    // to increase the reliability (sometimes it seems that the latest ledger
-    // given is incorrect but when the script is run over the same range of ledgers
-    // later it corrects the data)
 
     db.get(latestIndex, function(err, res){
       if (err) {
@@ -404,8 +399,8 @@ function getLatestLedgerInCouchDb(callback) {
         ' closed at ' + res.close_time_human);
 
       callback(null, {
-        hash: res.parent_hash,
-        index: (res.ledger_index - 1)
+        hash: res.ledger_hash,
+        index: res.ledger_index
       });
 
     });
