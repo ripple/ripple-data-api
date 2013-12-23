@@ -33,6 +33,8 @@ var request = require('request'),
  *  - node ledgerImporter.js all
  */
 
+console.log(JSON.stringify(process.argv));
+
 var processOptions = {};
 if (process.argv.length === 3) {
 
@@ -51,7 +53,7 @@ if (process.argv.length === 3) {
  
   processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.stopAfterRange = (process.argv[3].toLowerCase() === 'stopafter');
+  processOptions.stopAfterRange = (process.argv[4].toLowerCase() === 'stopafter');
 
 }
 
