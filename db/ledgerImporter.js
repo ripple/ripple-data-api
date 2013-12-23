@@ -128,8 +128,8 @@ function importIntoCouchDb(opts) {
           db.fetch({keys: [
             addLeadingZeros(saveRes.earliestLedgerIndex - 1),
             addLeadingZeros(saveRes.earliestLedgerIndex),
-            addLeaingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved),
-            addLeaingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 1)
+            addLeadingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved),
+            addLeadingZeros(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 1)
             ]}, function(err, res) {
 
             if (!err 
