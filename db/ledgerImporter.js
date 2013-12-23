@@ -33,8 +33,6 @@ var request = require('request'),
  *  - node ledgerImporter.js all
  */
 
-console.log(JSON.stringify(process.argv));
-
 var processOptions = {};
 if (process.argv.length === 3) {
 
@@ -391,7 +389,7 @@ function getLedger (identifier, callback, serverNum) {
       return;
     }
 
-    // console.log('Got ledger: ' + ledger.ledger_index);
+    console.log('Got ledger: ' + ledger.ledger_index);
 
     callback(null, ledger);
 
