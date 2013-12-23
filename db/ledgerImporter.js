@@ -43,12 +43,16 @@ if (process.argv.length === 3) {
   }
 
 } else if (process.argv.length === 4) {
+
   processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
+
 } else if (process.argv.length === 5) {
+ 
   processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
   processOptions.stopAfterRange = (process.argv[3].toLowerCase() === 'stopafter');
+
 }
 
 console.log('ledgerImporter.js script started again');
@@ -163,7 +167,7 @@ function importIntoCouchDb(opts) {
 
             // newly updated ledgers break hash chain with the ledgers that come
             // immediately after this set that are already in the database
-            if (res.rows.length === 4 && res.rows[2].doc.ledger_hash !== res.rows[3].doc.parent_hash) {
+            if (!res.rows[2].error && !res.rows[3].error && res.rows[2].doc.ledger_hash !== res.rows[3].doc.parent_hash) {
               console.log('The ledger_hash of the last ledger saved in this batch ' + 
                 '(ledger_index: ' + (saveRes.earliestLedgerIndex + saveRes.numLedgersSaved) + ') ' +
                 'did not match the parent_hash of the ledger after them in the database, ' +
@@ -537,6 +541,7 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
         return (row.id === ledger._id);
       });
 
+      // skip this one if that ledger is not already in the db (error 'not found')
       if (row.error) {
         return;
       }
@@ -546,6 +551,10 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
       // don't update docs that haven't been modified
       if (equal(ledgerBatch[index], row.doc, {strict: true})) {
         ledgerBatch[index].noUpdate = true;
+      } else {
+        console.log('Replacing ledger ' + row.doc.ledger_index + ', ' + 
+          'hash: ' + row.doc.ledger_hash + ', ' +
+          'with ledger whose hash is: ' + ledgerBatch[index].ledger_hash);
       }
 
     });
