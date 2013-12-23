@@ -389,7 +389,7 @@ function getLedger (identifier, callback, serverNum) {
       return;
     }
 
-    console.log('Got ledger: ' + ledger.ledger_index);
+    // console.log('Got ledger: ' + ledger.ledger_index);
 
     callback(null, ledger);
 
