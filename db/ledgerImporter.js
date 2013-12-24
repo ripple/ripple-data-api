@@ -173,11 +173,18 @@ function importIntoCouchDb(opts) {
                 'did not match the parent_hash of the ledger after them in the database, ' +
                 'starting the process again with lastLedger set later...');
 
-              setImmediate(function(){
-                importIntoCouchDb({
-                  minLedgerIndex: saveRes.earliestLedgerIndex,
-                  lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100,
-                  batchSize: opts.batchSize
+              getLatestLedgerInCouchDb(function(err, latestLedger){
+                if (err) {
+                  console.log('problem gettting latest ledger in CouchDB: ' + err);
+                  return;
+                }
+
+                setImmediate(function(){
+                  importIntoCouchDb({
+                    minLedgerIndex: saveRes.earliestLedgerIndex,
+                    lastLedger: Math.min(latestLedger.ledger_index, saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
+                    batchSize: opts.batchSize
+                  });
                 });
               });
 
