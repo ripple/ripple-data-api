@@ -1,6 +1,6 @@
 PriceChart = function (options) {
-  var self        = this,
-    xScale      = d3.time.scale.utc(),
+  var self      = this,
+    xScale      = d3.time.scale(),
     priceScale  = d3.scale.linear(),
     volumeScale = d3.scale.linear(),
     xAxis       = d3.svg.axis().scale(xScale),
@@ -131,9 +131,11 @@ PriceChart = function (options) {
       if (data.length<2) self.lineData = [];
       else {
         data.splice(0,1); //remove first		
+        
         self.lineData = data.map(function(d) {
+
           return {
-            time   : isoDate(d[0]),
+            time   : moment.utc(d[0]),
             open   : d[4],
             close  : d[5],
             high   : d[6],
@@ -193,7 +195,7 @@ PriceChart = function (options) {
     xScale
       .domain(getExtents())
       .range([0, options.width]);
-
+    
     // Update the volume scale.
     volumeScale
       .domain([0, d3.max(self.lineData, function (d) {return d.volume})*2])
@@ -298,7 +300,7 @@ PriceChart = function (options) {
       }
 
       var details = div.select('.chartDetails');
-      details.html("<span class='date'>"+ parseDate(d, self.interval) + 
+      details.html("<span class='date'>"+ parseDate(d.time.local(), self.interval) + 
         "</span><span>O:<b>" + open  + "</b></span>" +
         "<span class='high'>H:<b>" + high + "</b></span>" +
         "<span class='low'>L:<b>" + low + "</b></span>" +
@@ -323,13 +325,12 @@ PriceChart = function (options) {
   function getExtents () {
     if (self.lineData && self.lineData.length>1) {  //add an extra increment on the right side
       var difference = (self.lineData[1].time - self.lineData[0].time)/1000;
-
       return [
         d3.min(self.lineData, function(d) { return d.time }),
         d3.time.second.offset(d3.max(self.lineData, function(d) { return d.time }), difference)];
     }
 
-    return d3.extent(self.lineData, function(d) { return d.volume; });	
+    return d3.extent(self.lineData, function(d) { return d.time; });	
   }
 
   function params(o) {
@@ -341,18 +342,13 @@ PriceChart = function (options) {
       return s.join("&");
   }
 
-  function isoDate (string) {
-    var a = string.split(/[^0-9]/);
-    return new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5] );      
-  }
-
   function parseDate (date, increment) {
     var monthNames = [ "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December" ];
 
-    if      (increment == "month") return monthNames[d.time.getMonth()] + " " + d.time.getYear();
-    else if (increment == "day")   return monthNames[d.time.getMonth()] + " " + d.time.getDate();
-    else return monthNames[d.time.getMonth()] + " " + d.time.getDate() + " &middot " + d.time.toLocaleTimeString();
+    if      (increment == "month") return monthNames[d.time.month()] + " " + date.year();
+    else if (increment == "day")   return monthNames[d.time.month()] + " " + date.date();
+    else return monthNames[date.month()] + " " + date.date() + " &middot " + date.format("hh:mm:ss");
   }
 }
 

@@ -156,19 +156,25 @@ var OrderBook = function (options) {
   
   function redrawChart () {
     if (!self.offers.bids || !self.offers.asks) return;
-    
-    lineData = self.offers.bids.slice(0).reverse().concat(self.offers.asks);
-    if (!lineData.length) {
+
+    var bestBid = self.offers.bids[0].showPrice,
+      bestAsk   = self.offers.asks[0].showPrice;
+         
+    //add 0 size at best bid and ask
+    lineData = self.offers.bids.slice(0).reverse();
+    lineData.push({showPrice:bestBid,showSum:0});
+    lineData.push({showPrice:bestAsk,showSum:0});
+    lineData = lineData.concat(self.offers.asks);
+   
+    if (lineData.length<3) {
       loader.transition().style("opacity",0); 
       path.transition().style("opacity",0);  
       return;
     }
 
-    var bestBid = self.offers.bids[0].showPrice,
-      bestAsk   = self.offers.asks[0].showPrice,
-      min       = Math.max(d3.min(lineData, function(d) { return d.showPrice; }), bestBid/5),
-      max       = Math.min(d3.max(lineData, function(d) { return d.showPrice; }), bestAsk*5);
-
+    //get rid of outliers, anything greater than 5 times the best price
+    var min = Math.max(d3.min(lineData, function(d) { return d.showPrice; }), bestBid/5),
+      max   = Math.min(d3.max(lineData, function(d) { return d.showPrice; }), bestAsk*5);
     
     for (var i=0; i<lineData.length; i++) {
       if (lineData[i].showPrice<min || lineData[i].showPrice>max) lineData.splice(i--,1);  
@@ -204,6 +210,9 @@ var OrderBook = function (options) {
     var tx = Math.max(0, Math.min(width+margin.left, d3.mouse(this)[0])),
         i = d3.bisect(lineData.map(function(d) { return d.showPrice; }), xScale.invert(tx-margin.left));
         d = lineData[i];
+        
+        //prevent 0 sum numbers at best bid/ask from displaying
+        if (!d.showSum) d = d.showPrice==bestBid ? lineData[i-1] : lineData[i+1]; 
 
     if (d) {
       var quantity = d.showTakerPays ? d.showTakerPays : d.showTakerGets;

@@ -46,7 +46,7 @@
 		        names      = [""].concat(d3.keys(gatewayByName).sort()),
 		        gateway    = selected && gatewayByAddress[selected.issuer];
 			
-	    	var gatewaySelect = selection.append("select").on("change", function() {
+	    	var gatewaySelect = selection.append("select").attr("class","gateway").on("change", function() {
 	          	var gateway = gatewayByName[gatewaySelect.selectAll(":checked").datum()],
 	              	option  = currencySelect.selectAll("option").data(gateway ? gateway.currencies : ["XRP"], String);
 	              	
@@ -61,7 +61,7 @@
 	        	.property("selected", gateway ? function(d) { return d === gateway.name; } : function(_, i) { return !i; })
 	        	.text(String);
 	
-	    	var currencySelect = selection.append("select").on("change", change);
+	    	var currencySelect = selection.append("select").attr("class","currency").on("change", change);
 	
 	    	var option = currencySelect.selectAll("option")
 	        	.data(gateway ? gateway.currencies : ["XRP"], String)

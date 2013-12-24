@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
+<title>Ripple Charts</title>
+<style>
+
+@import url(bootstrap/bootstrap.min.css);
+
+body {
+  font-family:"Open Sans", Helvetica, Arial, sans-serif;
+  text-align:center;
+}
+
+#multimarkets {
+  width:1000px;
+  overflow:hidden;
+  display:inline-block; 
+}
+
+.multiMarket .chartDetails {
+  width:100%;
+  border-collapse:collapse;
+  vertical-align:middle;
+  min-height:38px;
+}
+
+.multiMarket .chartDetails label {display:inline}
+.multiMarket .chartDetails .range {text-align:left; line-height:16px; padding: 2px 5px; font-size:12px; font-weight:bold;}
+.multiMarket .chartDetails .range label {font-size:12px; font-weight:normal; line-height:16px}
+.multiMarket .chartDetails .range .high {color:#2a2}
+.multiMarket .chartDetails .range .low {color:#c33}
+.multiMarket .chartDetails .change {font-size:18px; font-weight:bold}
+.multiMarket .chartDetails .volume {font-size:18px; font-weight:bold}
+.multiMarket .chartDetails .volume label {padding:0 5px; font-size:12px; color:#999; font-weight:normal}
+.multiMarket .chartDetails .volume small {padding:0 5px; font-size:12px; color:#999; font-weight:normal}
+
+.multiMarket .chart {
+  border:1px solid #ccc;
+  margin:5px;
+  float:left;
+  position:relative;
+}
+
+.multiMarket .chart .loader {
+    width:40px;
+    position:absolute;
+    top:50%;
+    left:50%; 
+    margin-top:-50px;
+    margin-left:-20px;
+}
+
+.multiMarket .grid .domain {
+  display:none;
+}
+.multiMarket .grid line {
+  stroke:#e0e0e0;
+}
+
+.multiMarket .chart .axis {
+  fill: #333;
+  shape-rendering: crispEdges;
+}
+
+.multiMarket .chart .axis .tick line {
+  stroke:none;  
+}
+
+.multiMarket .chart .axis .title {
+  stroke-width:1;
+  stroke: #bbb;
+  fill: #bbb;
+}
+
+
+.multiMarket .chart .axis path, .chart .axis line {
+  fill: none;
+  stroke: #999;
+  stroke-width: 1;
+}
+
+.multiMarket .chart .axis text {
+  font-size:10px;
+}
+
+.chart .axis.price text {
+  font-size:9px;
+}
+
+.multiMarket .chart .line {
+  fill: #ccc;
+  stroke: #999;
+  stroke-width:1;
+}
+
+.multiMarket .chart .down {
+  fill:#e88;
+  stroke:#c44;
+}
+
+.multiMarket .chart .horizontal {
+  stroke-width:1;
+}
+
+.multiMarket .chart .lastPrice {
+  font-size:18px;
+  stroke:#333;
+  stroke-width:1.5;  
+}
+
+.multiMarket .chart .timeBackground {
+  fill: #ddd;
+}
+
+.multiMarket .chart .pointer {
+  fill: #999;
+  stroke:none; 
+}
+
+.multiMarket .chart svg {display:block}
+.multiMarket .chart .dropdowns {
+  border-top:1px solid #ccc;
+}
+.multiMarket .chart .dropdowns div {
+  overflow:hidden;
+  float:left;
+}
+ 
+.multiMarket .chart .dropdowns select {
+  -webkit-appearance: none;
+  border:none;
+  background:none;
+  width:auto;  
+  margin:0;
+  padding:0;
+  height:25px;
+  background:url('images/dropdown.png') no-repeat 95% 100%;
+  background-size:8px 10px;
+  padding:0 10px 0 4px;
+  border-right:1px solid #ddd;
+  border-radius:0;
+}
+.multiMarket .chart .dropdowns .currency {
+  font-size:18px;  
+  min-width:55px;
+}
+
+.multiMarket .chart .dropdowns .gateway {
+  font-size:11px;
+  float:left;
+}
+
+.multiMarket .chart .trade .currency {
+  border:none;
+}
+
+
+.multiMarket .chart .status {
+  position:absolute;
+}
+</style>
+
+<h3 style="color: red;">INTERNAL USE ONLY</h3>
+<h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+<hr>
+    
+<div id="multimarkets"></div>
+  
+<script src="d3/d3.min.js"></script>
+<script src="ripple/ripple-0.7.30-min.js"></script>
+<script src="currency.js"></script>
+<script src="moment.min.js"></script>
+<script src="multimarket.js"></script>
+<script>
+
+  var markets = new MultiMarket ({
+    url : "http://ct.ripple.com:5993/api/offersexercised",  
+    id  : "multimarkets", 
+  });
+  
+  markets.addChart({currency:"XRP"},{currency:"USD",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"});
+  markets.addChart({currency:"USD",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}, {currency:"XRP"});
+  markets.addChart({currency:"XRP"},{currency:"USD",issuer:"rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q"});
+  markets.addChart({currency:"CNY",issuer:"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},{currency:"XRP"});
+</script>
