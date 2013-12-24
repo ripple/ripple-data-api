@@ -58,10 +58,11 @@ h3 {font-size:21px}
 <script src="lib/jquery/jquery.min.js"></script>
 <script src="lib/bootstrap/bootstrap.min.js"></script>
 <script src="lib/bootstrap-datepicker.js"></script>
+<script src="lib/moment.min.js"></script>  
 <script src="lib/linechart.js"></script>  
 <script>
 
-//used to load intital chart
+//used to load intital chart, probably a better way to do this
 jQuery.fn.d3Click = function () {
   this.each(function (i, e) {
     var evt = document.createEvent("MouseEvents");
@@ -102,10 +103,10 @@ var intervalA    = d3.select("#interval").selectAll("a")
     .data([
       //{name: "1s",  increment:"second", offset: function(d) { return d3.time.day.offset(d, -1); }},
       {name: "10m", increment:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
-      {name: "1h",  increment:"second", offset: function(d) { return d3.time.hour.offset(d, -1); }},
+      {name: "1h",  increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -1); }},
       {name: "12h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
-      {name: "24h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -24); }},
-      {name: "3d",  increment:"minute", offset: function(d) { return d3.time.day.offset(d, -3); }},
+      {name: "24h", increment:"hour", offset: function(d) { return d3.time.hour.offset(d, -24); }},
+      {name: "3d",  increment:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
       {name: "1m",  increment:"hour",   offset: function(d) { return d3.time.month.offset(d, -1); }},
       {name: "6m",  increment:"day",    offset: function(d) { return d3.time.month.offset(d, -6); }},
       {name: "max", increment:"day",    offset: function(d) { return d3.time.year.offset(d, -10); }},
@@ -132,7 +133,7 @@ totalAccounts = new LineChart({
 	leftTitle : "Accounts Created",
   rightTitle : "Total",
 	tooltip : function (d, increment) {
-		return "<div>"+parseDate(d.x, increment) + 
+		return "<div>"+parseDate(d.x.local(), increment) + 
 			"</div><span>Accounts Created:</span>" + d.y2 + 
 			"<br/><span>Total Accounts:</span>" + d.y
 		},
@@ -182,7 +183,7 @@ totalAccounts.updateHelper = function (data) {
     lineData = points.map(function(d){
     	total += d[1];
    		return {
-   			x  : isoDate(d[0]),
+   			x  : moment.utc(d[0]),
    			y  : total,
    			y2 : d[1]}
   	});
@@ -197,7 +198,7 @@ offersExercised = new LineChart({
 	leftTitle : "Offers Excercised",
 	rightTitle : "Total",
 	tooltip : function (d, increment) {
-		return "<div>"+parseDate(d.x, increment) + 
+		return "<div>"+parseDate(d.x.local(), increment) + 
 			"</div><span>Offers Exercised:</span>" + d.y2 + 
 			"<br/><span>Total:</span>" + d.y;
 	}
@@ -228,7 +229,7 @@ offersExercised.update = function (increment, start, end) {
 	    lineData = points.map(function(d){
 	    	total += d[3];
 	   		return {
-	   			x  : isoDate(d[0]),
+	   			x  : moment.utc(d[0]),
 	   			y  : total,
 	   			y2 : d[3]}
 	  	});
@@ -271,15 +272,12 @@ function getIncrement (start, end) {
 
 function parseDate (date, increment) 
 {
-	if      (increment == "month") return monthNames[d.x.getMonth()] + " " + d.x.getYear();
-	else if (increment == "day")   return monthNames[d.x.getMonth()] + " " + d.x.getDate();
-	else return monthNames[d.x.getMonth()] + " " + d.x.getDate() + " &middot " + d.x.toLocaleTimeString();
+  
+  if      (increment == "month") return monthNames[date.month()] + " " + date.year();
+  else if (increment == "day")   return monthNames[date.month()] + " " + date.date();
+  else return monthNames[date.month()] + " " + date.date() + " &middot " + date.format("hh:mm");
 
 }
 
-function isoDate (string) {
-    var a = string.split(/[^0-9]/);
-    return new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5] );      
-  }
 </script>
 
