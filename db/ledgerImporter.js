@@ -570,7 +570,7 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
       } else {
         console.log('Replacing ledger ' + row.doc.ledger_index + 
           '\n   Previous: ' + JSON.stringify(row.doc) +
-          '\n   Replacement: ' + JSON.stringify(ledgerBatch[index].ledger_hash));
+          '\n   Replacement: ' + JSON.stringify(ledgerBatch[index]));
       }
 
     });
