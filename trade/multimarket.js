@@ -1,51 +1,69 @@
-var MiniChart = function(base, trade, div) {
+var MiniChart = function(base, trade, markets) {
   var self      = this;
-  self.base     = base;
-  self.trade    = trade;
   self.lineData = [];
+  self.div      = markets.el.insert("div",".add").attr("class","chart");
+  self.markets  = markets;
+  self.index    = markets.charts.push(self)-1;  
+  
   
   var xScale    = d3.time.scale(),
     priceScale  = d3.scale.linear(),
     volumeScale = d3.scale.linear(),
-    xAxis       = d3.svg.axis().scale(xScale).ticks(5),
+    xAxis       = d3.svg.axis().scale(xScale).ticks(6),
     priceAxis   = d3.svg.axis().scale(priceScale).orient("right");  
   
   var margin = {top: 0, right: 40, bottom: 20, left: 0},
-    height   = 200,
+    height   = 230,
     width    = 280;
     
-  var details  = div.append("table").attr("class", "chartDetails").append("tr");
+  var details  = self.div.append("table").attr("class", "chartDetails").append("tr");
   var range    = details.append("td").attr("class","range");
   var showHigh = details.select(".range").append("div").attr("class","high");
   var showLow  = details.select(".range").append("div").attr("class","low");
   var change   = details.append("td").attr("class","change"); 
   var volume   = details.append("td").attr("class","volume"); 
               
-  var svg      = div.selectAll("svg").data([0])
+  var svg      = self.div.selectAll("svg").data([0])
   var svgEnter = svg.enter().append("svg")
     .attr("width", width + margin.left + margin.right)
     .attr("height", height + margin.top + margin.bottom);     
-    
-
-  var gEnter = svg.append("g")
-    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-  //gEnter.append("rect").attr("class", "background").attr("width", width).attr("height", height);
   
-  var pointer = gEnter.append("path")
+  var pointer = svg.append("path")
     .attr("class","pointer")
     .attr("d", "M 0 0 L 7 -7 L 40 -7 L 40 7 L 7 7 L 0 0")
     .attr("transform","translate("+(width+margin.left)+","+(height+margin.top)+")");
-      
-  gEnter.append("g").attr("class","grid");
-  gEnter.append("path").attr("class", "line");
-  gEnter.append("rect").attr("width", width+margin.left+margin.right)
+
+  svg.append("rect").attr("width", width+margin.left+margin.right)
     .attr("class","timeBackground")
     .attr("height", margin.bottom)
-    .attr("transform", "translate(0,"+(height+margin.top)+")"); 
+    .attr("transform", "translate(0,"+(height+margin.top)+")");  
+    
+  var gEnter = svg.append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+  //gEnter.append("rect").attr("class", "background").attr("width", width).attr("height", height);
+                 
+  gEnter.append("g").attr("class","grid");
+  gEnter.append("path").attr("class", "line");
+  
   gEnter.append("g").attr("class", "x axis");  
   gEnter.append("g").attr("class", "price axis").attr("transform", "translate("+width+", 0)")
 
-  var status     = div.append("h4").attr("class", "status");  
+  var flip = svg.append("g").attr("class","flip")
+    .attr("width", margin.right)   
+    .attr("height", margin.bottom)  
+    .attr("transform", "translate("+(width+margin.left)+","+(height+margin.top)+")")
+    .on("click", function(){
+      dropdownA.selected(self.trade);
+      dropdownB.selected(self.base);
+      dropdowns.selectAll("select").remove();
+      dropdowns.append("div").attr("class","base").call(dropdownA);
+      dropdowns.append("div").attr("class","trade").call(dropdownB);  
+    });
+  
+  flip.append("rect").attr({width:margin.right,height:margin.bottom});
+  flip.append("text").text("Flip").attr({"text-anchor":"middle",y:margin.bottom*4/5,x:margin.right/2});
+  
+  var status     = self.div.append("h4").attr("class", "status");  
   var horizontal = gEnter.append("line")
     .attr("class", "horizontal")
     .attr({x1:0,x2:width})
@@ -55,24 +73,34 @@ var MiniChart = function(base, trade, div) {
     .style("text-anchor","middle")
     .attr("x", (width+margin.left)/2);
     
-  var loader = div.append("img")
+  var loader = self.div.append("img")
     .attr("class", "loader")
     .attr("src", "images/throbber5.gif")
     .style("opacity", 0); 
 
-  var dropdownA = ripple.currencyDropdown().selected(base)
-    .on("change", function(d) {
-      });
-         
-  var dropdownB = ripple.currencyDropdown().selected(trade)
-    .on("change", function(d) {
+  var closeButton = self.div.append("div")
+    .attr("class","closeButton")
+    .html("x")
+    .on("click", function(){
+      self.remove();
     });
     
-  var dropdowns = div.append("div").attr("class", "dropdowns");
-  dropdowns.append("div").attr("class","base").call(dropdownA);
-  dropdowns.append("div").attr("class","trade").call(dropdownB);
-                 
+  this.setStatus = function (string) {
+    status.html(string); 
+  } 
+  
+  this.remove = function () {
+    self.div.remove();
+    markets.charts[self.index] = {};
+  } 
+          
   this.load  = function () {
+    
+    if (!self.base || !self.trade ||
+      (self.base.currency == self.trade.currency &&
+      self.trade.currency == "XRP")) return self.setStatus("Select a currency pair."); 
+
+    self.setStatus("");
     loader.transition().style("opacity",1);
     if (self.request) self.request.abort();
     self.request = d3.xhr(self.markets.url);
@@ -90,7 +118,7 @@ var MiniChart = function(base, trade, div) {
 
     }), function(error, xhr) {
       data = JSON.parse(xhr.response);
-      if (data.length<2) chart.lineData = [];
+      if (data.length<2) self.lineData = [];
       else {
         data.splice(0,1); //remove first    
         
@@ -111,9 +139,10 @@ var MiniChart = function(base, trade, div) {
       self.draw();
     });
   }  
+  
   function amountToHuman (d, opts) {
     if (!opts) opts = {
-          precision      : 5,
+          precision      : 6,
           min_precision  : 2,
           max_sig_digits : 7,
       }
@@ -122,6 +151,13 @@ var MiniChart = function(base, trade, div) {
   
   this.draw = function () {
     loader.transition().style("opacity",0);
+    if (!self.lineData.length) { 
+      gEnter.transition().style("opacity",0);
+      pointer.transition().attr('transform',"translate("+(width+margin.left)+", "+height+")")
+      return self.setStatus("No Data");  
+    }
+ 
+    gEnter.transition().style("opacity",1);
     var area = d3.svg.area()
         .x(function(d) { return xScale(d.time); })
         .y0(height)
@@ -132,32 +168,34 @@ var MiniChart = function(base, trade, div) {
         .y(function(d) { return priceScale(d.close); }),
       
       open = self.lineData[0].close,
-      high = amountToHuman(d3.max(self.lineData, function (d){return d.high})),  
-      low  = amountToHuman(d3.min(self.lineData, function (d){return d.low})),
-      last = amountToHuman(self.lineData[self.lineData.length-1].close),
-      vol  = amountToHuman(d3.sum(self.lineData, function (d){return d.volume}), {min_precision:0, max_sig_digits:7}),
+      high = d3.max(self.lineData, function (d){return d.high}),  
+      low  = d3.min(self.lineData, function (d){return d.low}),
+      last = self.lineData[self.lineData.length-1].close,
+      vol  = d3.sum(self.lineData, function (d){return d.volume}),
       pct  = (((last-open)/open)*100).toFixed(2),     
       pathStyle, horizontalStyle, pointerStyle, changeStyle; 
       
       
     if (Math.abs(pct)<.5) { //unchanged (less than .5%)
-      pathStyle = {fill:"rgba(150,150,150,.5)",stroke:"#aaa"}; 
+      pathStyle = {fill:"c5cacf",stroke:"#888"}; 
       horizontalStyle = {stroke:"#777"};
-      pointerStyle = {fill:"#999"};
-      changeStyle  = {color:"#666"};
+      pointerStyle = {fill:"#aaa"};
+      changeStyle  = {color:"#777"};
     } else if (last < open) {  //down
-      pathStyle = {fill:"rgba(250,100,100,.6)",stroke:"#b66"};
+      //pathStyle = {fill:"rgba(250,100,100,.6)",stroke:"#b66"};
+      pathStyle = {fill:"#c55",stroke:"#a00"}; 
       horizontalStyle = {stroke:"#d22"};
       pointerStyle = {fill:"#c33"};
       changeStyle  = {color:"#c33"};
     } else { //up
-      pathStyle = {fill:"rgba(140,200,120,.5)",stroke:"#7a5"}; 
+      //pathStyle = {fill:"rgba(140,200,120,.5)",stroke:"#7a5"}; 
+      pathStyle = {fill:"#8c7",stroke:"#483"}; 
       horizontalStyle = {stroke:"#0a0"};
       pointerStyle = {fill:"#2a2"};
       changeStyle  = {color:"#2a2"};
     }
     
-    //console.log(open, high, low, last);          
+    console.log(open, high, low, last);          
     
     svg.datum(self.lineData).transition().style("opacity",1);
     
@@ -175,18 +213,18 @@ var MiniChart = function(base, trade, div) {
       .range([height, 0]).nice();  
 
    gEnter.select(".grid")         
-        .call(d3.svg.axis()
-        .scale(priceScale)
-        .orient("right")
-        .ticks(5)
-            .tickSize(width, 0, 0)
-            .tickFormat("")
-      );
+    .call(d3.svg.axis()
+      .scale(priceScale)
+      .orient("right")
+      .ticks(5)
+        .tickSize(width, 0, 0)
+        .tickFormat("")
+    );
             
     //add the price line
     gEnter.select(".line").datum(self.lineData)
       .transition()
-      .duration(600)
+      .duration(300)
       .attr("d", area)
       .style(pathStyle);  
     
@@ -197,32 +235,41 @@ var MiniChart = function(base, trade, div) {
     // Update the y-axis.
     gEnter.select(".price.axis").call(priceAxis)
       .attr("transform", "translate(" + xScale.range()[1] + ", 0)");
-    showHigh.html("<label>high</label> "+high);
-    showLow.html("<label>low</label> "+low);
-    change.html((pct>0 ? "+":"")+pct+"%").style(changeStyle);
 
-    volume.html("<label>Vol:</label>"+vol+"<small>"+self.base.currency+"</small>");
+    var lastY = priceScale(last)-5;
+    
+    console.log(lastY);
+    if (lastY<20) lastY += 20; //reposition last price below line if its too high on the graph.
+    
     horizontal.transition().duration(600).attr("transform","translate(0, "+priceScale(last)+")").style(horizontalStyle);
     pointer.transition().duration(600).attr("transform","translate("+(width+margin.left)+", "+priceScale(last)+")").style(pointerStyle);
-    lastPrice.transition().duration(600).attr("transform","translate(0, "+(priceScale(last)-5)+")").text(last);
-  
-/*    
-    // horizontal lines
-svg.selectAll(".hline").data(self.lineData).enter()
-    .append("line")
-    .attr("y1", function (d) {
-      console.log(d);
-    return d.close * 26 + 6;
-})
-    .attr("y2", function (d) {
-    return d.close * 26 + 6;
-})
-    .attr("x1", 0)
-    .attr("x2", width)
-    .style("stroke", "#eee")
-    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-*/ 
+    lastPrice.transition().duration(600).attr("transform","translate(0, "+lastY+")").text(amountToHuman(last));
+
+    vol = amountToHuman(vol, {min_precision:0, max_sig_digits:7});
+    showHigh.html("<label>high</label> "+amountToHuman(high));
+    showLow.html("<label>low</label> "+amountToHuman(low));
+    change.html((pct>0 ? "+":"")+amountToHuman(pct)+"%").style(changeStyle);
+    volume.html("<label>Vol:</label>"+vol+"<small>"+self.base.currency+"</small>");  
   }
+
+  var dropdownA = ripple.currencyDropdown().selected(base);
+  dropdownA.on("change", function(d) {
+    console.log(self);
+      self.base = d;
+      self.load();
+      });
+         
+  var dropdownB = ripple.currencyDropdown().selected(trade);
+  dropdownB.on("change", function(d) {
+    console.log(self);
+      self.trade = d;
+      self.load();
+    });
+    
+  var dropdowns = self.div.append("div").attr("class", "dropdowns");
+  dropdowns.append("div").attr("class","base").call(dropdownA);
+  dropdowns.append("div").attr("class","trade").call(dropdownB);
+
 }
 
 var MultiMarket = function (options) {
@@ -232,19 +279,29 @@ var MultiMarket = function (options) {
   self.url    = options.url;
   self.el     = d3.select("#"+options.id).attr("class","multiMarket");
   
-  this.addChart = function (base, trade) {
-    var div       = self.el.append("div").attr("class","chart");
-    var chart     = new MiniChart(base, trade, div);
-    chart.markets = self;
-    chart.index   = self.charts.push(chart)-1;
-    chart.base    = base;
-    chart.trade   = trade;
-    chart.load();
+  self.el.append("div")
+    .attr("class","add")
+    .text("+")
+    .on("click", function(d) {
+      self.addChart();
+    });
     
+  this.addChart = function (base, trade) {
+    new MiniChart(base, trade, self); 
   }
   
   this.removeChart = function (index) {
+    self.charts[index].remove();
+  }
+  
+  this.list = function (charts) {
+    for (var i=0; i<self.charts.length; i++) {
+      self.charts[i].remove();
+    }
     
+    for (var i=0; i<charts.length; i++) {
+      self.addChart(charts[i].base, charts[i].trade);
+    }
   }
 }
 

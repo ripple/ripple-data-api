@@ -212,7 +212,7 @@ var OrderBook = function (options) {
         d = lineData[i];
         
         //prevent 0 sum numbers at best bid/ask from displaying
-        if (!d.showSum) d = d.showPrice==bestBid ? lineData[i-1] : lineData[i+1]; 
+        if (d && !d.showSum) d = d.showPrice==bestBid ? lineData[i-1] : lineData[i+1]; 
 
     if (d) {
       var quantity = d.showTakerPays ? d.showTakerPays : d.showTakerGets;
