@@ -182,7 +182,7 @@ function importIntoCouchDb(opts) {
                 setImmediate(function(){
                   importIntoCouchDb({
                     minLedgerIndex: saveRes.earliestLedgerIndex,
-                    lastLedger: Math.min(latestLedger.ledger_index, saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
+                    lastLedger: Math.min(parseInt(latestLedger.ledger_index, 10), saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
                     batchSize: opts.batchSize
                   });
                 });
@@ -231,7 +231,8 @@ function importIntoCouchDb(opts) {
  *  {
  *    lastLedger: ledger_hash or ledger_index, defaults to last closed ledger
  *    batchSize: number, defaults to 1000
- *    minLedger: ledger_hash or ledger_index, if none given it will stop after a single batch
+ *    minLedgerIndex: ledger_index,
+ *    minLedgerHash: ledger_hash
  *  }
  */
 function getLedgerBatch (opts, callback) {
@@ -256,6 +257,8 @@ function getLedgerBatch (opts, callback) {
   // get ledger from rippled API
   getLedger(opts.lastLedger, function(err, ledger){
     if (err) {
+      // TODO handle errors differently
+
       callback(err);
       return;
     }
@@ -378,6 +381,9 @@ function getLedger (identifier, callback, serverNum) {
     // format remote ledger
     var remoteLedger = (res.body.result.closed ? res.body.result.closed.ledger : res.body.result.ledger),
       ledger = formatRemoteLedger(remoteLedger);
+
+    // keep track of which server ledgers came from
+    ledger.fromServer = server;
 
     // check that transactions hash to the expected value
     var ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
@@ -563,9 +569,9 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
       if (equal(ledgerBatch[index], row.doc, {strict: true})) {
         ledgerBatch[index].noUpdate = true;
       } else {
-        console.log('Replacing ledger ' + row.doc.ledger_index + ', ' + 
-          'hash: ' + row.doc.ledger_hash + ', ' +
-          'with ledger whose hash is: ' + ledgerBatch[index].ledger_hash);
+        console.log('Replacing ledger ' + row.doc.ledger_index + 
+          '\n   Previous: ' + JSON.stringify(row.doc) +
+          '\n   Replacement: ' + JSON.stringify(ledgerBatch[index].ledger_hash));
       }
 
     });
