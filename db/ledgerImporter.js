@@ -382,7 +382,7 @@ function getLedger (identifier, callback, serverNum) {
       ledger = formatRemoteLedger(remoteLedger);
 
     // keep track of which server ledgers came from
-    ledger.server = server;
+    ledger.server = (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server);
 
     // check that transactions hash to the expected value
     var ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
