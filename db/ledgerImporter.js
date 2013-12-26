@@ -101,9 +101,6 @@ function importIntoCouchDb(opts) {
 
       // skip empty batches
       if (res.results.length === 0) {
-        setTimeout(function(){
-            importIntoCouchDb({batchSize: opts.batchSize});
-        }, 5000);
         return;
       }
 
@@ -158,7 +155,8 @@ function importIntoCouchDb(opts) {
                 importIntoCouchDb({
                   minLedgerIndex: saveRes.earliestLedgerIndex - 100,
                   lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
-                  batchSize: opts.batchSize
+                  batchSize: opts.batchSize,
+                  stopAfterRange: opts.stopAfterRange
                 });
               });
 
@@ -183,7 +181,8 @@ function importIntoCouchDb(opts) {
                   importIntoCouchDb({
                     minLedgerIndex: saveRes.earliestLedgerIndex,
                     lastLedger: Math.min(parseInt(latestLedger.ledger_index, 10), saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
-                    batchSize: opts.batchSize
+                    batchSize: opts.batchSize,
+                    stopAfterRange: opts.stopAfterRange
                   });
                 });
               });
