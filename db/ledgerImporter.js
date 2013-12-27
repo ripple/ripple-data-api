@@ -424,7 +424,7 @@ function getLedger (identifier, callback, servers) {
     var ledgerJsonTxHash;
     try {
      ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
-    catch(e) {
+    } catch(e) {
       ledgerJsonTxHash = '';
     }
     if (ledgerJsonTxHash !== ledger.transaction_hash) {
