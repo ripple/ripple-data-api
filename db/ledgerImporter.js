@@ -59,7 +59,7 @@ if (process.argv.indexOf('all') !== -1) {
 }
 
 
-console.log('ledgerImporter.js script started again with options: ' + JSON.stringify(processOptions));
+console.log('\nledgerImporter.js script started again with options: ' + JSON.stringify(processOptions));
 importIntoCouchDb(processOptions);
 
 
@@ -95,7 +95,7 @@ function importIntoCouchDb(opts) {
 
   function startImporting (opts) {
 
-    console.log('Starting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
+    console.log('\nStarting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
 
     getLedgerBatch(opts, function(err, res){
       if (err) {
@@ -422,7 +422,7 @@ function getLedger (identifier, callback, servers) {
       console.log('got malformed ledger from ' + 
         (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server) + ': ' + 
         JSON.stringify(ledger));
-      
+
       servers[server] = 'corruptedLedger';
 
       setImmediate(function(){
