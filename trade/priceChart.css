@@ -139,7 +139,7 @@ div.chartDetails span {
 
 div.chartDetails b {margin:0 .25em}
 
-div.chartDetails .date {min-width:150px}
+div.chartDetails .date {text-align:right; margin-right:20px}
 div.chartDetails .high {color:#090}
 div.chartDetails .low {color:#900}
 div.chartDetails .volume {color:#369}
