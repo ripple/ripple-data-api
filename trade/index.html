@@ -103,14 +103,14 @@ select {
 <script src="d3/d3.min.js"></script>
 <script src="ripple/ripple-0.7.30-min.js"></script>
 <script src="moment.min.js"></script>
+<script src="apiHandler.js"></script>
 <script src="priceChart.js"></script>
 <script src="currency.js"></script>
 <script src="transactionFeed.js"></script>
 <script src="orderBook.js"></script>
 <script>
 
-var base      = "http://ct.ripple.com:5993/api/";
-var offersURL = base + "offersexercised";
+var apiUrl = "http://ct.ripple.com:5993/api";
 
 var loaded = false,
   trade    = {currency:"USD", issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
@@ -187,7 +187,7 @@ var chartType = d3.select("#chartType").selectAll("a")
 
 var priceChart = new PriceChart ({
   id     : "#priceChart",
-  url    : offersURL,	
+  url    : apiUrl,	
   type   : chartType.selected,
   width  : 1000,
   height : 500,

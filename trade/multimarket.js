@@ -5,7 +5,6 @@ var MiniChart = function(base, trade, markets) {
   self.markets  = markets;
   self.index    = markets.charts.push(self)-1;  
   
-  
   var xScale    = d3.time.scale(),
     priceScale  = d3.scale.linear(),
     volumeScale = d3.scale.linear(),
@@ -87,6 +86,12 @@ var MiniChart = function(base, trade, markets) {
     
   this.setStatus = function (string) {
     status.html(string); 
+    if (string) {
+      loader.transition().style("opacity",0);  
+      details.selectAll("td").transition().style("opacity",0);
+      gEnter.transition().style("opacity",0);
+      pointer.transition().attr('transform',"translate("+(width+margin.left)+", "+height+")").style({fill:"#aaa"});
+    }
   } 
   
   this.remove = function () {
@@ -102,11 +107,9 @@ var MiniChart = function(base, trade, markets) {
 
     self.setStatus("");
     loader.transition().style("opacity",1);
+    
     if (self.request) self.request.abort();
-    self.request = d3.xhr(self.markets.url);
-
-    self.request.header("Content-type","application/x-www-form-urlencoded");
-    self.request.post(params({
+    self.request = self.markets.apiHandler.offersExercised({
       startTime     : new Date,
       endTime       : d3.time.day.offset(new Date, -2),
       timeIncrement : "hour",
@@ -116,28 +119,14 @@ var MiniChart = function(base, trade, markets) {
       "base[currency]"  : self.base.currency,
       "base[issuer]"    : self.base.issuer  ? self.base.issuer : "",
 
-    }), function(error, xhr) {
-      data = JSON.parse(xhr.response);
-      if (data.length<2) self.lineData = [];
-      else {
-        data.splice(0,1); //remove first    
-        
-        self.lineData = data.map(function(d) {
-
-          return {
-            time   : moment.utc(d[0]),
-            open   : d[4],
-            close  : d[5],
-            high   : d[6],
-            low    : d[7],
-            vwap   : d[8],
-            volume : d[1],
-          };
-        });
-      }
-
+    }, function(data){
+      self.lineData = data;
       self.draw();
-    });
+      
+    }, function (error){
+      console.log(error);
+      self.setStatus(error.text);
+    });  
   }  
   
   function amountToHuman (d, opts) {
@@ -150,14 +139,13 @@ var MiniChart = function(base, trade, markets) {
   }
   
   this.draw = function () {
+
+    
+    //if there is no data, hide the old chart and details
+    if (!self.lineData.length) return self.setStatus("No Data");  
+    else self.setStatus("");
     loader.transition().style("opacity",0);
-    if (!self.lineData.length) { 
-      gEnter.transition().style("opacity",0);
-      pointer.transition().attr('transform',"translate("+(width+margin.left)+", "+height+")")
-      return self.setStatus("No Data");  
-    }
- 
-    gEnter.transition().style("opacity",1);
+    
     var area = d3.svg.area()
         .x(function(d) { return xScale(d.time); })
         .y0(height)
@@ -195,7 +183,7 @@ var MiniChart = function(base, trade, markets) {
       changeStyle  = {color:"#2a2"};
     }
     
-    console.log(open, high, low, last);          
+    //console.log(open, high, low, last);          
     
     svg.datum(self.lineData).transition().style("opacity",1);
     
@@ -238,7 +226,6 @@ var MiniChart = function(base, trade, markets) {
 
     var lastY = priceScale(last)-5;
     
-    console.log(lastY);
     if (lastY<20) lastY += 20; //reposition last price below line if its too high on the graph.
     
     horizontal.transition().duration(600).attr("transform","translate(0, "+priceScale(last)+")").style(horizontalStyle);
@@ -250,18 +237,20 @@ var MiniChart = function(base, trade, markets) {
     showLow.html("<label>low</label> "+amountToHuman(low));
     change.html((pct>0 ? "+":"")+amountToHuman(pct)+"%").style(changeStyle);
     volume.html("<label>Vol:</label>"+vol+"<small>"+self.base.currency+"</small>");  
+    
+    //show the chart and details
+    details.selectAll("td").style("opacity",1);
+    gEnter.transition().style("opacity",1);
   }
 
   var dropdownA = ripple.currencyDropdown().selected(base);
   dropdownA.on("change", function(d) {
-    console.log(self);
       self.base = d;
       self.load();
       });
          
   var dropdownB = ripple.currencyDropdown().selected(trade);
   dropdownB.on("change", function(d) {
-    console.log(self);
       self.trade = d;
       self.load();
     });
@@ -275,9 +264,9 @@ var MiniChart = function(base, trade, markets) {
 var MultiMarket = function (options) {
   var self = this;
   
-  self.charts = [];  
-  self.url    = options.url;
-  self.el     = d3.select("#"+options.id).attr("class","multiMarket");
+  self.charts     = [];  
+  self.el         = d3.select("#"+options.id).attr("class","multiMarket");
+  self.apiHandler = new ApiHandler(options.url);
   
   self.el.append("div")
     .attr("class","add")

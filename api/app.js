@@ -82,6 +82,7 @@ app.post('/api/*', function(req, res){
 
 });
 
+app.get("/api/getTransaction", getTransactionHandler);
 
 /**
  *  getTransaction gets a transaction corresponding to a particular account and invoice ID
@@ -94,13 +95,13 @@ app.post('/api/*', function(req, res){
  */
  // TODO add more functionality
 function getTransactionHandler( req, res ) {
-
+  req.body = req.query || req.body;
   if (req.body.account && ripple.UInt160.is_valid(req.body.account) && req.body.invoice) {
 
     db.view('account_tx', 'transactionsByAccountAndInvoice', {key: [req.body.account, req.body.invoice]}, function( err, couchRes ){
 
       if (couchRes.rows.length >= 1) {
-        res.send({ txExists: true, inLedger: couchRes.rows[0].value[0], TxnSignature: couchRes.rows[0].value[0] });
+        res.send({ txExists: true, inLedger: couchRes.rows[0].value[0], TxnSignature: couchRes.rows[0].value[1] });
         return;
       } else {
         res.send({ txExists: false });
@@ -342,7 +343,6 @@ function exchangeRatesHandler( req, res ) {
 
 
 
-
 /**
  *  offersExercised returns reduced or individual 
  *  trade-level data about trades that were executed
@@ -458,6 +458,13 @@ function offersExercisedHandler( req, res ) {
     viewOpts.reduce = (req.body.reduce === true);
   }
 
+  // determine the group_multiple from the timeMultiple field
+  if (viewOpts.reduce === true && req.body.timeMultiple) {
+    viewOpts.group_multiple = req.body.timeMultiple;
+  } else {
+    viewOpts.group_multiple = 1;  // default to no multiple of time increment
+  }
+
   // determine the group_level from the timeIncrement field
   if (viewOpts.reduce === true && req.body.timeIncrement) {
     var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
@@ -470,12 +477,11 @@ function offersExercisedHandler( req, res ) {
       viewOpts.group_level = 3 + levels.indexOf(inc);
     } else {
       viewOpts.group_level = 3 + 2; // default to day
-    }
+    } 
   } else {
     // TODO handle incorrect options better
     viewOpts.group_level = 3 + 2; // default to day
   }
-
 
   // set stale view option
   if ((!req.body.hasOwnProperty('stale') && !req.body.hasOwnProperty('staleView'))
@@ -589,11 +595,125 @@ function offersExercisedHandler( req, res ) {
         return row.join(', ');
       }).join('\n');
 
+ 
+      // TODO make this download instead of display
+      //res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
+      //res.setHeader('Content-type', 'text/csv');
+      //res.charset = 'UTF-8';
+      //res.end(csvStr);
+ 
+      winston.info('reversed CSV result, map over rows:\n' + csvStr);
+ 
+      // use the time multiple from web form to group results
+      var timeMultiple = 1;
+      if (req.body.timeMultiple) {
+        timeMultiple = req.body.timeMultiple;
+      }
+
+      // data structures for processing rows
+      var csvRowCount = 0, newRowCount = 0;
+      var newRows = [];
+      var csvRows = csvStr.split('\n');
+
+      csvRows.reverse().forEach(function(row) {
+        // determine if we are at the boundary of requested grouping
+        if ((csvRowCount % timeMultiple) === 0) {
+          // create a new row if at boundary
+          newRowCount = newRowCount + 1;
+          newRows[newRowCount] = [];
+
+          // store row to be grouped
+          newRows[newRowCount][csvRowCount] = row;
+        } else {
+          // store row to be grouped
+          newRows[newRowCount][csvRowCount] = row;
+        }
+ 
+        csvRowCount = csvRowCount + 1;
+      })
+ 
+      // data structures for grouping results 
+      groupedRows = [];
+      var groupedTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
+          groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice;
+ 
+      var isFirstRow = true;
+ 
+      newRows.reverse().forEach(function(row) {
+ 
+        if (isFirstRow) {
+          isFirstRow = false;
+          return;
+        }
+ 
+        winston.info("these results will be grouped");
+ 
+        var isFirstElement = true;
+ 
+        row.forEach(function(r) {
+          winston.info(r);
+ 
+          line = r.split(", ");
+ 
+          if (isFirstElement) {
+ 
+            // take most recent of group
+            groupedTime = line[0];
+ 
+            // take most recent of group
+            groupedClosePrice = line[5];
+ 
+            groupedBaseCurrVolume = 0;
+            groupedTradeCurrVolume = 0;
+            groupedNumTrades = 0;
+            groupedHighPrice = 0;
+            groupedLowPrice = Number.MAX_VALUE;
+          }
+ 
+          // take sum
+          groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(line[1]);
+ 
+          // take sum
+          groupedTradeCurrVolume = parseFloat(groupedTradeCurrVolume) + parseFloat(line[2]);
+ 
+          // take sum
+          groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(line[3]);
+ 
+          // take earliest of group
+          groupedOpenPrice = line[4];
+ 
+          // take maximum value of group
+          groupedHighPrice = Math.max(groupedHighPrice, parseFloat(line[6]));
+ 
+          // take minimum value of group
+          groupedLowPrice = Math.min(groupedLowPrice, parseFloat(line[7]));
+ 
+          isFirstElement = false;
+ 
+        })
+ 
+        groupedRows.push(new Array(groupedTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice));
+ 
+      })
+ 
+      groupedRows = groupedRows.reverse();
+ 
+      winston.info("Grouped results");
+ 
+      var groupedString = "";
+
+      groupedRows.forEach(function(g) {
+        winston.info(g);
+        groupedString = groupedString + g.toString() + "\n";
+      })
+
       // TODO make this download instead of display
       res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
       res.setHeader('Content-type', 'text/csv');
       res.charset = 'UTF-8';
-      res.end(csvStr);
+
+      // display output grouped by timeMultiple
+      res.end(groupedString);
 
     } else if (req.body.format === 'json_verbose') {
 

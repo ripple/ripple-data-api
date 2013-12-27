@@ -1,6 +1,6 @@
 var OrderBook = function (options) {
   var self    = this, asks, bids;
-  self.offers = {};
+  self.offers;
   
   var chart  = d3.select("#"+options.chartID).attr('class','chart');
   var width  = 1000,
@@ -31,6 +31,7 @@ var OrderBook = function (options) {
   var focus      = gEnter.append("circle").attr("class", "focus dark").attr("r",3).style("opacity",0);
   var centerline = gEnter.append("line").attr("class", "centerline").attr("y2", height).style("opacity",0);
   var path       = gEnter.append("path").attr("class","line");
+  var status     = chart.append("h4").attr("class", "status");
   
   var details   = chart.append("div")   
         .attr("class", "chartDetails")               
@@ -42,6 +43,15 @@ var OrderBook = function (options) {
     .attr("class", "loader")
     .attr("src", "images/throbber5.gif")
     .style("opacity", 0); 
+  
+  function setStatus (string) {
+    status.html(string).style("opacity",1); 
+    if (string) {
+      loader.transition().style("opacity",0);
+      path.transition().style("opacity",0);   
+      centerline.transition().style("opacity",0);  
+    }
+  }
   
   function valueFilter (price, opts) {
     return ripple.Amount.from_json(price).to_human(
@@ -152,11 +162,17 @@ var OrderBook = function (options) {
     details.style("opacity",0);
     hover.style("opacity",0);
     focus.style("opacity",0); 
+    setStatus("");
   }  
   
   function redrawChart () {
-    if (!self.offers.bids || !self.offers.asks) return;
+    if (!self.offers.bids || !self.offers.asks) return; //wait for both to load
+    if (!self.offers.bids.length || !self.offers.asks.length) {
+      setStatus("No Orders");  
+      return;
+    }
 
+    setStatus("");
     var bestBid = self.offers.bids[0].showPrice,
       bestAsk   = self.offers.asks[0].showPrice;
          
