@@ -421,7 +421,12 @@ function getLedger (identifier, callback, servers) {
     ledger.server = (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server);
 
     // check that transactions hash to the expected value
-    var ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
+    var ledgerJsonTxHash;
+    try {
+     ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
+    catch(e) {
+      ledgerJsonTxHash = '';
+    }
     if (ledgerJsonTxHash !== ledger.transaction_hash) {
 
       console.log('transactions do not hash to the expected value for ' + 
