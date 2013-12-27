@@ -1,7 +1,7 @@
 var request = require('request'),
   moment = require('moment'),
   _ = require('lodash'),
-  equal = require('deep-equal'),
+  diff = require('deep-diff'),
   ripple = require('ripple-lib'),
   Ledger = require('../node_modules/ripple-lib/src/js/ripple/ledger').Ledger,
   config = require('./config'),
@@ -34,8 +34,6 @@ var request = require('request'),
  */
 
 var processOptions = {};
-
-console.log(process.argv)
 
 var numericOptions = _.filter(_.map(process.argv, function(opt){
   return parseInt(opt, 10);
@@ -604,7 +602,8 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
       ledgerBatch[index]._rev = row.value.rev;
 
       // don't update docs that haven't been modified
-      if (equal(ledgerBatch[index], row.doc, {strict: true})) {
+      var diffRes = diff(ledgerBatch[index], row.doc);
+      if (!diffRes || (diffRes.length === 1 && diffRes[0].path[0] === 'server')) {
         ledgerBatch[index].noUpdate = true;
       } else {
         console.log('Replacing ledger ' + row.doc.ledger_index + 
