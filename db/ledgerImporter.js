@@ -326,7 +326,7 @@ function getLedger (identifier, callback, servers) {
     servers = _.map(config.rippleds, function(serv){
       return {
         server: serv,
-        status: 'untried'
+        status: 'notYetTried'
       };
     });
   }
