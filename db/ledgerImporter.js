@@ -95,6 +95,7 @@ function importIntoCouchDb(opts) {
 
     getLedgerBatch(opts, function(err, res){
       if (err) {
+        // TODO handle errors better
         console.log('problem getting ledger batch: ' + err);
         return;
       }
@@ -256,8 +257,6 @@ function getLedgerBatch (opts, callback) {
   // get ledger from rippled API
   getLedger(opts.lastLedger, function(err, ledger){
     if (err) {
-      // TODO handle errors differently
-
       callback(err);
       return;
     }
@@ -323,34 +322,30 @@ function getLedger (identifier, callback, servers) {
 
   // store server statuses (reset for each ledger identifier)
   if (!servers) {
-    servers = _.map(config.rippleds, function(serv){
-      return {
-        server: serv,
-        status: 'notYetTried'
-      };
+    servers = {};
+    _.each(config.rippleds, function(serv){
+      servers[serv] = 'notYetTried';
     });
   }
 
   // get untried server
-  var serverEntry = _.find(servers, function(serv){
-    return serv.status === 'notYetTried';
+  var server = _.findKey(servers, function(status){
+    return status === 'notYetTried';
   });
 
   // if all servers have been tried once look for a 'tryAgain' status
-  if (!serverEntry) {
-    serverEntry = _.find(servers, function(serv){
-      return serv.status === 'tryAgain';
+  if (!server) {
+    server = _.findKey(servers, function(status){
+      return status === 'tryAgain';
     });
   }
 
-  if (!serverEntry) {
+  if (!server) {
     callback(new Error('ledger ' + 
       (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
       ' not available from any of the rippleds'));
     return;
   }
-
-  var server = serverEntry.server;
 
   // get ledger using JSON API
   request({
@@ -368,8 +363,8 @@ function getLedger (identifier, callback, servers) {
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
         '\nTrying next server...');
 
-      if (servers[server].status === 'untried') {
-        servers[server].status = 'tryAgain';
+      if (servers[server] === 'untried') {
+        servers[server] = 'tryAgain';
       }
 
       setImmediate(function(){
@@ -382,7 +377,7 @@ function getLedger (identifier, callback, servers) {
     if (typeof res.body === 'string') {
       // console.log('rippled returned a buffer instead of a JSON object for request: ' + 
       //   JSON.stringify(reqData.params[0]) + '. Trying again...');
-      servers[server].status = 'tryAgain';
+      servers[server] = 'tryAgain';
       setTimeout(function(){
         getLedger (identifier, callback, servers);
       }, 500);
@@ -391,7 +386,7 @@ function getLedger (identifier, callback, servers) {
 
     // handle ledgerNotFound
     if (res.body.result.error === 'ledgerNotFound') {
-      servers[server].status = 'ledgerNotFound';
+      servers[server] = 'ledgerNotFound';
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
@@ -406,7 +401,7 @@ function getLedger (identifier, callback, servers) {
         ', server responded with: ' + 
         JSON.stringify(res.error || res.body || res));
       
-      servers[server].status = 'tryAgain';
+      servers[server] = 'tryAgain';
       
       setImmediate(function(){
         getLedger (identifier, callback, servers);
@@ -431,7 +426,7 @@ function getLedger (identifier, callback, servers) {
         'actual transaction_hash:   ' + ledgerJsonTxHash + '\n' +
         'expected transaction_hash: ' + ledger.transaction_hash);
 
-      servers[server].status = 'incorrectLedger';
+      servers[server] = 'corruptedLedger';
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
