@@ -62,7 +62,7 @@ if (process.argv.indexOf('all') !== -1) {
 
 
 console.log('ledgerImporter.js script started again with options: ' + JSON.stringify(processOptions));
-// importIntoCouchDb(processOptions);
+importIntoCouchDb(processOptions);
 
 
 
