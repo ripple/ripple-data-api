@@ -604,32 +604,35 @@ function offersExercisedHandler( req, res ) {
  
       winston.info('reversed CSV result, map over rows:\n' + csvStr);
  
-      // compress rows based on 'group_multiple'
-      var timeMultiple = 1, csvRowCount = 0, newRowCount = 0;
- 
-      var csvRows = csvStr.split('\n');
-      var newRows = [];
-
       // use the time multiple from web form to group results
+      var timeMultiple = 1;
       if (req.body.timeMultiple) {
         timeMultiple = req.body.timeMultiple;
       }
- 
+
+      // data structures for processing rows
+      var csvRowCount = 0, newRowCount = 0;
+      var newRows = [];
+      var csvRows = csvStr.split('\n');
+
       csvRows.reverse().forEach(function(row) {
- 
+        // determine if we are at the boundary of requested grouping
         if ((csvRowCount % timeMultiple) === 0) {
- 
+          // create a new row if at boundary
           newRowCount = newRowCount + 1;
- 
           newRows[newRowCount] = [];
+
+          // store row to be grouped
           newRows[newRowCount][csvRowCount] = row;
         } else {
+          // store row to be grouped
           newRows[newRowCount][csvRowCount] = row;
         }
  
         csvRowCount = csvRowCount + 1;
       })
  
+      // data structures for grouping results 
       groupedRows = [];
       var groupedTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
           groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice;
