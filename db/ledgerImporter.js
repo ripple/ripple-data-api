@@ -305,14 +305,6 @@ function getLedger (identifier, callback, servers) {
     identifier = null;
   }
 
-  if (!serverNum) {
-    serverNum = 0;
-  } else if (serverNum >= config.rippleds.length) {
-    callback(new Error('could not get ledger: ' + identifier + 
-      ' from any of the rippleds'));
-    return;
-  }
-
   var reqData = { 
     'method' : 'ledger', 
     'params' : [ { 
