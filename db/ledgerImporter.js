@@ -34,29 +34,31 @@ var request = require('request'),
  */
 
 var processOptions = {};
-if (process.argv.length === 3) {
 
-  if (process.argv[2].toLowerCase() === 'all') {
-    processOptions.minLedgerIndex = 32570;
-  } else {
-    processOptions.minLedgerIndex = parseInt(process.argv[2], 10);
-  }
+console.log(process.argv)
 
-} else if (process.argv.length === 4) {
-
-  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-
-} else if (process.argv.length === 5) {
- 
-  processOptions.lastLedger = Math.max(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.minLedgerIndex = Math.min(parseInt(process.argv[2], 10), parseInt(process.argv[3], 10));
-  processOptions.stopAfterRange = (process.argv[4].toLowerCase() === 'stopafter');
-
+var numericOptions = _.filter(_.map(process.argv, function(opt){
+  return parseInt(opt, 10);
+}), function(num){return num;});
+if (numericOptions.length === 1) {
+  processOptions.minLedgerIndex = numericOptions[0];
+} else if (numericOptions.length === 2) {
+  processOptions.minLedgerIndex = _.min(numericOptions);
+  processOptions.lastLedger = _.max(numericOptions);
 }
 
-console.log('ledgerImporter.js script started again');
-importIntoCouchDb(processOptions);
+if (process.argv.indexOf('stopafter') !== -1) {
+  processOptions.stopAfterRange = true;
+}
+
+if (process.argv.indexOf('all') !== -1) {
+  processOptions.lastLedger = null;
+  processOptions.minLedgerIndex = 32570;
+}
+
+
+console.log('ledgerImporter.js script started again with options: ' + JSON.stringify(processOptions));
+// importIntoCouchDb(processOptions);
 
 
 
