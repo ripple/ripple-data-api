@@ -604,19 +604,20 @@ function offersExercisedHandler( req, res ) {
  
       winston.info('reversed CSV result, map over rows:\n' + csvStr);
  
-      // compress rows based on currently hardcoded 'group_multiple'
-      var csvRowCount = 0;
-      var newRowCount = 0;
- 
-      // TODO replace constant GROUP_MULTIPLE with variable timeMultiple
-      const GROUP_MULTIPLE = 5;
+      // compress rows based on 'group_multiple'
+      var timeMultiple = 1, csvRowCount = 0, newRowCount = 0;
  
       var csvRows = csvStr.split('\n');
       var newRows = [];
+
+      // use the time multiple from web form to group results
+      if (req.body.timeMultiple) {
+        timeMultiple = req.body.timeMultiple;
+      }
  
       csvRows.reverse().forEach(function(row) {
  
-        if ((csvRowCount % GROUP_MULTIPLE) === 0) {
+        if ((csvRowCount % timeMultiple) === 0) {
  
           newRowCount = newRowCount + 1;
  
@@ -696,8 +697,11 @@ function offersExercisedHandler( req, res ) {
  
       winston.info("Grouped results");
  
+      var groupedString = "";
+
       groupedRows.forEach(function(g) {
         winston.info(g);
+        groupedString = groupedString + g.toString() + "\n";
       })
 
       // TODO make this download instead of display
@@ -705,13 +709,8 @@ function offersExercisedHandler( req, res ) {
       res.setHeader('Content-type', 'text/csv');
       res.charset = 'UTF-8';
 
-      // display original (ungrouped) output
-      // TODO remove ungrouped output
-      res.end(csvStr);
-
       // display output grouped by timeMultiple
-      // TODO instantiate rows grouped by timeMultiple
-      //res.end(groupedRows);  // this may need to be smoothed via data structure translation
+      res.end(groupedString);
 
     } else if (req.body.format === 'json_verbose') {
 
