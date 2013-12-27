@@ -417,6 +417,21 @@ function getLedger (identifier, callback, servers) {
     var remoteLedger = (res.body.result.closed ? res.body.result.closed.ledger : res.body.result.ledger),
       ledger = formatRemoteLedger(remoteLedger);
 
+    // check for malformed ledger
+    if (!ledger || !ledger.ledger_index) {
+      console.log('got malformed ledger from ' + 
+        (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server) + ': ' + 
+        JSON.stringify(ledger));
+      
+      servers[server] = 'corruptedLedger';
+
+      setImmediate(function(){
+        getLedger (identifier, callback, servers);
+      });
+
+      return;
+    }
+
     // keep track of which server ledgers came from
     ledger.server = (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server);
 
