@@ -231,8 +231,9 @@ body {
 
 <script src="d3/d3.min.js"></script>
 <script src="ripple/ripple-0.7.30-min.js"></script>
-<script src="currency.js"></script>
 <script src="moment.min.js"></script>
+<script src="apiHandler.js"></script>
+<script src="currency.js"></script>
 <script src="multimarket.js"></script>
 <script>
 
@@ -243,14 +244,17 @@ body {
   
   markets.list([
     {
-      base  : {currency:"USD",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      trade : {currency:"XRP"}},
+      base  : {currency:"XRP"},
+      trade : {currency:"USD",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}},
     {
-      base  : {currency:"CNY",issuer:"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
-      trade : {currency:"XRP"}},
+      base  : {currency:"XRP"},
+      trade : {currency:"CNY",issuer:"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}},
     {
       base  : {currency:"BTC",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
       trade : {currency:"XRP"}},
+    {
+      base  : {currency:"BTC",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      trade : {currency:"USD",issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}},
     ]);
   
 
