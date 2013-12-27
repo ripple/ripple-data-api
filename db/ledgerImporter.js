@@ -298,7 +298,7 @@ function getLedgerBatch (opts, callback) {
  *
  *  identifier: ledger_index or ledger_hash
  */
-function getLedger (identifier, callback, serverNum) {
+function getLedger (identifier, callback, servers) {
 
   if (typeof identifier === 'function' && !callback) {
     callback = identifier;
@@ -329,11 +329,36 @@ function getLedger (identifier, callback, serverNum) {
     reqData.params[0].ledger_index = 'closed';
   }
 
-  var server = config.rippleds[(serverNum ? serverNum : 0)];
-
-  if (serverNum > 0) {
-    console.log('Getting ledger ' + identifier + ' from: ' + server);
+  // store server statuses (reset for each ledger identifier)
+  if (!servers) {
+    servers = _.map(config.rippleds, function(serv){
+      return {
+        server: serv,
+        status: 'untried'
+      };
+    });
   }
+
+  // get untried server
+  var serverEntry = _.find(servers, function(serv){
+    return serv.status === 'notYetTried';
+  });
+
+  // if all servers have been tried once look for a 'tryAgain' status
+  if (!serverEntry) {
+    serverEntry = _.find(servers, function(serv){
+      return serv.status === 'tryAgain';
+    });
+  }
+
+  if (!serverEntry) {
+    callback(new Error('ledger ' + 
+      (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
+      ' not available from any of the rippleds'));
+    return;
+  }
+
+  var server = serverEntry.server;
 
   // get ledger using JSON API
   request({
@@ -347,32 +372,52 @@ function getLedger (identifier, callback, serverNum) {
   function requestHandler (err, res) {
     if (err) {
       console.log('Error getting ledger: ' + 
-        (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
+        (reqData.params[0].ledger_index || reqData.params[0].ledger_hash || 'closed') + 
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
         '\nTrying next server...');
+
+      if (servers[server].status === 'untried') {
+        servers[server].status = 'tryAgain';
+      }
+
       setImmediate(function(){
-        getLedger (identifier, callback, serverNum + 1);
+        getLedger (identifier, callback, servers);
       });
       return;
     }
 
     // check if the server returned a buffer/string instead of json
     if (typeof res.body === 'string') {
-      // TODO consider changing this to try the next server
-      console.log('rippled returned a buffer instead of a JSON object for request: ' + 
-        JSON.stringify(reqData.params[0]) + '. Trying again...');
+      // console.log('rippled returned a buffer instead of a JSON object for request: ' + 
+      //   JSON.stringify(reqData.params[0]) + '. Trying again...');
+      servers[server].status = 'tryAgain';
       setTimeout(function(){
-        getLedger (identifier, callback, serverNum);
+        getLedger (identifier, callback, servers);
       }, 500);
+      return;
+    }
+
+    // handle ledgerNotFound
+    if (res.body.result.error === 'ledgerNotFound') {
+      servers[server].status = 'ledgerNotFound';
+
+      setImmediate(function(){
+        getLedger (identifier, callback, servers);
+      });
       return;
     }
 
     // handle malformed response
     if (!res || !res.body || !res.body.result || (!res.body.result.ledger && !res.body.result.closed)) {
-      console.log('error getting ledger ' + (identifier || 'closed') + 
-        ', server responded with: ' + JSON.stringify(res.error || res.body || res));
+      console.log('error getting ledger ' + 
+        (identifier || 'closed') + 
+        ', server responded with: ' + 
+        JSON.stringify(res.error || res.body || res));
+      
+      servers[server].status = 'tryAgain';
+      
       setImmediate(function(){
-        getLedger (identifier, callback, serverNum + 1);
+        getLedger (identifier, callback, servers);
       });
       return;
     }
@@ -394,8 +439,10 @@ function getLedger (identifier, callback, serverNum) {
         'actual transaction_hash:   ' + ledgerJsonTxHash + '\n' +
         'expected transaction_hash: ' + ledger.transaction_hash);
 
+      servers[server].status = 'incorrectLedger';
+
       setImmediate(function(){
-        getLedger (identifier, callback, serverNum + 1);
+        getLedger (identifier, callback, servers);
       });
 
       return;
@@ -406,7 +453,6 @@ function getLedger (identifier, callback, serverNum) {
     callback(null, ledger);
 
   }
-
 }
 
 /**
