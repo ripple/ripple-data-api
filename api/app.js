@@ -29,7 +29,6 @@ var apiHandlers = {
 };
 
 // TODO handle hot wallets
-// TODO get rid of staleView and replace it with something that routinely pings all of the views
 
 // enable CORS
 var allowCrossDomain = function(req, res, next) {
@@ -352,7 +351,6 @@ function exchangeRatesHandler( req, res ) {
  *    base: {currency: "XRP"},
  *    trade: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
  *    
- *    staleView: true/false, // optional, defaults to true
  *    descending: true/false, // optional, defaults to true
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
@@ -481,12 +479,6 @@ function offersExercisedHandler( req, res ) {
   } else {
     // TODO handle incorrect options better
     viewOpts.group_level = 3 + 2; // default to day
-  }
-
-  // set stale view option
-  if ((!req.body.hasOwnProperty('stale') && !req.body.hasOwnProperty('staleView'))
-    || req.body.stale || req.body.staleView) {
-    viewOpts.stale = 'update_after';
   }
 
   winston.info('viewOpts:' + JSON.stringify(viewOpts));
@@ -813,7 +805,6 @@ function numAccountsHandler( req, res ) {
  *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
- *    staleView: true/false, // optional, defaults to true
  *    descending: true/false, // optional, defaults to true
  *    format: 'json', 'csv', or 'json_verbose'
  *  }
@@ -868,13 +859,6 @@ function accountsCreatedHandler( req, res ) {
   } else {
     // TODO handle incorrect options better
     viewOpts.group_level = 1 + 2; // default to day
-  }
-
-
-  // set stale view option
-  if ((!req.body.hasOwnProperty('stale') && !req.body.hasOwnProperty('staleView'))
-    || req.body.stale || req.body.staleView) {
-    viewOpts.stale = 'update_after';
   }
 
   winston.info('viewOpts: ' + JSON.stringify(viewOpts));
