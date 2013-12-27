@@ -51,6 +51,10 @@ if (process.argv.indexOf('stopafter') !== -1) {
   processOptions.stopAfterRange = true;
 }
 
+if (process.argv.indexOf('debug') !== -1) {
+  processOptions.debug = true;
+}
+
 if (process.argv.indexOf('all') !== -1) {
   processOptions.lastLedger = null;
   processOptions.minLedgerIndex = 32570;
@@ -58,7 +62,7 @@ if (process.argv.indexOf('all') !== -1) {
 
 
 console.log('ledgerImporter.js script started again with options: ' + JSON.stringify(processOptions));
-importIntoCouchDb(processOptions);
+// importIntoCouchDb(processOptions);
 
 
 
@@ -360,7 +364,7 @@ function getLedger (identifier, callback, servers) {
 
   function requestHandler (err, res) {
     if (err) {
-      console.log('Error getting ledger: ' + 
+      console.log('error getting ledger: ' + 
         (reqData.params[0].ledger_index || reqData.params[0].ledger_hash || 'closed') + 
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
         '\nTrying next server...');
@@ -379,10 +383,10 @@ function getLedger (identifier, callback, servers) {
     if (typeof res.body === 'string') {
       // console.log('rippled returned a buffer instead of a JSON object for request: ' + 
       //   JSON.stringify(reqData.params[0]) + '. Trying again...');
-      servers[server] = 'tryAgain';
+      // servers[server] = 'tryAgain';
       setTimeout(function(){
         getLedger (identifier, callback, servers);
-      }, 500);
+      }, 1000);
       return;
     }
 
@@ -398,10 +402,10 @@ function getLedger (identifier, callback, servers) {
 
     // handle malformed response
     if (!res || !res.body || !res.body.result || (!res.body.result.ledger && !res.body.result.closed)) {
-      console.log('error getting ledger ' + 
-        (identifier || 'closed') + 
-        ', server responded with: ' + 
-        JSON.stringify(res.error || res.body || res));
+      // console.log('trouble getting ledger ' + 
+      //   (identifier || 'closed') + 
+      //   ', server responded with: ' + 
+      //   JSON.stringify(res.error || res.body || res));
       
       servers[server] = 'tryAgain';
       
