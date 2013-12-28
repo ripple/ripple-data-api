@@ -367,7 +367,7 @@ function getLedger (identifier, callback, servers) {
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
         '\nTrying next server...');
 
-      if (servers[server] === 'untried') {
+      if (servers[server] === 'notYetTried') {
         servers[server] = 'tryAgain';
       }
 
