@@ -158,7 +158,7 @@ function importIntoCouchDb(opts) {
               
               setImmediate(function(){
                 importIntoCouchDb({
-                  minLedgerIndex: saveRes.earliestLedgerIndex - 100,
+                  minLedgerIndex: Math.min(opts.minLedgerIndex, saveRes.earliestLedgerIndex - 100),
                   lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
                   batchSize: opts.batchSize,
                   stopAfterRange: opts.stopAfterRange
