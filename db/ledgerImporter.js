@@ -418,7 +418,7 @@ function getLedger (identifier, callback, servers) {
       ledger = formatRemoteLedger(remoteLedger);
 
     // check for malformed ledger
-    if (!ledger || !ledger.ledger_index) {
+    if (!ledger || !ledger.ledger_index || !ledger.ledger_hash) {
       console.log('got malformed ledger from ' + 
         (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server) + ': ' + 
         JSON.stringify(ledger));
