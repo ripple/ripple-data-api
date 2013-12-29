@@ -100,7 +100,10 @@ function importIntoCouchDb(opts) {
     getLedgerBatch(opts, function(err, res){
       if (err) {
         // TODO handle errors better
-        console.log('problem getting ledger batch: ' + err);
+        console.log('problem getting ledger batch: ' + err + '\nTrying again in a few seconds...');
+        setTimeout(function(){
+          startImporting(opts);
+        }, 5000);
         return;
       }
 
