@@ -227,6 +227,10 @@ function importIntoCouchDb(opts) {
                   importIntoCouchDb({batchSize: opts.batchSize});
                 }, 5000);
               }  
+            } else {
+
+              console.log('Finished batch');
+              return;
             }
           });
         });
