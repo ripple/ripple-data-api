@@ -119,7 +119,6 @@ function importIntoCouchDb(opts) {
 
       // skip empty batches
       if (res.results.length === 0) {
-        console.log('Saved 0 ledgers');
         return;
       }
 
@@ -656,6 +655,10 @@ function saveBatchToCouchDb (ledgerBatch, callback) {
     });
 
     if (docs.length === 0) {
+      console.log('Saved 0 ledgers from ' + firstLedger + 
+        ' to ' + lastLedger + 
+        ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
+
       callback(null, {
         numLedgersSaved: 0, 
         earliestLedgerIndex: ledgerBatch[0].ledger_index
