@@ -81,8 +81,6 @@ app.post('/api/*', function(req, res){
 
 });
 
-app.get("/api/getTransaction", getTransactionHandler);
-
 /**
  *  getTransaction gets a transaction corresponding to a particular account and invoice ID
  *  
@@ -94,7 +92,7 @@ app.get("/api/getTransaction", getTransactionHandler);
  */
  // TODO add more functionality
 function getTransactionHandler( req, res ) {
-  req.body = req.query || req.body;
+
   if (req.body.account && ripple.UInt160.is_valid(req.body.account) && req.body.invoice) {
 
     db.view('account_tx', 'transactionsByAccountAndInvoice', {key: [req.body.account, req.body.invoice]}, function( err, couchRes ){
