@@ -432,6 +432,7 @@ function offersExercisedHandler( req, res ) {
 
   }
 
+/*
   // handle descending/non-descending query
   if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
     viewOpts.descending = true;
@@ -442,6 +443,7 @@ function offersExercisedHandler( req, res ) {
     endTime = tempTime;
 
   }
+*/
 
   // set startkey and endkey for couchdb query
   viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
@@ -592,7 +594,7 @@ function offersExercisedHandler( req, res ) {
       //res.charset = 'UTF-8';
       //res.end(csvStr);
  
-      winston.info('reversed CSV result, map over rows:\n' + csvStr);
+      winston.info('CSV result, map over rows:\n' + csvStr);
  
       // use the time multiple from web form to group results
       var timeMultiple = 1;
@@ -605,7 +607,7 @@ function offersExercisedHandler( req, res ) {
       var newRows = [];
       var csvRows = csvStr.split('\n');
 
-      csvRows.reverse().forEach(function(row) {
+      csvRows.forEach(function(row) {
         // determine if we are at the boundary of requested grouping
         if ((csvRowCount % timeMultiple) === 0) {
           // create a new row if at boundary
@@ -629,7 +631,7 @@ function offersExercisedHandler( req, res ) {
  
       var isFirstRow = true;
  
-      newRows.reverse().forEach(function(row) {
+      newRows.forEach(function(row) {
  
         if (isFirstRow) {
           isFirstRow = false;
@@ -685,17 +687,19 @@ function offersExercisedHandler( req, res ) {
         groupedRows.push(new Array(groupedTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice));
  
       })
- 
-      groupedRows = groupedRows.reverse();
- 
-      winston.info("Grouped results");
- 
-      var groupedString = "";
 
-      groupedRows.forEach(function(g) {
-        winston.info(g);
-        groupedString = groupedString + g.toString() + "\n";
-      })
+      // present results to user based on the specified start & end times 
+      if (moment(req.body.endTime).isBefore(moment(req.body.startTime))) {
+        groupedRows = groupedRows.reverse();
+      }
+ 
+      // console debug
+      //winston.info("Grouped results");
+      //var groupedString = "";
+      //groupedRows.forEach(function(g) {
+      //  winston.info(g);
+      //  groupedString = groupedString + g.toString() + "\n";
+      //})
 
       // TODO make this download instead of display
       res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
