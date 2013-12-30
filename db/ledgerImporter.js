@@ -195,7 +195,7 @@ function importIntoCouchDb(opts) {
                   return;
                 }
 
-                setTimout(function(){
+                setTimeout(function(){
                   importIntoCouchDb({
                     minLedgerIndex: saveRes.earliestLedgerIndex,
                     lastLedger: Math.min(parseInt(latestLedger.ledger_index, 10), saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
