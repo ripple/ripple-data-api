@@ -105,6 +105,7 @@ function importIntoCouchDb(opts) {
         // TODO is this the right way to handle an error getting a batch?
         if (!opts.stopAfterRange) {
           opts.lastLedger = null;
+          opts.results = [];
           
           setTimeout(function(){
             startImporting(opts);
