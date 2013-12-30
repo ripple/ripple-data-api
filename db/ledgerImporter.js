@@ -104,7 +104,7 @@ function importIntoCouchDb(opts) {
 
         // TODO is this the right way to handle an error getting a batch?
         if (opts.stopAfterRange) {
-          opts.lastLedger = opts.lastLedger + opts.results.length;
+          opts.lastLedger = opts.lastLedger + opts.results.length + 1;
         } else {
           opts.lastLedger = null;
         }
