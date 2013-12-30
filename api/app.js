@@ -687,7 +687,7 @@ function offersExercisedHandler( req, res ) {
       })
 
       // present results to user based on the specified start & end times 
-      if (moment(req.body.endTime).isBefore(moment(req.body.startTime))) {
+      if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
         groupedRows = groupedRows.reverse();
       }
  
