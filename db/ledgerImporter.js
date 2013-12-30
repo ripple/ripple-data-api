@@ -78,6 +78,7 @@ importIntoCouchDb(processOptions);
 function importIntoCouchDb(opts) {
 
   // if minLedger is not set, set minLedger to be the latest ledger saved to couchdb
+  // if lastLedger is not set it will be set to the last closed ledger in getLedger()
   if (opts.minLedgerIndex || opts.minLedgerHash) {
     startImporting(opts);
   } else {
@@ -99,12 +100,17 @@ function importIntoCouchDb(opts) {
 
     getLedgerBatch(opts, function(err, res){
       if (err) {
-        // TODO handle errors better
         console.log('problem getting ledger batch: ' + err + '\nTrying again in a few seconds...');
-        setTimeout(function(){
-          startImporting(opts);
-        }, 5000);
-        return;
+
+        // TODO is this the right way to handle an error getting a batch?
+        if (!opts.stopAfterRange) {
+          opts.lastLedger = null;
+          
+          setTimeout(function(){
+            startImporting(opts);
+          }, 5000);
+          return;
+        }
       }
 
       // skip empty batches
@@ -327,6 +333,8 @@ function getLedger (identifier, callback, servers) {
     reqData.params[0].ledger_index = 'closed';
   }
 
+  // TODO check that this servers object is being updated correctly
+
   // store server statuses (reset for each ledger identifier)
   if (!servers) {
     servers = {};
@@ -370,9 +378,7 @@ function getLedger (identifier, callback, servers) {
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
         '\nTrying next server...');
 
-      if (servers[server] === 'notYetTried') {
-        servers[server] = 'tryAgain';
-      }
+      servers[server] = 'tryAgain';
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
