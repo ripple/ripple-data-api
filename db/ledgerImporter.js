@@ -103,19 +103,23 @@ function importIntoCouchDb(opts) {
         console.log('problem getting ledger batch: ' + err + '\nTrying again in a few seconds...');
 
         // TODO is this the right way to handle an error getting a batch?
-        if (!opts.stopAfterRange) {
+        if (opts.stopAfterRange) {
+          opts.lastLedger = opts.lastLedger + opts.results.length;
+        } else {
           opts.lastLedger = null;
-          opts.results = [];
-          
-          setTimeout(function(){
-            startImporting(opts);
-          }, 5000);
-          return;
         }
+
+        // clear results and start again
+        opts.results = [];
+        setTimeout(function(){
+          startImporting(opts);
+        }, 5000);
+        return;
       }
 
       // skip empty batches
       if (res.results.length === 0) {
+        console.log('Saved 0 ledgers');
         return;
       }
 
@@ -192,13 +196,13 @@ function importIntoCouchDb(opts) {
                   return;
                 }
 
-                setImmediate(function(){
+                setTimout(function(){
                   importIntoCouchDb({
                     minLedgerIndex: saveRes.earliestLedgerIndex,
                     lastLedger: Math.min(parseInt(latestLedger.ledger_index, 10), saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
                     batchSize: opts.batchSize,
                     stopAfterRange: opts.stopAfterRange
-                  });
+                  }, 500);
                 });
               });
 
