@@ -112,7 +112,7 @@ function parseViewOpts(opts) {
 
 function createTransactionProcessor(viewOpts, displayFn) {
 
-  // TODO store the results elsewhere so this can be triggered constantly by another process
+  // TODO store the results elsewhere so this can be triggered constantly by another processo
 
   var storedResults;
 
