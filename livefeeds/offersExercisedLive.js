@@ -1,15 +1,21 @@
 /* Loading ripple-lib with Node.js */
-var Remote = require('ripple-lib').Remote;
-var Amount = require('ripple-lib').Amount;
+var Remote = require('ripple-lib').Remote,
+  Amount = require('ripple-lib').Amount,
+  moment = require('moment'),
+  gateways = require('./gateways.json');
 
 /* Loading ripple-lib in a webpage */
 // var Remote = ripple.Remote;
 // var Amount = ripple.Amount;
+// NOTE: be sure to load moment.min.js script in webpage before this script
+// also load gateways.json file
 
 var listener = new OffersExercisedListener({
   base: {currency: "XRP"},
-  trade: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-  reduce: true
+  trade: {currency: "USD", issuer: "snapswap"},
+  reduce: true,
+  timeIncrement: 'minute',
+  timeMultiple: 2
 }, function(data){
   console.log(JSON.stringify(data));
 });
@@ -20,6 +26,10 @@ var listener = new OffersExercisedListener({
 //     trade: {currency: "BTC", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}
 //   });  
 // }, 5000);
+
+
+
+// TODO trigger the displayFn every timeIncrement * timeMultiple
 
 
 /**
@@ -34,7 +44,11 @@ var listener = new OffersExercisedListener({
  *    
  *    reduce: true/false, // optional, defaults to false
  *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional
- *    timeMultiple: positive integer
+ *    timeMultiple: positive integer // optional, defaults to 1
+ *    
+ *    startTime: a momentjs-readable value // optional, defaults to now
+ *    incompleteCouchRow: if the last timeIncrement returned by CouchDB is 
+ *      incomplete, that row can be passed in here to be completed by the live feed listener
  *  }
  */
 function OffersExercisedListener(opts, displayFn) {
@@ -44,7 +58,7 @@ function OffersExercisedListener(opts, displayFn) {
     opts = {};
   }
 
-  this.viewOpts = opts;
+  this.viewOpts = parseViewOpts(opts);
   this.displayFn = displayFn;
 
   this.remote = new Remote({
@@ -65,18 +79,59 @@ function OffersExercisedListener(opts, displayFn) {
 OffersExercisedListener.prototype.changeViewOpts = function(newOpts) {
   console.log('changing view opts');
 
-  this.viewOpts = newOpts;
+  this.viewOpts = parseViewOpts(newOpts);
   this.remote.removeListener('transaction_all', this.txProcessor);
 
   this.txProcessor = createTransactionProcessor(this.viewOpts);
   this.remote.on('transaction_all', this.txProcessor);
 }
 
+function parseViewOpts(opts) {
+  // TODO validate opts more thoroughly
+
+  opts.startTime = moment(opts.startTime);
+
+  if (opts.base.issuer) {
+    var baseGatewayAddress = gatewayNameToAddress(opts.base.issuer, opts.base.currency);
+    if (baseGatewayAddress) {
+      opts.base.issuer = baseGatewayAddress;
+    }
+  }
+
+  if (opts.trade.issuer) {
+    var tradeGatewayAddress = gatewayNameToAddress(opts.trade.issuer, opts.trade.currency);
+    if (tradeGatewayAddress) {
+      opts.trade.issuer = tradeGatewayAddress;
+    }
+  }
+
+  return opts;
+}
+
 
 
 function createTransactionProcessor(viewOpts, displayFn) {
 
+  // TODO store the results elsewhere so this can be triggered constantly by another process
+
   var storedResults;
+
+  // TODO make this work with formats other than 'json'
+  if (viewOpts.incompleteCouchRow) {
+    storedResults = {
+      openTime: incompleteCouchRow[0],
+      curr2Volume: incompleteCouchRow[1],
+      curr1Volume: incompleteCouchRow[2],
+      numTrades: incompleteCouchRow[3],
+      open: incompleteCouchRow[4],
+      close: incompleteCouchRow[5],
+      high: incompleteCouchRow[6],
+      low: incompleteCouchRow[7],
+      volumeWeightedAvg: incompleteCouchRow[8]
+    };
+  }
+
+  console.log('created transaction processor with opts: ' + JSON.stringify(viewOpts));
   
   function txProcessor (txData){
 
@@ -88,10 +143,17 @@ function createTransactionProcessor(viewOpts, displayFn) {
 
     // use the map function to parse txContainer data
     offersExercisedMap(txContainer, function(key, value){
-      if (viewOpts.base.currency === key[0][0] && (viewOpts.base.currency === 'XRP' || viewOpts.base.issuer === key[0][1])) {
+
+      // TODO make sure the base and trade currencies aren't reversed here
+
+      console.log('key: ' + JSON.stringify(key));
+
+      // check that this is the currency pair we care about
+      if (viewOpts.base.currency === key[0][0] 
+        && (viewOpts.base.currency === 'XRP' || viewOpts.base.issuer === key[0][1])
+        && viewOpts.trade.currency === key[1][0] 
+        && (viewOpts.trade.currency === 'XRP' || viewOpts.trade.issuer === key[1][1])) {
         
-        // use reduce function in 'reduce' mode to get initial values
-      
         if (!viewOpts.reduce) {
 
           displayFn({key: key, value: value});
@@ -99,27 +161,26 @@ function createTransactionProcessor(viewOpts, displayFn) {
 
         } else {
 
+          // use reduce function in 'reduce' mode to get initial values
           var reduceRes = offersExercisedReduce([[key]], [value], false);
 
           // use reduce function in 'rereduce' mode to compact values
           if (storedResults) {
-            storedResults = offersExercisedReduce(null, [storedResults, reduceRes], true)
+            storedResults = offersExercisedReduce(null, [storedResults, reduceRes], true);
           } else {
             storedResults = reduceRes;
           }
 
-          // TODO check if it's time to call the displayFn based on the timeInterval
+          // check if it's time to call the displayFn based on the timeInterval
+          if (!viewOpts.timeIncrement 
+            || viewOpts.timeIncrement.toLowerCase().slice(0, 2) === 'al' 
+            || viewOpts.timeIncrement.toLowerCase().slice(0, 2) === 'no'
+            || viewOpts.startTime.isAfter(moment().subtract(viewOpts.timeIncrement.toLowerCase(), (viewOpts.timeMultiple || 1)))) {
 
-          // if (!viewOpts.timeIncrement 
-          //   || viewOpts.timeIncrement.toLowerCase().slice(0, 2) === 'al' 
-          //   || viewOpts.timeIncrement.toLowerCase().slice(0, 2) === 'no') {
+            displayFn(storedResults);
+            storedResults = null;
 
-          //   displayFn(storedResults);
-          //   storedResults = null;
-          // }
-
-          console.log('storedResults now: ' + JSON.stringify(storedResults));
-
+          }          
         }  
       }
     });
@@ -320,3 +381,74 @@ function offersExercisedReduce(keys, values, rereduce) {
     }
 }
 
+
+/** HELPER FUNCTIONS **/
+
+/**
+ *  gatewayNameToAddress translates a given name and, 
+ *  optionally, a currency to its corresponding ripple address or
+ *  returns null
+ */
+ function gatewayNameToAddress( name, currency ) {
+
+  var gatewayAddress = null;
+
+  gateways.forEach(function(entry){
+
+    if (entry.name.toLowerCase() === name.toLowerCase()) {
+    
+      if (currency) {
+
+        entry.accounts.forEach(function(acct){
+
+          if (acct.currencies.indexOf(currency) !== -1) {
+            gatewayAddress = acct.address;
+          }
+        });
+
+      } else {
+         gatewayAddress = entry.accounts[0].address;
+      }
+    }
+
+  });
+
+  return gatewayAddress;
+
+ }
+
+
+/**
+ *  getGatewaysForCurrency takes a currency and returns
+ *  an array of gateways that issue that currency
+ *  returns an empty array if the currency is invalid
+ */
+function getGatewaysForCurrency( currName ) {
+
+  var issuers = [];
+  gateways.forEach(function(gateway){
+    gateway.accounts.forEach(function(acct){
+      if (acct.currencies.indexOf(currName.toUpperCase()) !== -1) {
+        issuers.push(acct.address);
+      }
+    });
+  });
+
+  return issuers;
+
+}
+
+/**
+ *  getCurrenciesForGateway returns the currencies that that gateway handles
+ */
+function getCurrenciesForGateway( name ) {
+  var currencies = [];
+  gateways.forEach(function(gateway){
+    if (gateway.name.toLowerCase() === name.toLowerCase()) {
+      gateway.accounts.forEach(function(account){
+        currencies = currencies.concat(account.currencies);
+      });
+    }
+  });
+  return currencies;
+}
