@@ -432,7 +432,6 @@ function offersExercisedHandler( req, res ) {
 
   }
 
-/*
   // handle descending/non-descending query
   if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
     viewOpts.descending = true;
@@ -443,7 +442,6 @@ function offersExercisedHandler( req, res ) {
     endTime = tempTime;
 
   }
-*/
 
   // set startkey and endkey for couchdb query
   viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
@@ -693,13 +691,10 @@ function offersExercisedHandler( req, res ) {
         groupedRows = groupedRows.reverse();
       }
  
-      // console debug
-      //winston.info("Grouped results");
-      //var groupedString = "";
-      //groupedRows.forEach(function(g) {
-      //  winston.info(g);
-      //  groupedString = groupedString + g.toString() + "\n";
-      //})
+      var groupedString = "";
+      groupedRows.forEach(function(g) {
+        groupedString = groupedString + g.toString() + "\n";
+      })
 
       // TODO make this download instead of display
       res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
