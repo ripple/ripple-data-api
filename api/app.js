@@ -656,6 +656,7 @@ function offersExercisedHandler( req, res ) {
           groupedNumTrades = 0;
           groupedHighPrice = 0;
           groupedLowPrice = Number.MAX_VALUE;
+          groupedVwavPrice = e.value.volumeWeightedAvg;
         }
         // SUM: base currency volume
         groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
@@ -679,7 +680,7 @@ function offersExercisedHandler( req, res ) {
         groupedLowPrice = Math.min(groupedLowPrice, parseFloat(e.value.low));
       })
       // create grouped result based on processed group of rows
-      groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice]);
+      groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
     })
 
     // present results to user based on the specified start & end times 
