@@ -1,35 +1,32 @@
-/* Loading ripple-lib with Node.js */
-var Remote = require('ripple-lib').Remote,
-  Amount = require('ripple-lib').Amount,
-  moment = require('moment'),
-  gateways = require('./gateways.json');
+var Remote,
+  Amount,
+  moment,
+  gateways;
 
-/* Loading ripple-lib in a webpage */
-// var Remote = ripple.Remote;
-// var Amount = ripple.Amount;
-// NOTE: be sure to load moment.min.js script in webpage before this script
-// also load gateways.json file
+if (require) {
 
-var listener = new OffersExercisedListener({
-  base: {currency: "XRP"},
-  trade: {currency: "USD", issuer: "snapswap"},
-  reduce: true,
-  timeIncrement: 'minute',
-  timeMultiple: 2
-}, function(data){
-  console.log(JSON.stringify(data));
-});
+  /* Loading with Node.js */
+  var Remote = require('ripple-lib').Remote,
+    Amount = require('ripple-lib').Amount,
+    moment = require('moment'),
+    gateways = require('./gateways.json');
 
-// setTimeout(function(){
-//   listener.changeViewOpts({
-//     base: {currency: "XRP"},
-//     trade: {currency: "BTC", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}
-//   });  
-// }, 5000);
+} else if (ripple && moment && gateways) {
+
+  /* Loading in a webpage */
+  Remote = ripple.Remote;
+  Amount = ripple.Amount;
+
+  // Note: also be sure to load momentjs and gateways.json before loading this file
+
+} else {
+
+  throw (new Error('Error: cannot load offersExercisedListener without ripple-lib, momentjs, and gateways.json'));
+
+}
 
 
-
-// TODO trigger the displayFn every timeIncrement * timeMultiple
+// TODO change date format to get rid of array style
 
 
 /**
@@ -42,12 +39,12 @@ var listener = new OffersExercisedListener({
  *    base: {currency: "XRP"},
  *    trade: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
  *    
- *    reduce: true/false, // optional, defaults to false
+ *    reduce: true/false, // optional, defaults to false if timeIncrement is not set
  *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional
  *    timeMultiple: positive integer // optional, defaults to 1
  *    
- *    startTime: a momentjs-readable value // optional, defaults to now
- *    incompleteCouchRow: if the last timeIncrement returned by CouchDB is 
+ *    openTime: a momentjs-readable value // optional, defaults to now
+ *    incompleteApiRow: if the last timeIncrement returned by the API is 
  *      incomplete, that row can be passed in here to be completed by the live feed listener
  *  }
  */
@@ -58,9 +55,11 @@ function OffersExercisedListener(opts, displayFn) {
     opts = {};
   }
 
-  this.viewOpts = parseViewOpts(opts);
   this.displayFn = displayFn;
+  this.txProcessor;
+  this.interval;
 
+  // Connect to ripple-lib
   this.remote = new Remote({
       // trace: true,
       servers: [{
@@ -68,28 +67,134 @@ function OffersExercisedListener(opts, displayFn) {
           port: 443
       }]
   });
-
   this.remote.connect();
 
-  this.txProcessor = createTransactionProcessor(this.viewOpts, displayFn);
 
-  this.remote.on('transaction_all', this.txProcessor);
+  // Wrapper to call the displayFn and update the openTime and closeTime
+  this.runDisplayFn = function() {
+    this.storedResults.closeTime = moment().toArray().slice(0,6);
+
+    this.displayFn(formatReduceResult(this.storedResults));
+
+    this.storedResults = {
+      openTime: moment().toArray().slice(0,6),
+    };
+  };
+
+  // setup this instance based on the given opts
+  this.updateViewOpts(opts);
 }
 
-OffersExercisedListener.prototype.changeViewOpts = function(newOpts) {
-  console.log('changing view opts');
 
-  this.viewOpts = parseViewOpts(newOpts);
-  this.remote.removeListener('transaction_all', this.txProcessor);
 
-  this.txProcessor = createTransactionProcessor(this.viewOpts);
-  this.remote.on('transaction_all', this.txProcessor);
+/**
+ *  updateViewOpts updates the viewOpts, resets the stored results
+ *  and resets the txProcessor and transaction listener
+ */
+OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
+
+  var listener = this;
+
+  listener.viewOpts = parseViewOpts(newOpts);
+
+  listener.storedResults = {
+    openTime: listener.viewOpts.openTime
+  };
+
+  if (listener.interval) {
+    clearInterval(listener.interval);
+  }
+
+  if (listener.txProcessor) {
+    listener.remote.removeListener('transaction_all', listener.txProcessor);
+  }
+
+  // TODO make this work with formats other than 'json'
+  if (listener.viewOpts.incompleteApiRow) {
+    listener.viewOpts.openTime = incompleteApiRow.time || incompleteApiRow.openTime || incompleteApiRow[0];
+
+    listener.storedResults = {
+      openTime: incompleteApiRow.time || incompleteApiRow.openTime || incompleteApiRow[0],
+      curr1Volume: incompleteApiRow.tradeCurrVol || incompleteApiRow[2],
+      curr2Volume: incompleteApiRow.baseCurrVol || incompleteApiRow[1],
+      numTrades: incompleteApiRow.numTrades || incompleteApiRow[3],
+      open: incompleteApiRow.openPrice || incompleteApiRow[4],
+      close: incompleteApiRow.closePrice || incompleteApiRow[5],
+      high: incompleteApiRow.highPrice || incompleteApiRow[6],
+      low: incompleteApiRow.lowPrice || incompleteApiRow[7],
+      volumeWeightedAvg: incompleteApiRow.vwavPrice || incompleteApiRow[8]
+    };
+
+  }
+
+  // If timeIncrement is set, setup an interval to call the displayFn,
+  // otherwise, pass the displayFn directly to createTransactionProcessor()
+  if (!listener.viewOpts.timeIncrement) {
+
+    listener.txProcessor = createTransactionProcessor(listener.viewOpts, listener.displayFn);
+
+  } else {
+
+    listener.txProcessor = createTransactionProcessor(listener.viewOpts, function(reducedTrade){
+
+      // Set storedResults to be the reducedTrade or merge them with offersExercisedReduce
+      if (!listener.storedResults.open) {
+        var tempOpenTime = listener.storedResults.openTime.slice();
+        listener.storedResults = reducedTrade;
+        listener.storedResults.openTime = tempOpenTime;
+      } else {
+        listener.storedResults = offersExercisedReduce(null, [reducedTrade, listener.storedResults], true);
+      }
+      
+    });
+
+    var endOfFirstIncrement = moment(listener.viewOpts.openTime).add(listener.viewOpts.timeIncrement, listener.viewOpts.timeMultiple),
+      firstIncrementRemainder = endOfFirstIncrement.diff(moment());
+
+
+    // If there is time left in the first timeIncrement, wait until that 
+    // is finished to start the interval
+    if (firstIncrementRemainder > 0) {
+      setTimeout(function(){
+
+        listener.runDisplayFn();
+
+        listener.interval = setInterval(function(){
+          listener.runDisplayFn();
+        }, moment.duration(listener.viewOpts.timeMultiple, listener.viewOpts.timeIncrement).asMilliseconds());
+
+      }, firstIncrementRemainder);
+      
+    } else {
+
+      listener.interval = setInterval(function(){
+        listener.runDisplayFn();
+      }, moment.duration(listener.viewOpts.timeMultiple, listener.viewOpts.timeIncrement).asMilliseconds());
+
+    }
+
+  }
+
+  listener.remote.on('transaction_all', listener.txProcessor);
+
 }
 
+
+/**
+ *  parseViewOpts parses and validates the given view options
+ */
 function parseViewOpts(opts) {
   // TODO validate opts more thoroughly
 
-  opts.startTime = moment(opts.startTime);
+  opts.openTime = moment(opts.openTime).toArray().slice(0,6);
+
+  if (opts.timeIncrement) {
+    opts.reduce = true;
+
+    if (!opts.timeMultiple) {
+      opts.timeMultiple = 1;
+    }
+  }
 
   if (opts.base.issuer) {
     var baseGatewayAddress = gatewayNameToAddress(opts.base.issuer, opts.base.currency);
@@ -109,29 +214,13 @@ function parseViewOpts(opts) {
 }
 
 
+/**
+ *  createTransactionProcessor returns a function that accepts txData
+ *  and parses it according to the viewOpts
+ */
+function createTransactionProcessor(viewOpts, resultHandler) {
 
-function createTransactionProcessor(viewOpts, displayFn) {
-
-  // TODO store the results elsewhere so this can be triggered constantly by another processo
-
-  var storedResults;
-
-  // TODO make this work with formats other than 'json'
-  if (viewOpts.incompleteCouchRow) {
-    storedResults = {
-      openTime: incompleteCouchRow[0],
-      curr2Volume: incompleteCouchRow[1],
-      curr1Volume: incompleteCouchRow[2],
-      numTrades: incompleteCouchRow[3],
-      open: incompleteCouchRow[4],
-      close: incompleteCouchRow[5],
-      high: incompleteCouchRow[6],
-      low: incompleteCouchRow[7],
-      volumeWeightedAvg: incompleteCouchRow[8]
-    };
-  }
-
-  console.log('created transaction processor with opts: ' + JSON.stringify(viewOpts));
+  // console.log('Creating transaction processor with opts: ' + JSON.stringify(viewOpts));
   
   function txProcessor (txData){
 
@@ -146,41 +235,24 @@ function createTransactionProcessor(viewOpts, displayFn) {
 
       // TODO make sure the base and trade currencies aren't reversed here
 
-      console.log('key: ' + JSON.stringify(key));
+      // console.log('trade happened with key: ' + JSON.stringify(key));
 
       // check that this is the currency pair we care about
-      if (viewOpts.base.currency === key[0][0] 
-        && (viewOpts.base.currency === 'XRP' || viewOpts.base.issuer === key[0][1])
-        && viewOpts.trade.currency === key[1][0] 
-        && (viewOpts.trade.currency === 'XRP' || viewOpts.trade.issuer === key[1][1])) {
+      if (viewOpts.trade.currency === key[0][0] 
+        && (viewOpts.trade.currency === 'XRP' || viewOpts.trade.issuer === key[0][1])
+        && viewOpts.base.currency === key[1][0] 
+        && (viewOpts.base.currency === 'XRP' || viewOpts.base.issuer === key[1][1])) {
         
         if (!viewOpts.reduce) {
 
-          displayFn({key: key, value: value});
-          return;
+          resultHandler({key: key, value: value});
 
         } else {
 
-          // use reduce function in 'reduce' mode to get initial values
+          // use reduce function in 'reduce' mode to get reduced values
           var reduceRes = offersExercisedReduce([[key]], [value], false);
-
-          // use reduce function in 'rereduce' mode to compact values
-          if (storedResults) {
-            storedResults = offersExercisedReduce(null, [storedResults, reduceRes], true);
-          } else {
-            storedResults = reduceRes;
-          }
-
-          // check if it's time to call the displayFn based on the timeInterval
-          if (!viewOpts.timeIncrement 
-            || viewOpts.timeIncrement.toLowerCase().slice(0, 2) === 'al' 
-            || viewOpts.timeIncrement.toLowerCase().slice(0, 2) === 'no'
-            || viewOpts.startTime.isAfter(moment().subtract(viewOpts.timeIncrement.toLowerCase(), (viewOpts.timeMultiple || 1)))) {
-
-            displayFn(storedResults);
-            storedResults = null;
-
-          }          
+          resultHandler(reduceRes);
+          
         }  
       }
     });
@@ -267,6 +339,7 @@ function offersExercisedMap(doc, emit) {
 /**
  *  offersExercisedReduce is the same reduce function used by the 
  *  offersExercised view in CouchDB
+ *  (note the difference between the 'reduce' and 'rereduce' modes)
  */
 function offersExercisedReduce(keys, values, rereduce) {
 
@@ -382,6 +455,23 @@ function offersExercisedReduce(keys, values, rereduce) {
 }
 
 
+function formatReduceResult (reduceRes) {
+
+  return {
+    time: reduceRes.openTime,
+    closeTime: reduceRes.closeTime,
+    baseCurrVol: reduceRes.curr2Volume,
+    tradeCurrVol: reduceRes.curr1Volume,
+    numTrades: reduceRes.numTrades,
+    openPrice: reduceRes.open,
+    closePrice: reduceRes.close,
+    highPrice: reduceRes.high,
+    lowPrice: reduceRes.low,
+    vwavPrice: reduceRes.volumeWeightedAvg
+  };
+}
+
+
 /** HELPER FUNCTIONS **/
 
 /**
@@ -451,4 +541,10 @@ function getCurrenciesForGateway( name ) {
     }
   });
   return currencies;
+}
+
+
+
+if (module) {
+  module.exports = OffersExercisedListener;
 }
