@@ -627,7 +627,7 @@ function offersExercisedHandler( req, res ) {
     // data structures for grouping results 
     groupedRows = [];
     var groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
-        groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice;
+        groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
  
     tabledRows.forEach(function(element, index, array) {
       //winston.info('New row index: ' + index);
@@ -656,7 +656,9 @@ function offersExercisedHandler( req, res ) {
           groupedNumTrades = 0;
           groupedHighPrice = 0;
           groupedLowPrice = Number.MAX_VALUE;
-          groupedVwavPrice = e.value.volumeWeightedAvg;
+          groupedVwavPrice = 0;
+          groupedVwavNumerator = 0;
+          groupedVwavDenominator = 0;
         }
         // SUM: base currency volume
         groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
@@ -678,7 +680,23 @@ function offersExercisedHandler( req, res ) {
 
         // MIN: low price
         groupedLowPrice = Math.min(groupedLowPrice, parseFloat(e.value.low));
+
+        // regenerate volume weighted average price numerator, defined as sum of trade volume multiplied by VWAP
+        groupedVwavNumerator = groupedVwavNumerator + e.value.volumeWeightedAvg * e.value.curr1Volume;
+
+        // regenerate volume weighted average price denominator, defined as sum of trade volume
+        groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
       })
+
+      // regenerate volume weighted average price statistics over entire group
+      if (groupedVwavDenominator == 0) {
+        // don't divide by zero, set result to zero if denominator value is zero
+        groupedVwavPrice = 0;
+      } else {
+        // recalculate volume weighted average price over entire group
+        groupedVwavPrice = groupedVwavNumerator / groupedVwavDenominator;
+      }
+
       // create grouped result based on processed group of rows
       groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
     })
