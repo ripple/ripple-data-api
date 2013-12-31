@@ -548,7 +548,8 @@ function offersExercisedHandler( req, res ) {
     // prepare results to send back
     var resRows = [],
       headerRow = [
-        'time', 
+        'startTime', 
+        'endTime', 
         'baseCurrVolume', 
         'tradeCurrVolume', 
         'numTrades', 
@@ -648,8 +649,8 @@ function offersExercisedHandler( req, res ) {
         // if this is first column
         if (i === 0) {
           // set initial values for each group
-          groupedOpenTime = moment.utc(e.value.openTime).format(DATEFORMAT);
-          groupedOpenPrice = e.value.open;
+          groupedCloseTime = moment.utc(e.value.closeTime).format(DATEFORMAT);
+          groupedClosePrice = e.value.close;
           groupedBaseCurrVolume = 0;
           groupedTradeCurrVolume = 0;
           groupedNumTrades = 0;
@@ -665,11 +666,11 @@ function offersExercisedHandler( req, res ) {
         // SUM: number trades
         groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
 
-        // LAST: close time
-        groupedCloseTime = moment.utc(e.value.closeTime).format(DATEFORMAT);
+        // LAST: open time
+        groupedOpenTime = moment.utc(e.value.openTime).format(DATEFORMAT);
 
-        // LAST: close price
-        groupedClosePrice = e.value.close;
+        // LAST: open price
+        groupedOpenPrice = e.value.open;
 
         // MAX: high price
         groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
@@ -685,6 +686,9 @@ function offersExercisedHandler( req, res ) {
     if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
       groupedRows = groupedRows.reverse();
     }
+
+    // add header row to results
+    groupedRows.unshift(headerRow);
 
     var groupedString = "";
     groupedRows.forEach(function(g) {

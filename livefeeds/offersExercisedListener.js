@@ -3,7 +3,11 @@ var Remote,
   moment,
   gateways;
 
+var winston = require('winston');
+
 if (require) {
+
+  winston.info("1");
 
   /* Loading with Node.js */
   var Remote = require('ripple-lib').Remote,
@@ -13,6 +17,8 @@ if (require) {
 
 } else if (ripple && moment && gateways) {
 
+  winston.info("2");
+  
   /* Loading in a webpage */
   Remote = ripple.Remote;
   Amount = ripple.Amount;
@@ -21,6 +27,8 @@ if (require) {
 
 } else {
 
+  winston.info("3");
+  
   throw (new Error('Error: cannot load offersExercisedListener without ripple-lib, momentjs, and gateways.json'));
 
 }
