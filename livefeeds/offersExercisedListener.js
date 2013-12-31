@@ -26,7 +26,18 @@ if (require) {
 }
 
 
-// TODO change date format to get rid of array style
+/**
+ *  HOW-TO use this script...
+ *
+ *  Load it in Node.js or on a webpage after loading its dependencies.
+ *  Then, initialize an OffersExercisedListener with (pretty much) the
+ *  same options you use to query the offersExercised API route.
+ *  
+ *  If you query the API route again with different options and want the
+ *  OffersExercisedListener to be updated accordingly, simply call
+ *  the instance's updateViewOpts() method with the new options.
+ */
+ 
 
 
 /**
