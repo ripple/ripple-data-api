@@ -469,6 +469,9 @@ function offersExercisedHandler( req, res ) {
       viewOpts.group = false;
     } else if (inc === 'no') {
       viewOpts.reduce = false;
+    } else if (inc === 'we') {
+      viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
+      viewOpts.group_level = 3 + 2; // set group_level to day
     } else if (levels.indexOf(inc)) {
       viewOpts.group_level = 3 + levels.indexOf(inc);
     } else {
@@ -542,7 +545,6 @@ function offersExercisedHandler( req, res ) {
     winston.info('Got ' + couchRes.rows.length + ' rows');
     winston.info(JSON.stringify(couchRes.rows));
 
-
     // prepare results to send back
     var resRows = [],
       headerRow = [
@@ -560,6 +562,7 @@ function offersExercisedHandler( req, res ) {
     resRows.push(headerRow);
 
     couchRes.rows.forEach(function(row){
+
       resRows.push([
         (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
         row.value.curr2Volume,
@@ -573,6 +576,121 @@ function offersExercisedHandler( req, res ) {
         ]);
     });
 
+    // default should be filled by web form but default to day just in case
+    var timeMultiple = 1;  
+    
+    // use the time multiple value from web form to format grouping of results
+    if (viewOpts.group_multiple) {
+      timeMultiple = viewOpts.group_multiple;
+    }
+
+    // data structures for processing rows
+    var tabledRowCount = 0, newElementCount = 0;
+    var tabledRows = [];
+
+    couchRes.rows.forEach(function(element, index, array) {
+
+      /*
+      winston.info('Couch result Index: ' + index);
+      winston.info(element.value.curr2Volume);
+      winston.info(element.value.curr1Volume);
+      winston.info(element.value.numTrades);
+      winston.info(element.value.open);
+      winston.info(element.value.close);
+      winston.info(element.value.high);
+      winston.info(element.value.low);
+      winston.info(element.value.volumeWeightedAvg);
+      */
+
+      if ((index % timeMultiple) === 0) {
+
+        // if this is not the first row processed
+        if (index != 0) {
+          // increment variable used for counting and indexing rows in table
+          tabledRowCount = tabledRowCount + 1;
+        }
+
+        // create a new row if at boundary
+        tabledRows[tabledRowCount] = [];
+
+        // reset index for storage into new row
+        newElementCount = 0;
+      }
+      // store row to be grouped
+      tabledRows[tabledRowCount][newElementCount] = element;
+
+      // increment variable used for counting and indexing row elements
+      newElementCount = newElementCount + 1;
+    })
+
+    // data structures for grouping results 
+    groupedRows = [];
+    var groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
+        groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice;
+ 
+    tabledRows.forEach(function(element, index, array) {
+      //winston.info('New row index: ' + index);
+
+      element.forEach(function(e, i, a) {
+        /*
+        winston.info('Inner new row index: ' + i);
+        winston.info(e);
+        winston.info(e.value.curr2Volume);
+        winston.info(e.value.curr1Volume);
+        winston.info(e.value.numTrades);
+        winston.info(e.value.open);
+        winston.info(e.value.close);
+        winston.info(e.value.high);
+        winston.info(e.value.low);
+        winston.info(e.value.volumeWeightedAvg);
+        */
+
+        // if this is first column
+        if (i === 0) {
+          // set initial values for each group
+          groupedOpenTime = moment.utc(e.value.openTime).format(DATEFORMAT);
+          groupedOpenPrice = e.value.open;
+          groupedBaseCurrVolume = 0;
+          groupedTradeCurrVolume = 0;
+          groupedNumTrades = 0;
+          groupedHighPrice = 0;
+          groupedLowPrice = Number.MAX_VALUE;
+        }
+        // SUM: base currency volume
+        groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+
+        // SUM: trade currency volume
+        groupedTradeCurrVolume = parseFloat(groupedTradeCurrVolume) + parseFloat(e.value.curr1Volume);
+
+        // SUM: number trades
+        groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
+
+        // LAST: close time
+        groupedCloseTime = moment.utc(e.value.closeTime).format(DATEFORMAT);
+
+        // LAST: close price
+        groupedClosePrice = e.value.close;
+
+        // MAX: high price
+        groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
+
+        // MIN: low price
+        groupedLowPrice = Math.min(groupedLowPrice, parseFloat(e.value.low));
+      })
+      // create grouped result based on processed group of rows
+      groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice]);
+    })
+
+    // present results to user based on the specified start & end times 
+    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
+      groupedRows = groupedRows.reverse();
+    }
+
+    var groupedString = "";
+    groupedRows.forEach(function(g) {
+      groupedString = groupedString + g.toString() + "\n";
+    })
+
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
 
@@ -584,122 +702,6 @@ function offersExercisedHandler( req, res ) {
       var csvStr = _.map(resRows, function(row){
         return row.join(', ');
       }).join('\n');
-
- 
-      // TODO make this download instead of display
-      //res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
-      //res.setHeader('Content-type', 'text/csv');
-      //res.charset = 'UTF-8';
-      //res.end(csvStr);
- 
-      winston.info('CSV result, map over rows:\n' + csvStr);
- 
-      // use the time multiple from web form to group results
-      var timeMultiple = 1;
-      if (req.body.timeMultiple) {
-        timeMultiple = req.body.timeMultiple;
-      }
-
-      // data structures for processing rows
-      var csvRowCount = 0, newRowCount = 0;
-      var newRows = [];
-      var csvRows = csvStr.split('\n');
-
-      csvRows.forEach(function(row) {
-        // determine if we are at the boundary of requested grouping
-        if ((csvRowCount % timeMultiple) === 0) {
-          // create a new row if at boundary
-          newRowCount = newRowCount + 1;
-          newRows[newRowCount] = [];
-
-          // store row to be grouped
-          newRows[newRowCount][csvRowCount] = row;
-        } else {
-          // store row to be grouped
-          newRows[newRowCount][csvRowCount] = row;
-        }
- 
-        csvRowCount = csvRowCount + 1;
-      })
- 
-      // data structures for grouping results 
-      groupedRows = [];
-      var groupedTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
-          groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice;
- 
-      var isFirstRow = true;
- 
-      newRows.forEach(function(row) {
- 
-        if (isFirstRow) {
-          isFirstRow = false;
-          return;
-        }
- 
-        winston.info("these results will be grouped");
- 
-        var isFirstElement = true;
- 
-        row.forEach(function(r) {
-          winston.info(r);
- 
-          line = r.split(", ");
- 
-          if (isFirstElement) {
- 
-            // take most recent of group
-            groupedTime = line[0];
- 
-            // take most recent of group
-            groupedClosePrice = line[5];
- 
-            groupedBaseCurrVolume = 0;
-            groupedTradeCurrVolume = 0;
-            groupedNumTrades = 0;
-            groupedHighPrice = 0;
-            groupedLowPrice = Number.MAX_VALUE;
-          }
- 
-          // take sum
-          groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(line[1]);
- 
-          // take sum
-          groupedTradeCurrVolume = parseFloat(groupedTradeCurrVolume) + parseFloat(line[2]);
- 
-          // take sum
-          groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(line[3]);
- 
-          // take earliest of group
-          groupedOpenPrice = line[4];
- 
-          // take maximum value of group
-          groupedHighPrice = Math.max(groupedHighPrice, parseFloat(line[6]));
- 
-          // take minimum value of group
-          groupedLowPrice = Math.min(groupedLowPrice, parseFloat(line[7]));
- 
-          isFirstElement = false;
- 
-        })
- 
-        groupedRows.push(new Array(groupedTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice));
- 
-      })
-
-      // present results to user based on the specified start & end times 
-      if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-        groupedRows = groupedRows.reverse();
-      }
- 
-      var groupedString = "";
-      groupedRows.forEach(function(g) {
-        groupedString = groupedString + g.toString() + "\n";
-      })
-
-      // TODO make this download instead of display
-      res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
-      res.setHeader('Content-type', 'text/csv');
-      res.charset = 'UTF-8';
 
       // display output grouped by timeMultiple
       res.end(groupedString);
