@@ -582,7 +582,7 @@ function offersExercisedHandler( req, res ) {
       if ((index % timeMultiple) === 0) {
 
         // if this is not the first row processed
-        if (index != 0) {
+        if (index !== 0) {
           // increment variable used for counting and indexing rows in table
           tabledRowCount = tabledRowCount + 1;
         }
@@ -598,7 +598,7 @@ function offersExercisedHandler( req, res ) {
 
       // increment variable used for counting and indexing row elements
       newElementCount = newElementCount + 1;
-    })
+    });
 
     // data structures for grouping results 
     groupedRows = [];
@@ -662,10 +662,10 @@ function offersExercisedHandler( req, res ) {
 
         // regenerate volume weighted average price denominator, defined as sum of trade volume
         groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
-      })
+      });
 
       // regenerate volume weighted average price statistics over entire group
-      if (groupedVwavDenominator == 0) {
+      if (groupedVwavDenominator === 0) {
         // don't divide by zero, set result to zero if denominator value is zero
         groupedVwavPrice = 0;
       } else {
@@ -675,7 +675,7 @@ function offersExercisedHandler( req, res ) {
 
       // create grouped result based on processed group of rows
       groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
-    })
+    });
 
     // present results to user based on the specified start & end times 
     if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
@@ -688,7 +688,7 @@ function offersExercisedHandler( req, res ) {
     var groupedString = "";
     groupedRows.forEach(function(g) {
       groupedString = groupedString + g.toString() + "\n";
-    })
+    });
 
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
