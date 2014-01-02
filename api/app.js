@@ -375,11 +375,21 @@ function offersExercisedHandler( req, res ) {
 
   winston.info('req.body: ' + JSON.stringify(req.body));
 
+  if (!req.body.base || !req.body.trade) {
+    res.send(500, { error: 'please specify base and trade currencies' });
+    return;
+  }
+
   // parse base currency details
   var baseCurr;
   if (!req.body.base.issuer) {
-    baseCurr = [req.body.base.currency.toUpperCase()];
-  } else if (ripple.UInt160.is_valid(req.body.base.issuer)) {
+    if (req.body.base.currency === 'XRP') {
+      baseCurr = ['XRP'];
+    } else {
+      res.send(500, { error: 'must specify issuer for all currencies other than XRP' });
+      return;
+    }
+  } else if (req.body.base.issuer && ripple.UInt160.is_valid(req.body.base.issuer)) {
     baseCurr = [req.body.base.currency.toUpperCase(), req.body.base.issuer];
   } else {
     var baseGatewayAddress = gatewayNameToAddress(req.body.base.issuer, req.body.base.currency.toUpperCase());
@@ -395,8 +405,13 @@ function offersExercisedHandler( req, res ) {
   // parse trade currency details
   var tradeCurr;
   if (!req.body.trade.issuer) {
-    tradeCurr = [req.body.trade.currency.toUpperCase()];
-  } else if (ripple.UInt160.is_valid(req.body.trade.issuer)) {
+    if (req.body.trade.currency === 'XRP') {
+      tradeCurr = ['XRP'];
+    } else {
+      res.send(500, { error: 'must specify issuer for all currencies other than XRP' });
+      return;
+    }
+  } else if (req.body.trade.issuer && ripple.UInt160.is_valid(req.body.trade.issuer)) {
     tradeCurr = [req.body.trade.currency.toUpperCase(), req.body.trade.issuer];
   } else {
     var tradeGatewayAddress = gatewayNameToAddress(req.body.trade.issuer, req.body.trade.currency.toUpperCase());
@@ -490,7 +505,7 @@ function offersExercisedHandler( req, res ) {
     } 
   } else {
     // TODO handle incorrect options better
-    viewOpts.group_level = 3 + 2; // default to day
+    viewOpts.group = false; // default to day
   }
 
   winston.info('viewOpts:' + JSON.stringify(viewOpts));
