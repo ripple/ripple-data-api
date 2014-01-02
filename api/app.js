@@ -541,7 +541,8 @@ function offersExercisedHandler( req, res ) {
     couchRes.rows.forEach(function(row){
 
       resRows.push([
-        (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+        moment.utc(row.value.openTime).format(DATEFORMAT),
+        moment.utc(row.value.closeTime).format(DATEFORMAT),
         row.value.curr2Volume,
         row.value.curr1Volume,
         row.value.numTrades,
@@ -715,7 +716,8 @@ function offersExercisedHandler( req, res ) {
 
         // reformat rows
         return {
-          openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+          openTime: moment.utc(row.value.openTime).format(DATEFORMAT),
+          closeTime: moment.utc(row.value.closeTime).format(DATEFORMAT),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           numTrades: row.value.numTrades,
