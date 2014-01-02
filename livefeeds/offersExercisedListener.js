@@ -40,8 +40,12 @@ if (require) {
  *
  *  To use multiple OffersExercisedListeners on a single page, simply
  *  initialize one instance per option set, save a reference to each,
- *  and call the stopListener() function for any that you wish to remove
+ *  and call the stopListener() function for any that you wish to remove.
  *  
+ *  To create an OffersExercisedListener that listens for all offers exercised,
+ *  intitialize one with no view options and it will call the display function
+ *  each time it hears an offer exercised with an object of the form:
+ *  {key: [[trade currency, trade curr issuer][base currency, base curr issuer], year, month, day, hour, minute second], value: [trade curr volume, base curr volume, exchange rate]}
  */
  
 
@@ -230,14 +234,18 @@ function parseViewOpts(opts) {
     }
   }
 
-  if (opts.base.issuer) {
+  if (!opts.base || !opts.trade) {
+    opts.reduce = false;
+  }
+
+  if (opts.base && opts.base.issuer) {
     var baseGatewayAddress = gatewayNameToAddress(opts.base.issuer, opts.base.currency);
     if (baseGatewayAddress) {
       opts.base.issuer = baseGatewayAddress;
     }
   }
 
-  if (opts.trade.issuer) {
+  if (opts.trade && opts.trade.issuer) {
     var tradeGatewayAddress = gatewayNameToAddress(opts.trade.issuer, opts.trade.currency);
     if (tradeGatewayAddress) {
       opts.trade.issuer = tradeGatewayAddress;
@@ -267,29 +275,31 @@ function createTransactionProcessor(viewOpts, resultHandler) {
     // use the map function to parse txContainer data
     offersExercisedMap(txContainer, function(key, value){
 
-      // TODO make sure the base and trade currencies aren't reversed here
-
-      // console.log('trade happened with key: ' + JSON.stringify(key));
-
       // check that this is the currency pair we care about
-      if (viewOpts.trade.currency === key[0][0] 
-        && (viewOpts.trade.currency === 'XRP' || viewOpts.trade.issuer === key[0][1])
-        && viewOpts.base.currency === key[1][0] 
-        && (viewOpts.base.currency === 'XRP' || viewOpts.base.issuer === key[1][1])) {
-        
-        if (!viewOpts.reduce) {
-
-          resultHandler({key: key, value: value});
-
-        } else {
-
-          // use reduce function in 'reduce' mode to get reduced values
-          var reduceRes = offersExercisedReduce([[key]], [value], false);
-          resultHandler(reduceRes);
-          
-        }  
+      if (viewOpts.trade) {
+        if (viewOpts.trade.currency !== key[0][0] || (viewOpts.trade.currency !== 'XRP' && viewOpts.trade.issuer !== key[0][1])) {
+          return;
+        }
       }
-    });
+
+      if (viewOpts.base) {
+        if (viewOpts.base.currency !== key[1][0] || (viewOpts.base.currency !== 'XRP' && viewOpts.base.issuer !== key[1][1])) {
+          return;
+        }
+      }
+        
+      if (!viewOpts.reduce) {
+
+        resultHandler({key: key, value: value});
+
+      } else {
+
+        // use reduce function in 'reduce' mode to get reduced values
+        var reduceRes = offersExercisedReduce([[key]], [value], false);
+        resultHandler(reduceRes);
+        
+      }  
+    }, !viewOpts.reduce);
   }
 
   return txProcessor;
@@ -299,13 +309,14 @@ function createTransactionProcessor(viewOpts, resultHandler) {
 
 
 /**
- *  offersExercisedMap is, with two exceptions, the same as the
+ *  offersExercisedMap is, with three exceptions, the same as the
  *  map function used in the CouchDB view offersExercised
  *
- *  the only two exceptions are 'emit' as a parameter and
- *  the line that parses the exchange_rate
+ *  the only exceptions are 'emit' as a parameter,
+ *  the 'emitOnlyOne' parameter to stop the emit function from 
+ *  being called twice, and the line that parses the exchange_rate
  */
-function offersExercisedMap(doc, emit) {
+function offersExercisedMap(doc, emit, emitOnlyOne) {
 
     var time = new Date(doc.close_time_timestamp),
         timestamp = [time.getUTCFullYear(), time.getUTCMonth(), time.getUTCDate(),
@@ -365,7 +376,10 @@ function offersExercisedMap(doc, emit) {
             }
 
             emit([payCurr, getCurr].concat(timestamp), [payAmnt, getAmnt, exchangeRate]);
-            emit([getCurr, payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate]);
+
+            if (!emitOnlyOne) {
+              emit([getCurr, payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate]);
+            }
         });
     });
 }
