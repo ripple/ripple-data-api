@@ -525,7 +525,6 @@ function offersExercisedHandler( req, res ) {
     var resRows = [],
       headerRow = [
         'startTime', 
-        'endTime', 
         'baseCurrVolume', 
         'tradeCurrVolume', 
         'numTrades', 
@@ -541,8 +540,7 @@ function offersExercisedHandler( req, res ) {
     couchRes.rows.forEach(function(row){
 
       resRows.push([
-        moment.utc(row.value.openTime).format(DATEFORMAT),
-        moment.utc(row.value.closeTime).format(DATEFORMAT),
+        moment.utc(row.value.openTime).startOf('day').format(DATEFORMAT),
         row.value.curr2Volume,
         row.value.curr1Volume,
         row.value.numTrades,
@@ -603,7 +601,7 @@ function offersExercisedHandler( req, res ) {
 
     // data structures for grouping results 
     groupedRows = [];
-    var groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
+    var groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
         groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
  
     tabledRows.forEach(function(element, index, array) {
@@ -626,7 +624,7 @@ function offersExercisedHandler( req, res ) {
         // if this is first column
         if (i === 0) {
           // set initial values for each group
-          groupedCloseTime = moment.utc(e.value.closeTime).format(DATEFORMAT);
+          groupedOpenTime = moment.utc(e.value.openTime).startOf('day').format(DATEFORMAT);
           groupedClosePrice = e.value.close;
           groupedBaseCurrVolume = 0;
           groupedTradeCurrVolume = 0;
@@ -645,9 +643,6 @@ function offersExercisedHandler( req, res ) {
 
         // SUM: number trades
         groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
-
-        // LAST: open time
-        groupedOpenTime = moment.utc(e.value.openTime).format(DATEFORMAT);
 
         // LAST: open price
         groupedOpenPrice = e.value.open;
@@ -675,7 +670,7 @@ function offersExercisedHandler( req, res ) {
       }
 
       // create grouped result based on processed group of rows
-      groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+      groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
     });
 
     // present results to user based on the specified start & end times 
@@ -716,8 +711,7 @@ function offersExercisedHandler( req, res ) {
 
         // reformat rows
         return {
-          openTime: moment.utc(row.value.openTime).format(DATEFORMAT),
-          closeTime: moment.utc(row.value.closeTime).format(DATEFORMAT),
+          openTime: moment.utc(row.value.openTime).startOf('day').format(DATEFORMAT),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           numTrades: row.value.numTrades,
