@@ -12,7 +12,7 @@ var winston = require('winston'),
     '@' + config.couchdb.host + 
     ':' + config.couchdb.port + 
     '/' + config.couchdb.database),
-  gateways = require('./gateways.json');
+  gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
 
@@ -136,186 +136,376 @@ function getTransactionHandler( req, res ) {
  */
 function gatewayCapitalizationHandler( req, res ) {
 
+  winston.info('got: ' + JSON.stringify(req.body));
 
-  var viewOpts = {};
+  var gateways = [],
+    currencies = [],
+    gatewayCurrencyPairs = [];
 
-  winston.info(JSON.stringify(req.body));
+  // Parse gateways
+  if (typeof req.body.gateway === 'string') {
 
-  // parse gateway
-  var gateway = req.body.gateway || req.body.account;
-  if (!gateway) {
-    res.send(500, { error: 'must specify "gateway" or "account"' });
+    var gateway = parseGateway(req.body.gateway);
+    if (gateway) {
+      gateways.push(gateway);
+    } else {
+      res.send(500, { error: 'invalid or unknown gateway: ' + req.body.gateway });
+      return;
+    } 
+
+  } else if (typeof req.body.gateways === 'object') {
+
+    console.log('gateways: ' + req.body.gateways);
+
+    req.body.gateways.forEach(function(gateway){
+      var parsedGateway = parseGateway(gateway);
+      if (parsedGateway) {
+        gateways.push(parsedGateway);
+      } else {
+        res.send(500, { error: 'invalid or unknown gateway: ' + gateway });
+        return;
+      }
+    });
+
+  }
+
+  function parseGateway (nameOrAddress) {
+    // Check if gateway is a name or an address
+    if (ripple.UInt160.is_valid(nameOrAddress)) {
+      return { address: nameOrAddress };
+    } else if (gatewayNameToAddress(nameOrAddress)){
+      var gateway = {
+        name: nameOrAddress, 
+        address: gatewayNameToAddress(nameOrAddress)
+      },
+      hotwallets = getHotWalletsForGateway(name);
+
+      if (hotwallets.length > 0) {
+        gateway.hotwallets = hotwallets;
+      }
+
+      return gateway;
+    } else {
+      return null;
+    }
+  }
+
+  // Parse currencies
+  if (typeof req.body.currency === 'string') {
+    currencies.push(req.body.currency.toUpperCase());
+  } else if (typeof req.body.currencies === 'object') {
+    req.body.currencies.forEach(function(currency){
+      currencies.push(currency.toUpperCase());
+    });
+  }
+
+
+  // Get gateway/currency pairs to query CouchDB for
+  if (gateways.length > 0 && currencies.length > 0) {
+    gateways.forEach(function(gateway){
+      currencies.forEach(function(currency){
+        var pair = { 
+          gateway: gateway.account,
+          currency: currency
+        };
+        if (gateway.name) {
+          pair.name = gateway.name;
+        }
+        if (gateway.hotwallets && gateway.hotwallets.length > 0) {
+          pair.hotwallets = gateway.hotwallets;
+        }
+        gatewayCurrencyPairs.push(pair);
+      });
+    });
+  } else if (gateways.length > 0 && currencies.length === 0) {
+
+    if (_.every(gateways, function(gateway){ return gateway.name; })) {
+      gateways.forEach(function(gateway){
+        getCurrenciesForGateway(gateway.name).forEach(function(currency){
+          gatewayCurrencyPairs.push({
+            gateway: gateway.account,
+            currency: currency,
+            name: gateway.name,
+            hotwallets: gateway.hotwallets
+          });
+        });
+      });
+    } else {
+      res.send(500, { error: 'please specify currencies or use gateway names instead of accounts' });
+      return;
+    }
+
+  } else if (gateways.length === 0 && currencies.length > 0) {
+
+    currencies.forEach(function(currency){
+      getGatewaysForCurrency(currency).forEach(function(gateway){
+        gatewayCurrencyPairs.push({
+          gateway: gateway.account,
+          currency: currency,
+          name: gateway.name,
+          hotwallets: getHotWalletsForGateway(gateway.name)
+        });
+      });
+    });
+
+  } else {
+    res.send(500, { error: 'please specify at least one gateway and/or at least one currency'});
     return;
   }
 
-  // parse currencies
-  var currencies = [];
-  if (req.body.currencies && typeof req.body.currencies === 'object') {
-    req.body.currencies.forEach(function(curr){
-      currencies.push(curr.toUpperCase());
-    });
-  }
-
-  var gatewayAccounts = [];
-  if (ripple.UInt160.is_valid(gateway)) {
-    
-    gatewayAccounts.push(gateway);
-
-    if (currencies.length === 0) {
-      res.send(500, { error: 'please specify the currencies for this account or give a gateway name'});
-      return;
-    }
-  
-  } else {
-    
-    if (!gatewayNameToAddress(gateway)) {
-      res.send(500, { error: 'invalid or unknown gateway: ' + gateway } + 
-        '.\nAvailable gateways are: ' + gatewayNames.join(', '));
-      return;
-    }
-
-    if (currencies.length === 0) {
-      currencies = getCurrenciesForGateway(gateway);
-    }
-
-    currencies.forEach(function(curr){
-      var acct = gatewayNameToAddress(gateway, curr);
-      if (acct) {
-        gatewayAccounts.push(acct);
-      }
-    });
-
-  }
-
-  winston.info('gatewayAccounts: ' + JSON.stringify(gatewayAccounts));
-  winston.info('currencies: ' + JSON.stringify(currencies));
+  // TODO handle time periods
 
 
-  // parse startTime and endTime
-  var startTime, endTime;
-  if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+  async.mapLimit(gatewayCurrencyPairs, 5, function(pair, asyncCallbackPair){
 
-    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-      startTime = moment.utc(req.body.startTime);
-      endTime = moment.utc(req.body.endTime);
-    } else {
-      endTime = moment.utc(req.body.startTime);
-      startTime = moment.utc(req.body.endTime);
-    }
+    var viewOpts = {
+      startkey: [pair.gateway, pair.currency],
+      endkey: [pair.gateway, pair.currency, 99999],
+      group: false
+    };
 
-  } else {
-
-    if (!moment(req.body.startTime).isValid()) {
-      winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
-      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
-      return;
-    }
-
-    if (!moment(req.body.endTime).isValid()) {
-      winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
-      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
-      return;
-    }
-
-    if (!startTime) {
-      startTime = moment(0);
-    }
-
-    if (!endTime) {
-      endTime = moment();
-    }
-
-  }
-
-  // handle descending/non-descending query
-  if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
-    viewOpts.descending = true;
-
-    // swap startTime and endTime if results will be in descending order
-    var tempTime = startTime;
-    startTime = endTime;
-    endTime = tempTime;
-
-  }
-
-  // determine the group_level from the timeIncrement field
-  if (req.body.timeIncrement) {
-    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
-      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
-    if (inc === 'al') {
-      viewOpts.group = false;
-    } else if (inc === 'no') {
-      viewOpts.reduce = false;
-    } else if (levels.indexOf(inc)) {
-      viewOpts.group_level = 3 + levels.indexOf(inc);
-    } else {
-      viewOpts.group_level = 3 + 2; // default to day
-    }
-  } else {
-    // TODO handle incorrect options better
-    viewOpts.group = false; // default to all
-  }
-
-  winston.info('viewOpts: ' + JSON.stringify(viewOpts));
-
-  // prepare results to send back
-  var resRows = [],
-    headerRow = ['time'].concat(currencies);
-  resRows.push(headerRow);
-
-  async.map(gatewayAccounts, function(account, asyncCallbackAccount){
-
-    async.map(currencies, function(currency, asyncCallbackCurrency){
-
-      winston.info('account: ' + ' currency: ' + currency);
-      winston.info(JSON.stringify(viewOpts));
-
-      var opts = clone(viewOpts);
-      opts.startkey = [account, currency].concat(startTime.toArray().slice(0,6));
-      opts.endkey = [account, currency].concat(endTime.toArray().slice(0,6));
-
-      winston.info('querying trustlineBalanceChangesByAccount with opts: ' + JSON.stringify(opts));
-
-      db.view('trustlines', 'trustlineBalanceChangesByAccount', opts, function(err, res){
-        if (err) {
-          asyncCallbackCurrency(err);
-        }
-        if (res.rows) {
-          asyncCallbackCurrency(null, res.rows);
-        } else {
-          asyncCallbackCurrency(null, null);
-        }
-      });
-
-    }, function(err, currencyResults){
-
+    db.view('trustlines', 'trustlineBalanceChangesByAccount', viewOpts, function(err, trustlineRes){
       if (err) {
-        asyncCallbackAccount(err);
+        asyncCallback(err);
         return;
       }
 
-      asyncCallbackAccount(null, currencyResults);
+      pair.results = trustlineRes.rows;
 
+      // Subtract hotwallet balances
+      async.map(pair.hotwallets, function(hotwallet, asyncCallbackHotwallet){
+
+        var hotwalletViewOpts = {
+          startkey: [pair.gateway, pair.currency, hotwallet],
+          endkey: [pair.gateway, pair.currency, hotwallet, 99999],
+          group: false 
+        };
+
+        db.view('trustlines', 'trustlineBalancesBetweenAccounts', hotwalletViewOpts, asyncCallbackHotwallet);
+
+      }, function(err, hotwalletResults){
+        if (err) {
+          asyncCallbackPair(err);
+          return;
+        }
+
+        if (hotwalletResults) {
+          hotwalletResults.forEach(function(hotwallet){
+            hotwallet.rows.forEach(function(hotwalletRow){
+
+              var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
+                return pairRow.key === hotwalletRow.key;
+              });
+
+              if (pairRowIndex !== -1) {
+                pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletRow.value.balanceChange;
+                console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' + hotwalletRow.value.balanceChange + ' from account balance for final balance of ' + pair.results[pairRowIndex].value);
+              }
+            });
+          });
+        }
+
+        asyncCallbackPair(null, pair);
+      });
     });
+  }, function(err, results){
+    if (err) {
+      res.send(500, {error: 'error retrieving data from CouchDB: ' + err});
+      return;
+    }
 
-  }, function(err, accountResults){
+    // TODO format results
 
-    console.log(JSON.stringify(accountResults));
-
-    var results = [];
-
-    // TODO format results and send them
-    // currencies.forEach(function(currency))
-
-    // TODO subtract hotwallet balances
-
-    res.send(404, 'Oops! This API route is still under development, try again soon.\n');
-
-
+    res.send(results);
   });
 
 
+  // var viewOpts = {};
+
+  // winston.info(JSON.stringify(req.body));
+
+  // // parse gateway
+  // var gateway = req.body.gateway || req.body.account;
+  // if (!gateway) {
+  //   res.send(500, { error: 'must specify "gateway" or "account"' });
+  //   return;
+  // }
+
+  // // parse currencies
+  // var currencies = [];
+  // if (req.body.currencies && typeof req.body.currencies === 'object') {
+  //   req.body.currencies.forEach(function(curr){
+  //     currencies.push(curr.toUpperCase());
+  //   });
+  // }
+
+  // var gatewayAccounts = [];
+  // if (ripple.UInt160.is_valid(gateway)) {
+    
+  //   gatewayAccounts.push(gateway);
+
+  //   if (currencies.length === 0) {
+  //     res.send(500, { error: 'please specify the currencies for this account or give a gateway name'});
+  //     return;
+  //   }
+  
+  // } else {
+    
+  //   if (!gatewayNameToAddress(gateway)) {
+  //     res.send(500, { error: 'invalid or unknown gateway: ' + gateway } + 
+  //       '.\nAvailable gateways are: ' + gatewayNames.join(', '));
+  //     return;
+  //   }
+
+  //   if (currencies.length === 0) {
+  //     currencies = getCurrenciesForGateway(gateway);
+  //   }
+
+  //   currencies.forEach(function(curr){
+  //     var acct = gatewayNameToAddress(gateway, curr);
+  //     if (acct) {
+  //       gatewayAccounts.push(acct);
+  //     }
+  //   });
+
+  // }
+
+  // winston.info('gatewayAccounts: ' + JSON.stringify(gatewayAccounts));
+  // winston.info('currencies: ' + JSON.stringify(currencies));
+
+
+  // // parse startTime and endTime
+  // var startTime, endTime;
+  // if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+
+  //   if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
+  //     startTime = moment.utc(req.body.startTime);
+  //     endTime = moment.utc(req.body.endTime);
+  //   } else {
+  //     endTime = moment.utc(req.body.startTime);
+  //     startTime = moment.utc(req.body.endTime);
+  //   }
+
+  // } else {
+
+  //   if (!moment(req.body.startTime).isValid()) {
+  //     winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
+  //     res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+  //     return;
+  //   }
+
+  //   if (!moment(req.body.endTime).isValid()) {
+  //     winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
+  //     res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+  //     return;
+  //   }
+
+  //   if (!startTime) {
+  //     startTime = moment(0);
+  //   }
+
+  //   if (!endTime) {
+  //     endTime = moment();
+  //   }
+
+  // }
+
+  // // handle descending/non-descending query
+  // if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
+  //   viewOpts.descending = true;
+
+  //   // swap startTime and endTime if results will be in descending order
+  //   var tempTime = startTime;
+  //   startTime = endTime;
+  //   endTime = tempTime;
+
+  // }
+
+  // // determine the group_level from the timeIncrement field
+  // if (req.body.timeIncrement) {
+  //   var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+  //     levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+  //   if (inc === 'al') {
+  //     viewOpts.group = false;
+  //   } else if (inc === 'no') {
+  //     viewOpts.reduce = false;
+  //   } else if (levels.indexOf(inc)) {
+  //     viewOpts.group_level = 3 + levels.indexOf(inc);
+  //   } else {
+  //     viewOpts.group_level = 3 + 2; // default to day
+  //   }
+  // } else {
+  //   // TODO handle incorrect options better
+  //   viewOpts.group = false; // default to all
+  // }
+
+  // winston.info('viewOpts: ' + JSON.stringify(viewOpts));
+
+  // // prepare results to send back
+  // var resRows = [],
+  //   headerRow = ['time'].concat(currencies);
+  // resRows.push(headerRow);
+
+  // async.map(gatewayAccounts, function(account, asyncCallbackAccount){
+
+  //   async.map(currencies, function(currency, asyncCallbackCurrency){
+
+  //     winston.info('account: ' + ' currency: ' + currency);
+  //     winston.info(JSON.stringify(viewOpts));
+
+  //     var opts = clone(viewOpts);
+  //     opts.startkey = [account, currency].concat(startTime.toArray().slice(0,6));
+  //     opts.endkey = [account, currency].concat(endTime.toArray().slice(0,6));
+
+  //     winston.info('querying trustlineBalanceChangesByAccount with opts: ' + JSON.stringify(opts));
+
+  //     db.view('trustlines', 'trustlineBalanceChangesByAccount', opts, function(err, res){
+  //       if (err) {
+  //         asyncCallbackCurrency(err);
+  //       }
+  //       if (res.rows) {
+  //         asyncCallbackCurrency(null, res.rows);
+  //       } else {
+  //         asyncCallbackCurrency(null, null);
+  //       }
+  //     });
+
+  //   }, function(err, currencyResults){
+
+  //     if (err) {
+  //       asyncCallbackAccount(err);
+  //       return;
+  //     }
+
+  //     asyncCallbackAccount(null, currencyResults);
+
+  //   });
+
+  // }, function(err, accountResults){
+
+  //   console.log(JSON.stringify(accountResults));
+
+  //   var results = [];
+
+  //   // TODO format results and send them
+  //   // currencies.forEach(function(currency))
+
+  //   // TODO subtract hotwallet balances
+
+  //   res.send(404, 'Oops! This API route is still under development, try again soon.\n');
+
+
+  // });
+
+
 }
+
+
+
+
+
+
+
 
 // TODO
 /**
@@ -484,58 +674,8 @@ function offersExercisedHandler( req, res ) {
 
   winston.info('viewOpts:' + JSON.stringify(viewOpts));
 
-  /**
-  // TODO handle multiple issuers, figure out how to combine results
 
-  // async.map for both the trade curr and the base curr
-  // combine the results
-  // process them as before
-
-  var baseIssuers, tradeIssuers;
-  if (baseCurr[0] === 'XRP') {
-    baseIssuers = ['XRP'];
-  } else if (baseCurr[1]) {
-    baseIssuers = [baseCurr[1]];
-  } else {
-    baseIssuers = getGatewaysForCurrency(baseCurr[0]);
-    if (issuers.length === 0) {
-      res.send(500, { error: 'This currency: ' + baseCurr[0] + ' is either invalid or not issued by any known gateway.' +
-        ' Please change the currency or specify a gateway address.\n'});
-      return;
-    }
-  }
-
-  if (tradeCurr[0] === 'XRP') {
-    tradeIssuers = ['XRP'];
-  } else if (tradeCurr[1]) {
-    tradeIssuers = [tradeCurr[1]];
-  } else {
-    tradeIssuers = getGatewaysForCurrency(tradeCurr[0]);
-    if (issuers.length === 0) {
-      res.send(500, { error: 'This currency: ' + tradeCurr[0] + ' is either invalid or not issued by any known gateway.' +
-        ' Please change the currency or specify a gateway address.\n'});
-      return;
-    }
-  }
-
-
-
-  function queryView( issuer, asyncCallback ) {
-  
-    if (issuer !== 'XRP') {
-      // add issuer to startkey and endkey
-      // careful about changing the original object
-    }
-
-    db.view("transactions", "offersExercised", viewOpts, asyncCallback);
-  }
-
-  */
-
-  // query couchdb multiple times when combining gateways
   db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
-  // db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
-
     if (err) {
       winston.error('Error with request: ' + err);
       return;
@@ -986,7 +1126,7 @@ function accountsCreatedHandler( req, res ) {
 
   var gatewayAddress = null;
 
-  _.each(gateways, function(entry){
+  _.each(gatewayList, function(entry){
 
     if (entry.name.toLowerCase() === name.toLowerCase()) {
     
@@ -1019,10 +1159,13 @@ function accountsCreatedHandler( req, res ) {
 function getGatewaysForCurrency( currName ) {
 
   var issuers = [];
-  gateways.forEach(function(gateway){
+  gatewayList.forEach(function(gateway){
     gateway.accounts.forEach(function(acct){
       if (acct.currencies.indexOf(currName.toUpperCase()) !== -1) {
-        issuers.push(acct.address);
+        issuers.push({
+          account: acct.address,
+          name: gateway.name
+        });
       }
     });
   });
@@ -1036,7 +1179,7 @@ function getGatewaysForCurrency( currName ) {
  */
 function getCurrenciesForGateway( name ) {
   var currencies = [];
-  gateways.forEach(function(gateway){
+  gatewayList.forEach(function(gateway){
     if (gateway.name.toLowerCase() === name.toLowerCase()) {
       gateway.accounts.forEach(function(account){
         currencies = currencies.concat(account.currencies);
@@ -1044,6 +1187,16 @@ function getCurrenciesForGateway( name ) {
     }
   });
   return currencies;
+}
+
+function getHotWalletsForGateway( name ) {
+  var hotwallets = [];
+  gatewayList.forEach(function(gateway){
+    if (gateway.name.toLowerCase() === name.toLowerCase()) {
+      hotwallets = gateway.hotwallets;
+    }
+  });
+  return hotwallets;
 }
 
 app.use(express.static('public'));
