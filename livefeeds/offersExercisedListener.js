@@ -1,7 +1,8 @@
 var Remote,
   Amount,
   moment,
-  gateways;
+  gateways,
+  remote;
 
 if (require) {
 
@@ -36,8 +37,30 @@ if (require) {
  *  If you query the API route again with different options and want the
  *  OffersExercisedListener to be updated accordingly, simply call
  *  the instance's updateViewOpts() method with the new options.
+ *
+ *  To use multiple OffersExercisedListeners on a single page, simply
+ *  initialize one instance per option set, save a reference to each,
+ *  and call the stopListener() function for any that you wish to remove
+ *  
  */
  
+
+// Connect to ripple-lib
+if (remote) {
+    remote = remote;
+} else {
+  remote = new Remote({
+      // trace: true,
+      servers: [{
+          host: 's_west.ripple.com',
+          port: 443
+      },{
+          host: 's_east.ripple.com',
+          port: 443
+      }]
+  });
+  remote.connect();
+}
 
 
 /**
@@ -70,17 +93,6 @@ function OffersExercisedListener(opts, displayFn) {
   this.txProcessor;
   this.interval;
 
-  // Connect to ripple-lib
-  this.remote = new Remote({
-      // trace: true,
-      servers: [{
-          host: 's_west.ripple.com',
-          port: 443
-      }]
-  });
-  this.remote.connect();
-
-
   // Wrapper to call the displayFn and update the openTime and closeTime
   this.runDisplayFn = function() {
     this.storedResults.closeTime = moment().toArray().slice(0,6);
@@ -96,6 +108,7 @@ function OffersExercisedListener(opts, displayFn) {
   this.updateViewOpts(opts);
 }
 
+
 /**
  *  stopListener resets the OffersExercisedListener
  */
@@ -110,7 +123,7 @@ OffersExercisedListener.prototype.stopListener = function() {
   }
 
   if (listener.txProcessor) {
-    listener.remote.removeListener('transaction_all', listener.txProcessor);
+    remote.removeListener('transaction_all', listener.txProcessor);
   }
 
 };
@@ -196,7 +209,7 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
   }
 
-  listener.remote.on('transaction_all', listener.txProcessor);
+  remote.on('transaction_all', listener.txProcessor);
 
 }
 
