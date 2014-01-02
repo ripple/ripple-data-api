@@ -96,6 +96,24 @@ function OffersExercisedListener(opts, displayFn) {
   this.updateViewOpts(opts);
 }
 
+/**
+ *  stopListener resets the OffersExercisedListener
+ */
+OffersExercisedListener.prototype.stopListener = function() {
+
+  var listener = this;
+
+  listener.storedResults = {};
+
+  if (listener.interval) {
+    clearInterval(listener.interval);
+  }
+
+  if (listener.txProcessor) {
+    listener.remote.removeListener('transaction_all', listener.txProcessor);
+  }
+
+};
 
 
 /**
@@ -106,19 +124,11 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
   var listener = this;
 
+  listener.stopListener();
+
   listener.viewOpts = parseViewOpts(newOpts);
 
-  listener.storedResults = {
-    openTime: listener.viewOpts.openTime
-  };
-
-  if (listener.interval) {
-    clearInterval(listener.interval);
-  }
-
-  if (listener.txProcessor) {
-    listener.remote.removeListener('transaction_all', listener.txProcessor);
-  }
+  listener.storedResults.openTime = listener.viewOpts.openTime;
 
   // TODO make this work with formats other than 'json'
   if (listener.viewOpts.incompleteApiRow) {
