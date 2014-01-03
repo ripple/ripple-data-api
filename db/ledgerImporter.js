@@ -33,7 +33,8 @@ var request = require('request'),
  *  - node ledgerImporter.js all
  */
 
-var processOptions = {};
+var processOptions = {},
+  DEBUG_MODE;
 
 var numericOptions = _.filter(_.map(process.argv, function(opt){
   return parseInt(opt, 10);
@@ -50,7 +51,7 @@ if (process.argv.indexOf('stopafter') !== -1) {
 }
 
 if (process.argv.indexOf('debug') !== -1) {
-  processOptions.debug = true;
+  DEBUG_MODE = true;
 }
 
 if (process.argv.indexOf('all') !== -1) {
@@ -363,7 +364,9 @@ function getLedger (identifier, callback, servers) {
     return;
   }
 
-  // console.log('Getting ledger from server: ' + server);
+  if (DEBUG_MODE) {
+    console.log('Getting ledger ' + identifier + ' from server: ' + server);
+  }
 
   // get ledger using JSON API
   request({
@@ -405,7 +408,9 @@ function getLedger (identifier, callback, servers) {
 
     // handle ledgerNotFound
     if (res.body.result.error === 'ledgerNotFound') {
-      // console.log('ledger not found');
+      if (DEBUG_MODE) {
+        console.log('ledger not found');
+      }
 
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
@@ -421,7 +426,10 @@ function getLedger (identifier, callback, servers) {
       //   (identifier || 'closed') + 
       //   ', server responded with: ' + 
       //   JSON.stringify(res.error || res.body || res));
-      // console.log('malformed ledger');
+      
+      if (DEBUG_MODE) {
+        console.log('malformed ledger');
+      }
       
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
       
@@ -477,7 +485,9 @@ function getLedger (identifier, callback, servers) {
       return;
     }
 
-    console.log('Got ledger: ' + ledger.ledger_index);
+    if (DEBUG_MODE) {
+      console.log('Got ledger: ' + ledger.ledger_index);
+    }
 
     callback(null, ledger);
 
