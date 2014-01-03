@@ -372,6 +372,8 @@ function getLedger (identifier, callback, servers) {
     return;
   }
 
+  console.log('getting ledger from server: ' + server);
+
   // get ledger using JSON API
   request({
     url: server,
