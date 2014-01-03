@@ -396,6 +396,9 @@ function getLedger (identifier, callback, servers) {
       // console.log('rippled returned a buffer instead of a JSON object for request: ' + 
       //   JSON.stringify(reqData.params[0]) + '. Trying again...');
       // servers[server] = 'tryAgain';
+
+      _.find(servers, function(serv){ return serv.server === server; }).attempt++;
+
       setTimeout(function(){
         getLedger (identifier, callback, servers);
       }, 1000);
@@ -404,6 +407,8 @@ function getLedger (identifier, callback, servers) {
 
     // handle ledgerNotFound
     if (res.body.result.error === 'ledgerNotFound') {
+      console.log('ledger not found');
+
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
@@ -418,6 +423,7 @@ function getLedger (identifier, callback, servers) {
       //   (identifier || 'closed') + 
       //   ', server responded with: ' + 
       //   JSON.stringify(res.error || res.body || res));
+      console.log('malformed ledger');
       
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
       
