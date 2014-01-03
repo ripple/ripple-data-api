@@ -67,7 +67,7 @@ app.post('/api/*', function(req, res){
 
   if (apiHandlers[apiRoute]) {
 
-    winston.info('Calling apiHandler for apiRoute: ' + apiRoute);
+    // winston.info('Calling apiHandler for apiRoute: ' + apiRoute);
     apiHandlers[apiRoute](req, res);
 
   } else {
@@ -114,29 +114,34 @@ function getTransactionHandler( req, res ) {
   }
 }
 
+
 /**
  *  gatewayCapitalization returns the total capitalization (outstanding balance)
- *  of a gateway at a particular moment or over time
+ *  of the specified gateways, in the specified currencies, over the given time range.
+ *  
+ *  If no currencies are specified it will return data on each of the currencies
+ *  the given gateway(s) deal in. If no gateways are specified it will return
+ *  data on each of the gateways that deal in the given currencies.
  *
- *  expects req.body to have:
+ *  Available options are:
  *  {
  *    gateway: ('Bitstamp' or 'rvY...'),
- *    account: // optional, interchangeable with gateway
- *    currencies: 'all' or ['USD', 'BTC', ...] // optional, defaults to 'all'
- *    
- *    format: 'json', 'csv', 'json_verbose'
+ *    currency: 'USD',
  *
+ *    OR
+ *
+ *    gateways: ['bitstamp', 'ripplecn', ...]
+ *    currencies: ['USD', 'BTC', ...]
+ *    
  *    // the following options are optional
  *    // by default it will return the gateway's current balance
  *    startTime: (any momentjs-readable date),
  *    endTime: (any momentjs-readable date),
- *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // defaults to 'all'
- *    descending: true/false
+ *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // defaults to 'all'
+ *    timeMultiple: positive integer, defaults to 1
  *  }
  */
 function gatewayCapitalizationHandler( req, res ) {
-
-  winston.info('got: ' + JSON.stringify(req.body));
 
   var gateways = [],
     currencies = [],
@@ -154,8 +159,6 @@ function gatewayCapitalizationHandler( req, res ) {
     } 
 
   } else if (typeof req.body.gateways === 'object') {
-
-    console.log('gateways: ' + req.body.gateways);
 
     req.body.gateways.forEach(function(gateway){
       var parsedGateway = parseGateway(gateway);
@@ -178,7 +181,7 @@ function gatewayCapitalizationHandler( req, res ) {
         name: nameOrAddress, 
         address: gatewayNameToAddress(nameOrAddress)
       },
-      hotwallets = getHotWalletsForGateway(name);
+      hotwallets = getHotWalletsForGateway(nameOrAddress);
 
       if (hotwallets.length > 0) {
         gateway.hotwallets = hotwallets;
@@ -205,7 +208,7 @@ function gatewayCapitalizationHandler( req, res ) {
     gateways.forEach(function(gateway){
       currencies.forEach(function(currency){
         var pair = { 
-          gateway: gateway.account,
+          address: gateway.address,
           currency: currency
         };
         if (gateway.name) {
@@ -223,7 +226,7 @@ function gatewayCapitalizationHandler( req, res ) {
       gateways.forEach(function(gateway){
         getCurrenciesForGateway(gateway.name).forEach(function(currency){
           gatewayCurrencyPairs.push({
-            gateway: gateway.account,
+            address: gateway.address,
             currency: currency,
             name: gateway.name,
             hotwallets: gateway.hotwallets
@@ -240,7 +243,7 @@ function gatewayCapitalizationHandler( req, res ) {
     currencies.forEach(function(currency){
       getGatewaysForCurrency(currency).forEach(function(gateway){
         gatewayCurrencyPairs.push({
-          gateway: gateway.account,
+          address: gateway.address,
           currency: currency,
           name: gateway.name,
           hotwallets: getHotWalletsForGateway(gateway.name)
@@ -252,60 +255,215 @@ function gatewayCapitalizationHandler( req, res ) {
     res.send(500, { error: 'please specify at least one gateway and/or at least one currency'});
     return;
   }
+  
+  // Parse start and end times
+  var startTime, 
+    endTime;
 
-  // TODO handle time periods
+  if (req.body.startTime) {
+    
+    if (!moment(req.body.startTime).isValid()) {
+      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ', please provide a Moment.js readable timestamp'});
+      return;
+    }
+
+    startTime = moment(req.body.startTime);
+  }
+
+  if (req.body.endTime) {
+      
+    if (!moment(req.body.endTime).isValid()) {
+      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ', please provide a Moment.js readable timestamp'});
+      return;
+    }
+
+    endTime = moment(req.body.endTime);
+  }
+
+  if (startTime && endTime) {
+    if (endTime.isBefore(startTime)) {
+      var tempTime = startTime;
+      startTime = endTime;
+      endTime = tempTime;
+    }
+  } else if (startTime) {
+    endTime = moment();
+  } else if (endTime) {
+    startTime = endTime;
+    endTime = moment();
+  } else {
+    startTime = moment(0);
+    endTime = moment(99999999999999);    
+  }
+
+  if (req.body.descending) {
+    var tempTime = startTime;
+      startTime = endTime;
+      endTime = tempTime;
+  }
 
 
-  async.mapLimit(gatewayCurrencyPairs, 5, function(pair, asyncCallbackPair){
+  // Parse timeIncrement and timeMultiple
+  var group,
+    group_level,
+    group_multiple;
+  if (typeof req.body.timeMultiple === 'number') {
+    group_multiple = req.body.timeMultiple;
+  } else {
+    group_multiple = 1;
+  }
 
+  if (req.body.timeIncrement) {
+    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+    
+    if (inc === 'al') {
+
+      group = false;
+
+    } else if (inc === 'we') {
+
+      group_multiple = group_multiple * 7; // multiply by days in a week
+      group_level = 2; // set group_level to day
+
+    } else if (levels.indexOf(inc) !== -1) {
+
+      group_level = levels.indexOf(inc);
+
+    } else {
+
+      group = false;
+    } 
+  } else {
+
+    // TODO handle incorrect options better
+    group = false;
+  }
+
+
+
+  async.mapLimit(gatewayCurrencyPairs, 10, function(pair, asyncCallbackPair){
+
+    // Setup CouchDB view options
     var viewOpts = {
-      startkey: [pair.gateway, pair.currency],
-      endkey: [pair.gateway, pair.currency, 99999],
-      group: false
+      startkey: [pair.address, pair.currency].concat(startTime.toArray().slice(0,6)),
+      endkey: [pair.address, pair.currency].concat(endTime.toArray().slice(0,6)),
+      reduce: true
     };
+    if (group) {
+      viewOpts.group = group;
+    }
+    if (group_level) {
+      // +3 to account for 1-based indexing in CouchDB and 
+      // startkey having the [pair.address, pair.currency] first
+      viewOpts.group_level = group_level + 3; 
+    }
 
+
+
+    // Query CouchDB for changes in trustline balances
     db.view('trustlines', 'trustlineBalanceChangesByAccount', viewOpts, function(err, trustlineRes){
       if (err) {
-        asyncCallback(err);
+        asyncCallbackPair(err);
         return;
       }
 
       pair.results = trustlineRes.rows;
 
-      // Subtract hotwallet balances
-      async.map(pair.hotwallets, function(hotwallet, asyncCallbackHotwallet){
+      var initialValueViewOpts = {
+        startkey: [pair.address, pair.currency],
+        endkey: viewOpts.startkey,
+        group: false
+      };
 
-        var hotwalletViewOpts = {
-          startkey: [pair.gateway, pair.currency, hotwallet],
-          endkey: [pair.gateway, pair.currency, hotwallet, 99999],
-          group: false 
-        };
-
-        db.view('trustlines', 'trustlineBalancesBetweenAccounts', hotwalletViewOpts, asyncCallbackHotwallet);
-
-      }, function(err, hotwalletResults){
+      db.view('trustlines', 'trustlineBalanceChangesByAccount', initialValueViewOpts, function(err, initValRes){
         if (err) {
           asyncCallbackPair(err);
           return;
         }
 
-        if (hotwalletResults) {
-          hotwalletResults.forEach(function(hotwallet){
-            hotwallet.rows.forEach(function(hotwalletRow){
-
-              var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
-                return pairRow.key === hotwalletRow.key;
-              });
-
-              if (pairRowIndex !== -1) {
-                pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletRow.value.balanceChange;
-                console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' + hotwalletRow.value.balanceChange + ' from account balance for final balance of ' + pair.results[pairRowIndex].value);
-              }
-            });
-          });
+        var startCapitalization = 0;
+        if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
+          startCapitalization = 0 - initValRes.rows[0].value;
         }
 
-        asyncCallbackPair(null, pair);
+        // Get hotwallet balances
+        if (!pair.hotwallets) {
+          pair.hotwallets = [];
+        }
+        async.map(pair.hotwallets, function(hotwallet, asyncCallbackHotwallet){
+
+          var hotwalletViewOpts = {
+            startkey: [pair.gateway, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
+            endkey: [pair.gateway, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
+            reduce: true
+          };
+          if (group) {
+            hotwalletViewOpts.group = group;
+          }
+          if (group_level) {
+            hotwalletViewOpts.group_level = group_level;
+          }
+
+
+          db.view('trustlines', 'trustlineBalancesBetweenAccounts', hotwalletViewOpts, asyncCallbackHotwallet);
+
+        }, function(err, hotwalletResults){
+          if (err) {
+            asyncCallbackPair(err);
+            return;
+          }
+
+          // Subtract hotwallet balances from totals
+          if (hotwalletResults) {
+            hotwalletResults.forEach(function(hotwallet){
+              hotwallet.rows.forEach(function(hotwalletRow){
+
+                var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
+                  return pairRow.key === hotwalletRow.key;
+                });
+
+                if (pairRowIndex !== -1) {
+                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletRow.value.balanceChange;
+                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' + hotwalletRow.value.balanceChange + ' from account balance for final balance of ' + pair.results[pairRowIndex].value);
+                }
+              });
+            });
+          }
+
+          // Group rows using group_multiple
+          if (group_multiple && group_multiple > 1) {
+            var newResults = [],
+              tempRow;
+            pair.results.forEach(function(row, index){
+              if (index % group_multiple === 0) {
+                if (tempRow) {
+                  newResults.push(tempRow)
+                }
+
+                tempRow = row;
+              }
+              tempRow.value += row.value;
+            });
+
+            pair.results = newResults;
+          }
+
+          // Format and add startCapitalization data to each row
+          var lastPeriodClose = startCapitalization;
+            pair.results.forEach(function(row, index){
+              pair.results[index] = {
+                openTime: moment(row.key.slice(2)).format(),
+                open: lastPeriodClose,
+                delta: 0 - row.value,
+                close: lastPeriodClose - row.value
+              };
+              lastPeriodClose = lastPeriodClose - row.value;
+            });
+
+          asyncCallbackPair(null, pair);
+        });
+
       });
     });
   }, function(err, results){
@@ -314,7 +472,7 @@ function gatewayCapitalizationHandler( req, res ) {
       return;
     }
 
-    // TODO format results
+    // TODO support different result formats
 
     res.send(results);
   });
