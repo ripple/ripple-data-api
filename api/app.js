@@ -698,7 +698,7 @@ function offersExercisedHandler( req, res ) {
     couchRes.rows.forEach(function(row){
 
       resRows.push([
-        moment.utc(row.value.openTime).startOf('day').format(DATEFORMAT),
+        (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
         row.value.curr2Volume,
         row.value.curr1Volume,
         row.value.numTrades,
@@ -782,7 +782,6 @@ function offersExercisedHandler( req, res ) {
         // if this is first column
         if (i === 0) {
           // set initial values for each group
-          groupedOpenTime = moment.utc(e.value.openTime).startOf('day').format(DATEFORMAT);
           groupedClosePrice = e.value.close;
           groupedBaseCurrVolume = 0;
           groupedTradeCurrVolume = 0;
@@ -804,6 +803,9 @@ function offersExercisedHandler( req, res ) {
 
         // LAST: open price
         groupedOpenPrice = e.value.open;
+
+        // LAST: open time
+        groupedOpenTime = (e.key ? moment.utc(e.key.slice(2)).format(DATEFORMAT) : moment.utc(e.value.openTime).format(DATEFORMAT));
 
         // MAX: high price
         groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
@@ -839,25 +841,20 @@ function offersExercisedHandler( req, res ) {
     // add header row to results
     groupedRows.unshift(headerRow);
 
-    var groupedString = "";
-    groupedRows.forEach(function(g) {
-      groupedString = groupedString + g.toString() + "\n";
-    });
-
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
 
       // TODO include time sent?
-      res.send(resRows);
+      res.send(groupedRows);
 
     } else if (req.body.format === 'csv') {
 
-      var csvStr = _.map(resRows, function(row){
+      var csvStr = _.map(groupedRows, function(row){
         return row.join(', ');
       }).join('\n');
 
       // display output grouped by timeMultiple
-      res.end(groupedString);
+      res.end(csvStr);
 
     } else if (req.body.format === 'json_verbose') {
 
@@ -869,7 +866,7 @@ function offersExercisedHandler( req, res ) {
 
         // reformat rows
         return {
-          openTime: moment.utc(row.value.openTime).startOf('day').format(DATEFORMAT),
+          openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           numTrades: row.value.numTrades,
