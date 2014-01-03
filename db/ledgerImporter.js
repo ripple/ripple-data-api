@@ -320,8 +320,6 @@ function getLedgerBatch (opts, callback) {
  */
 function getLedger (identifier, callback, servers) {
 
-  console.log('getLedger identifier: ' + identifier + ' servers: ' + JSON.stringify(servers));
-
   if (typeof identifier === 'function' && !callback) {
     callback = identifier;
     identifier = null;
@@ -365,7 +363,7 @@ function getLedger (identifier, callback, servers) {
     return;
   }
 
-  console.log('Getting ledger from server: ' + server);
+  // console.log('Getting ledger from server: ' + server);
 
   // get ledger using JSON API
   request({
@@ -407,7 +405,7 @@ function getLedger (identifier, callback, servers) {
 
     // handle ledgerNotFound
     if (res.body.result.error === 'ledgerNotFound') {
-      console.log('ledger not found');
+      // console.log('ledger not found');
 
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
@@ -423,7 +421,7 @@ function getLedger (identifier, callback, servers) {
       //   (identifier || 'closed') + 
       //   ', server responded with: ' + 
       //   JSON.stringify(res.error || res.body || res));
-      console.log('malformed ledger');
+      // console.log('malformed ledger');
       
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
       
