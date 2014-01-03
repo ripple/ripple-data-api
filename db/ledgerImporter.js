@@ -320,6 +320,8 @@ function getLedgerBatch (opts, callback) {
  */
 function getLedger (identifier, callback, servers) {
 
+  console.log('getLedger called with servers: ' + JSON.stringify(servers));
+
   if (typeof identifier === 'function' && !callback) {
     callback = identifier;
     identifier = null;
