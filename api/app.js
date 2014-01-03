@@ -683,7 +683,6 @@ function offersExercisedHandler( req, res ) {
     var resRows = [],
       headerRow = [
         'startTime', 
-        'endTime', 
         'baseCurrVolume', 
         'tradeCurrVolume', 
         'numTrades', 
@@ -699,7 +698,7 @@ function offersExercisedHandler( req, res ) {
     couchRes.rows.forEach(function(row){
 
       resRows.push([
-        (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+        moment.utc(row.value.openTime).startOf('day').format(DATEFORMAT),
         row.value.curr2Volume,
         row.value.curr1Volume,
         row.value.numTrades,
@@ -740,7 +739,7 @@ function offersExercisedHandler( req, res ) {
       if ((index % timeMultiple) === 0) {
 
         // if this is not the first row processed
-        if (index != 0) {
+        if (index !== 0) {
           // increment variable used for counting and indexing rows in table
           tabledRowCount = tabledRowCount + 1;
         }
@@ -756,11 +755,11 @@ function offersExercisedHandler( req, res ) {
 
       // increment variable used for counting and indexing row elements
       newElementCount = newElementCount + 1;
-    })
+    });
 
     // data structures for grouping results 
     groupedRows = [];
-    var groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
+    var groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
         groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
  
     tabledRows.forEach(function(element, index, array) {
@@ -783,7 +782,7 @@ function offersExercisedHandler( req, res ) {
         // if this is first column
         if (i === 0) {
           // set initial values for each group
-          groupedCloseTime = moment.utc(e.value.closeTime).format(DATEFORMAT);
+          groupedOpenTime = moment.utc(e.value.openTime).startOf('day').format(DATEFORMAT);
           groupedClosePrice = e.value.close;
           groupedBaseCurrVolume = 0;
           groupedTradeCurrVolume = 0;
@@ -803,9 +802,6 @@ function offersExercisedHandler( req, res ) {
         // SUM: number trades
         groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
 
-        // LAST: open time
-        groupedOpenTime = moment.utc(e.value.openTime).format(DATEFORMAT);
-
         // LAST: open price
         groupedOpenPrice = e.value.open;
 
@@ -820,10 +816,10 @@ function offersExercisedHandler( req, res ) {
 
         // regenerate volume weighted average price denominator, defined as sum of trade volume
         groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
-      })
+      });
 
       // regenerate volume weighted average price statistics over entire group
-      if (groupedVwavDenominator == 0) {
+      if (groupedVwavDenominator === 0) {
         // don't divide by zero, set result to zero if denominator value is zero
         groupedVwavPrice = 0;
       } else {
@@ -832,8 +828,8 @@ function offersExercisedHandler( req, res ) {
       }
 
       // create grouped result based on processed group of rows
-      groupedRows.push([groupedOpenTime, groupedCloseTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
-    })
+      groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+    });
 
     // present results to user based on the specified start & end times 
     if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
@@ -846,7 +842,7 @@ function offersExercisedHandler( req, res ) {
     var groupedString = "";
     groupedRows.forEach(function(g) {
       groupedString = groupedString + g.toString() + "\n";
-    })
+    });
 
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
@@ -873,7 +869,7 @@ function offersExercisedHandler( req, res ) {
 
         // reformat rows
         return {
-          openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+          openTime: moment.utc(row.value.openTime).startOf('day').format(DATEFORMAT),
           baseCurrVol: row.value.curr2Volume,
           tradeCurrVol: row.value.curr1Volume,
           numTrades: row.value.numTrades,
