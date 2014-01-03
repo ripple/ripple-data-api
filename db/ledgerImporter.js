@@ -347,32 +347,25 @@ function getLedger (identifier, callback, servers) {
 
   // store server statuses (reset for each ledger identifier)
   if (!servers) {
-    servers = {};
-    _.each(config.rippleds, function(serv){
-      servers[serv] = 'notYetTried';
+    servers = _.map(config.rippleds, function(serv){
+      return {
+        server: serv,
+        attempt: 0
+      };
     });
   }
 
-  // get untried server
-  var server = _.findKey(servers, function(status){
-    return status === 'notYetTried';
-  });
+  var serverEntry = _.min(servers, function(serv){ return serv.attempt; }),
+    server = serverEntry.server;
 
-  // if all servers have been tried once look for a 'tryAgain' status
-  if (!server) {
-    server = _.findKey(servers, function(status){
-      return status === 'tryAgain';
-    });
-  }
-
-  if (!server) {
+  if (serverEntry.attempt >= 2) {
     callback(new Error('ledger ' + 
       (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
       ' not available from any of the rippleds'));
     return;
   }
 
-  console.log('getting ledger from server: ' + server);
+  console.log('Getting ledger from server: ' + server);
 
   // get ledger using JSON API
   request({
@@ -390,7 +383,7 @@ function getLedger (identifier, callback, servers) {
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
         '\nTrying next server...');
 
-      servers[server] = 'tryAgain';
+      _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
@@ -411,7 +404,7 @@ function getLedger (identifier, callback, servers) {
 
     // handle ledgerNotFound
     if (res.body.result.error === 'ledgerNotFound') {
-      servers[server] = 'ledgerNotFound';
+      _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
@@ -426,7 +419,7 @@ function getLedger (identifier, callback, servers) {
       //   ', server responded with: ' + 
       //   JSON.stringify(res.error || res.body || res));
       
-      servers[server] = 'tryAgain';
+      _.find(servers, function(serv){ return serv.server === server; }).attempt++;
       
       setImmediate(function(){
         getLedger (identifier, callback, servers);
@@ -444,7 +437,7 @@ function getLedger (identifier, callback, servers) {
         (server === 'http://0.0.0.0:51234' ? 'http://ct.ripple.com:51234' : server) + ': ' + 
         JSON.stringify(ledger));
 
-      servers[server] = 'corruptedLedger';
+      _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
@@ -471,7 +464,7 @@ function getLedger (identifier, callback, servers) {
         'actual transaction_hash:   ' + ledgerJsonTxHash + '\n' +
         'expected transaction_hash: ' + ledger.transaction_hash);
 
-      servers[server] = 'corruptedLedger';
+      _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
         getLedger (identifier, callback, servers);
