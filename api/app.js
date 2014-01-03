@@ -602,9 +602,19 @@ function offersExercisedHandler( req, res ) {
 
   } else {
 
+    if (!req.body.startTime) {
+      winston.error('invalid startTime: ' + req.body.startTime);
+      res.send(500, { error: 'invalid startTime: ' + req.body.startTime });
+    }
+
     if (!moment(req.body.startTime).isValid()) {
       winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
       res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+    }
+
+    if (!req.body.endTime) {
+      winston.error('invalid endTime: ' + req.body.endTime);
+      res.send(500, { error: 'invalid endTime: ' + req.body.endTime });
     }
 
     if (!moment(req.body.endTime).isValid()) {
