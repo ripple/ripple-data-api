@@ -438,7 +438,7 @@ function gatewayCapitalizationHandler( req, res ) {
             pair.results.forEach(function(row, index){
               if (index % group_multiple === 0) {
                 if (tempRow) {
-                  newResults.push(tempRow)
+                  newResults.push(tempRow);
                 }
 
                 tempRow = row;
@@ -721,7 +721,7 @@ function offersExercisedHandler( req, res ) {
     });
 
     // data structure for grouping results 
-    groupedRows = [];
+    var finalRows = [];
     if (req.body.timeMultiple) {
       // data structures for processing rows
       var tabledRowCount = 0, newElementCount = 0;
@@ -763,6 +763,7 @@ function offersExercisedHandler( req, res ) {
       });
 
       // data structures for grouping results 
+      var groupedRows = [];
       var groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
           groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
    
@@ -839,23 +840,27 @@ function offersExercisedHandler( req, res ) {
 
       // add header row to results
       groupedRows.unshift(headerRow);
+
+      // use grouped rows as our final rows
+      finalRows = groupedRows;
     } else {
-      groupedRows = resRows;
+      // use original results as our final rows
+      finalRows = resRows;
     }
 
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
 
       // TODO include time sent?
-      res.send(groupedRows);
+      res.send(finalRows);
 
     } else if (req.body.format === 'csv') {
 
-      var csvStr = _.map(groupedRows, function(row){
+      var csvStr = _.map(finalRows, function(row){
         return row.join(', ');
       }).join('\n');
 
-      // display output grouped by timeMultiple
+      // provide output as CSV
       res.end(csvStr);
 
     } else if (req.body.format === 'json_verbose') {
