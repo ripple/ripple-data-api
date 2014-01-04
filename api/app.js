@@ -602,7 +602,7 @@ function offersExercisedHandler( req, res ) {
 
   } else {
 
-    if (!req.body.startTime) {
+    if (!req.body.startTime && req.body.endTime) {
       winston.error('invalid startTime: ' + req.body.startTime);
       res.send(500, { error: 'invalid startTime: ' + req.body.startTime });
     }
@@ -612,7 +612,7 @@ function offersExercisedHandler( req, res ) {
       res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
     }
 
-    if (!req.body.endTime) {
+    if (!req.body.endTime && req.body.startTime) {
       winston.error('invalid endTime: ' + req.body.endTime);
       res.send(500, { error: 'invalid endTime: ' + req.body.endTime });
     }
