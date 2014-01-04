@@ -843,11 +843,6 @@ function offersExercisedHandler( req, res ) {
       groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
     });
 
-    // present results to user based on the specified start & end times 
-    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-      groupedRows = groupedRows.reverse();
-    }
-
     // add header row to results
     groupedRows.unshift(headerRow);
 
