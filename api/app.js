@@ -720,131 +720,128 @@ function offersExercisedHandler( req, res ) {
         ]);
     });
 
-    // default should be filled by web form but default to day just in case
-    var timeMultiple = 1;  
-    
-    // use the time multiple value from web form to format grouping of results
-    if (viewOpts.group_multiple) {
-      timeMultiple = viewOpts.group_multiple;
-    }
-
-    // data structures for processing rows
-    var tabledRowCount = 0, newElementCount = 0;
-    var tabledRows = [];
-
-    couchRes.rows.forEach(function(element, index, array) {
-
-      /*
-      winston.info('Couch result Index: ' + index);
-      winston.info(element.value.curr2Volume);
-      winston.info(element.value.curr1Volume);
-      winston.info(element.value.numTrades);
-      winston.info(element.value.open);
-      winston.info(element.value.close);
-      winston.info(element.value.high);
-      winston.info(element.value.low);
-      winston.info(element.value.volumeWeightedAvg);
-      */
-
-      if ((index % timeMultiple) === 0) {
-
-        // if this is not the first row processed
-        if (index !== 0) {
-          // increment variable used for counting and indexing rows in table
-          tabledRowCount = tabledRowCount + 1;
-        }
-
-        // create a new row if at boundary
-        tabledRows[tabledRowCount] = [];
-
-        // reset index for storage into new row
-        newElementCount = 0;
-      }
-      // store row to be grouped
-      tabledRows[tabledRowCount][newElementCount] = element;
-
-      // increment variable used for counting and indexing row elements
-      newElementCount = newElementCount + 1;
-    });
-
-    // data structures for grouping results 
+    // data structure for grouping results 
     groupedRows = [];
-    var groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
-        groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
- 
-    tabledRows.forEach(function(element, index, array) {
-      //winston.info('New row index: ' + index);
+    if (req.body.timeMultiple) {
+      // data structures for processing rows
+      var tabledRowCount = 0, newElementCount = 0;
+      var tabledRows = [];
 
-      element.forEach(function(e, i, a) {
+      couchRes.rows.forEach(function(element, index, array) {
+
         /*
-        winston.info('Inner new row index: ' + i);
-        winston.info(e);
-        winston.info(e.value.curr2Volume);
-        winston.info(e.value.curr1Volume);
-        winston.info(e.value.numTrades);
-        winston.info(e.value.open);
-        winston.info(e.value.close);
-        winston.info(e.value.high);
-        winston.info(e.value.low);
-        winston.info(e.value.volumeWeightedAvg);
+        winston.info('Couch result Index: ' + index);
+        winston.info(element.value.curr2Volume);
+        winston.info(element.value.curr1Volume);
+        winston.info(element.value.numTrades);
+        winston.info(element.value.open);
+        winston.info(element.value.close);
+        winston.info(element.value.high);
+        winston.info(element.value.low);
+        winston.info(element.value.volumeWeightedAvg);
         */
 
-        // if this is first column
-        if (i === 0) {
-          // set initial values for each group
-          groupedClosePrice = e.value.close;
-          groupedBaseCurrVolume = 0;
-          groupedTradeCurrVolume = 0;
-          groupedNumTrades = 0;
-          groupedHighPrice = 0;
-          groupedLowPrice = Number.MAX_VALUE;
-          groupedVwavPrice = 0;
-          groupedVwavNumerator = 0;
-          groupedVwavDenominator = 0;
+        if ((index % req.body.timeMultiple) === 0) {
+
+          // if this is not the first row processed
+          if (index !== 0) {
+            // increment variable used for counting and indexing rows in table
+            tabledRowCount = tabledRowCount + 1;
+          }
+
+          // create a new row if at boundary
+          tabledRows[tabledRowCount] = [];
+
+          // reset index for storage into new row
+          newElementCount = 0;
         }
-        // SUM: base currency volume
-        groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+        // store row to be grouped
+        tabledRows[tabledRowCount][newElementCount] = element;
 
-        // SUM: trade currency volume
-        groupedTradeCurrVolume = parseFloat(groupedTradeCurrVolume) + parseFloat(e.value.curr1Volume);
-
-        // SUM: number trades
-        groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
-
-        // LAST: open price
-        groupedOpenPrice = e.value.open;
-
-        // LAST: open time
-        groupedOpenTime = (e.key ? moment.utc(e.key.slice(2)).format(DATEFORMAT) : moment.utc(e.value.openTime).format(DATEFORMAT));
-
-        // MAX: high price
-        groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
-
-        // MIN: low price
-        groupedLowPrice = Math.min(groupedLowPrice, parseFloat(e.value.low));
-
-        // regenerate volume weighted average price numerator, defined as sum of trade volume multiplied by VWAP
-        groupedVwavNumerator = groupedVwavNumerator + e.value.volumeWeightedAvg * e.value.curr1Volume;
-
-        // regenerate volume weighted average price denominator, defined as sum of trade volume
-        groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
+        // increment variable used for counting and indexing row elements
+        newElementCount = newElementCount + 1;
       });
 
-      // regenerate volume weighted average price statistics over entire group
-      if (groupedVwavDenominator === 0) {
-        // don't divide by zero, set result to zero if denominator value is zero
-        groupedVwavPrice = 0;
-      } else {
-        // recalculate volume weighted average price over entire group
-        groupedVwavPrice = groupedVwavNumerator / groupedVwavDenominator;
-      }
+      // data structures for grouping results 
+      var groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
+          groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
+   
+      tabledRows.forEach(function(element, index, array) {
+        //winston.info('New row index: ' + index);
 
-      // create grouped result based on processed group of rows
-      groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
-    });
+        element.forEach(function(e, i, a) {
+          /*
+          winston.info('Inner new row index: ' + i);
+          winston.info(e);
+          winston.info(e.value.curr2Volume);
+          winston.info(e.value.curr1Volume);
+          winston.info(e.value.numTrades);
+          winston.info(e.value.open);
+          winston.info(e.value.close);
+          winston.info(e.value.high);
+          winston.info(e.value.low);
+          winston.info(e.value.volumeWeightedAvg);
+          */
 
-    // add header row to results
-    groupedRows.unshift(headerRow);
+          // if this is first column
+          if (i === 0) {
+            // set initial values for each group
+            groupedClosePrice = e.value.close;
+            groupedBaseCurrVolume = 0;
+            groupedTradeCurrVolume = 0;
+            groupedNumTrades = 0;
+            groupedHighPrice = 0;
+            groupedLowPrice = Number.MAX_VALUE;
+            groupedVwavPrice = 0;
+            groupedVwavNumerator = 0;
+            groupedVwavDenominator = 0;
+          }
+          // SUM: base currency volume
+          groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+
+          // SUM: trade currency volume
+          groupedTradeCurrVolume = parseFloat(groupedTradeCurrVolume) + parseFloat(e.value.curr1Volume);
+
+          // SUM: number trades
+          groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
+
+          // LAST: open price
+          groupedOpenPrice = e.value.open;
+
+          // LAST: open time
+          groupedOpenTime = (e.key ? moment.utc(e.key.slice(2)).format(DATEFORMAT) : moment.utc(e.value.openTime).format(DATEFORMAT));
+
+          // MAX: high price
+          groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
+
+          // MIN: low price
+          groupedLowPrice = Math.min(groupedLowPrice, parseFloat(e.value.low));
+
+          // regenerate volume weighted average price numerator, defined as sum of trade volume multiplied by VWAP
+          groupedVwavNumerator = groupedVwavNumerator + e.value.volumeWeightedAvg * e.value.curr1Volume;
+
+          // regenerate volume weighted average price denominator, defined as sum of trade volume
+          groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
+        });
+
+        // regenerate volume weighted average price statistics over entire group
+        if (groupedVwavDenominator === 0) {
+          // don't divide by zero, set result to zero if denominator value is zero
+          groupedVwavPrice = 0;
+        } else {
+          // recalculate volume weighted average price over entire group
+          groupedVwavPrice = groupedVwavNumerator / groupedVwavDenominator;
+        }
+
+        // create grouped result based on processed group of rows
+        groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+      });
+
+      // add header row to results
+      groupedRows.unshift(headerRow);
+    } else {
+      groupedRows = resRows;
+    }
 
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
