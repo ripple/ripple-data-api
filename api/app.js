@@ -655,8 +655,11 @@ function offersExercisedHandler( req, res ) {
     viewOpts.group_multiple = 1;  // default to no multiple of time increment
   }
 
-  // determine the group_level from the timeIncrement field
+  var group_level_string;
+
+  // gather custom time period data used later for grouping
   if (viewOpts.reduce === true && req.body.timeIncrement) {
+    // determine the group_level from the timeIncrement field
     var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
       levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
     if (inc === 'al') {
@@ -666,8 +669,29 @@ function offersExercisedHandler( req, res ) {
     } else if (inc === 'we') {
       viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
       viewOpts.group_level = 3 + 2; // set group_level to day
+      group_level_string = 'weeks';
     } else if (levels.indexOf(inc)) {
       viewOpts.group_level = 3 + levels.indexOf(inc);
+      switch (inc) {
+        case 'ye': 
+          group_level_string = 'years';
+          break;
+        case 'mo': 
+          group_level_string = 'months';
+          break;
+        case 'da': 
+          group_level_string = 'days';
+          break;
+        case 'ho': 
+          group_level_string = 'hours';
+          break;
+        case 'mi': 
+          group_level_string = 'minutes';
+          break;
+        case 'se': 
+          group_level_string = 'seconds';
+          break;
+      }
     } else {
       viewOpts.group_level = 3 + 2; // default to day
     } 
@@ -688,7 +712,7 @@ function offersExercisedHandler( req, res ) {
 
     winston.info('Got ' + couchRes.rows.length + ' rows');
     winston.info(JSON.stringify(couchRes.rows));
-
+    
     // prepare results to send back
     var resRows = [],
       headerRow = [
@@ -703,9 +727,9 @@ function offersExercisedHandler( req, res ) {
         'vwavPrice'
       ];
 
-    resRows.push(headerRow);
-
     if (viewOpts.reduce == true) {
+      resRows.push(headerRow);
+
       couchRes.rows.forEach(function(row){
 
         resRows.push([
@@ -732,6 +756,14 @@ function offersExercisedHandler( req, res ) {
       // data structures for processing rows
       var tabledRowCount = 0, newElementCount = 0;
       var tabledRows = [];
+      var epochStartTime = moment(startTime);
+      var epochEndTime = moment(startTime);
+
+      // define the epoch for grouping of results
+      epochEndTime.add(group_level_string, req.body.timeMultiple);
+
+      // create initial row of table for assembling grouped results
+      tabledRows[tabledRowCount] = [];
 
       couchRes.rows.forEach(function(element, index, array) {
 
@@ -747,7 +779,11 @@ function offersExercisedHandler( req, res ) {
         winston.info(element.value.volumeWeightedAvg);
         */
 
-        if ((index % req.body.timeMultiple) === 0) {
+        var elementTime = moment(element.value.openTime);
+
+        if (elementTime > epochEndTime) {
+          epochStartTime.add(group_level_string, req.body.timeMultiple);
+          epochEndTime.add(group_level_string, req.body.timeMultiple);
 
           // if this is not the first row processed
           if (index !== 0) {
@@ -761,6 +797,7 @@ function offersExercisedHandler( req, res ) {
           // reset index for storage into new row
           newElementCount = 0;
         }
+
         // store row to be grouped
         tabledRows[tabledRowCount][newElementCount] = element;
 
