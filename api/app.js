@@ -705,20 +705,26 @@ function offersExercisedHandler( req, res ) {
 
     resRows.push(headerRow);
 
-    couchRes.rows.forEach(function(row){
+    if (viewOpts.reduce == true) {
+      couchRes.rows.forEach(function(row){
 
-      resRows.push([
-        (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-        row.value.curr2Volume,
-        row.value.curr1Volume,
-        row.value.numTrades,
-        row.value.open,
-        row.value.close,
-        row.value.high,
-        row.value.low,
-        row.value.volumeWeightedAvg
-        ]);
-    });
+        resRows.push([
+          (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+          row.value.curr2Volume,
+          row.value.curr1Volume,
+          row.value.numTrades,
+          row.value.open,
+          row.value.close,
+          row.value.high,
+          row.value.low,
+          row.value.volumeWeightedAvg
+          ]);
+      });
+    } else {      
+      couchRes.rows.forEach(function(row){
+        resRows.push(JSON.stringify(row));
+      });
+    }
 
     // data structure for grouping results 
     var finalRows = [];
