@@ -175,9 +175,6 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
     listener.txProcessor = createTransactionProcessor(listener.viewOpts, function(reducedTrade){
 
-      // Call displayFn every time a new trade comes in, as well as after the interval
-      listener.displayFn(reducedTrade);
-
       // Set storedResults to be the reducedTrade or merge them with offersExercisedReduce
       if (!listener.storedResults.open) {
         var tempOpenTime = listener.storedResults.openTime.slice();
@@ -186,6 +183,11 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
       } else {
         listener.storedResults = offersExercisedReduce(null, [reducedTrade, listener.storedResults], true);
       }
+
+      listener.storedResults.closeTime = moment();
+
+      // Call displayFn every time a new trade comes in, as well as after the interval
+      listener.displayFn(listener.storedResults);
       
     });
 
