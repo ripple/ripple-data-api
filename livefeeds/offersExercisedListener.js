@@ -98,7 +98,7 @@ function OffersExercisedListener(opts, displayFn) {
   this.interval;
 
   // Wrapper to call the displayFn and update the openTime and closeTime
-  this.runDisplayFn = function() {
+  this.finishedInterval = function() {
     this.storedResults.closeTime = moment().toArray().slice(0,6);
 
     this.displayFn(formatReduceResult(this.storedResults));
@@ -175,6 +175,9 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
     listener.txProcessor = createTransactionProcessor(listener.viewOpts, function(reducedTrade){
 
+      // Call displayFn every time a new trade comes in, as well as after the interval
+      listener.displayFn(reducedTrade);
+
       // Set storedResults to be the reducedTrade or merge them with offersExercisedReduce
       if (!listener.storedResults.open) {
         var tempOpenTime = listener.storedResults.openTime.slice();
@@ -195,10 +198,10 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
     if (firstIncrementRemainder > 0) {
       setTimeout(function(){
 
-        listener.runDisplayFn();
+        listener.finishedInterval();
 
         listener.interval = setInterval(function(){
-          listener.runDisplayFn();
+          listener.finishedInterval();
         }, moment.duration(listener.viewOpts.timeMultiple, listener.viewOpts.timeIncrement).asMilliseconds());
 
       }, firstIncrementRemainder);
@@ -206,7 +209,7 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
     } else {
 
       listener.interval = setInterval(function(){
-        listener.runDisplayFn();
+        listener.finishedInterval();
       }, moment.duration(listener.viewOpts.timeMultiple, listener.viewOpts.timeIncrement).asMilliseconds());
 
     }
