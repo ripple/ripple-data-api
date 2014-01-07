@@ -531,7 +531,7 @@ function offersExercisedHandler( req, res ) {
  
   var viewOpts = {};
 
-  winston.info('req.body: ' + JSON.stringify(req.body));
+  //winston.info('req.body: ' + JSON.stringify(req.body));
 
   if (!req.body.base || !req.body.trade) {
     res.send(500, { error: 'please specify base and trade currencies' });
@@ -710,8 +710,8 @@ function offersExercisedHandler( req, res ) {
       // TODO send error messages to api querier
     }
 
-    winston.info('Got ' + couchRes.rows.length + ' rows');
-    winston.info(JSON.stringify(couchRes.rows));
+    //winston.info('Got ' + couchRes.rows.length + ' rows');
+    //winston.info(JSON.stringify(couchRes.rows));
     
     // prepare results to send back
     var resRows = [],
