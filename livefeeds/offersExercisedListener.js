@@ -149,18 +149,21 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
   // TODO make this work with formats other than 'json'
   if (listener.viewOpts.incompleteApiRow) {
-    listener.viewOpts.openTime = incompleteApiRow.time || incompleteApiRow.openTime || incompleteApiRow[0];
+
+    var row = listener.viewOpts.incompleteApiRow; 
+
+    listener.viewOpts.openTime = row.time || row.openTime || row[0];
 
     listener.storedResults = {
-      openTime: incompleteApiRow.time || incompleteApiRow.openTime || incompleteApiRow[0],
-      curr1Volume: incompleteApiRow.tradeCurrVol || incompleteApiRow[2],
-      curr2Volume: incompleteApiRow.baseCurrVol || incompleteApiRow[1],
-      numTrades: incompleteApiRow.numTrades || incompleteApiRow[3],
-      open: incompleteApiRow.openPrice || incompleteApiRow[4],
-      close: incompleteApiRow.closePrice || incompleteApiRow[5],
-      high: incompleteApiRow.highPrice || incompleteApiRow[6],
-      low: incompleteApiRow.lowPrice || incompleteApiRow[7],
-      volumeWeightedAvg: incompleteApiRow.vwavPrice || incompleteApiRow[8]
+      openTime: moment(row.time || row.openTime || row[0]).toArray().slice(0,6),
+      curr1Volume: row.tradeCurrVol || row[2],
+      curr2Volume: row.baseCurrVol || row[1],
+      numTrades: row.numTrades || row[3],
+      open: row.openPrice || row[4],
+      close: row.closePrice || row[5],
+      high: row.highPrice || row[6],
+      low: row.lowPrice || row[7],
+      volumeWeightedAvg: row.vwavPrice || row[8]
     };
 
   }
