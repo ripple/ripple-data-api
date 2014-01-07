@@ -173,6 +173,7 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
   } else {
 
+    // create regular listener
     listener.txProcessor = createTransactionProcessor(listener.viewOpts, function(reducedTrade){
 
       // Set storedResults to be the reducedTrade or merge them with offersExercisedReduce
@@ -184,12 +185,15 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
         listener.storedResults = offersExercisedReduce(null, [reducedTrade, listener.storedResults], true);
       }
 
-      listener.storedResults.closeTime = moment();
+      listener.storedResults.closeTime = moment().toArray().slice(0,6);
 
       // Call displayFn every time a new trade comes in, as well as after the interval
-      listener.displayFn(listener.storedResults);
+      listener.displayFn(formatReduceResult(listener.storedResults));
       
     });
+
+
+    // handle first interval
 
     var endOfFirstIncrement = moment(listener.viewOpts.openTime).add(listener.viewOpts.timeIncrement, listener.viewOpts.timeMultiple),
       firstIncrementRemainder = endOfFirstIncrement.diff(moment());
@@ -280,30 +284,57 @@ function createTransactionProcessor(viewOpts, resultHandler) {
     // use the map function to parse txContainer data
     offersExercisedMap(txContainer, function(key, value){
 
-      // check that this is the currency pair we care about
-      if (viewOpts.trade) {
-        if (viewOpts.trade.currency !== key[0][0] || (viewOpts.trade.currency !== 'XRP' && viewOpts.trade.issuer !== key[0][1])) {
-          return;
-        }
-      }
+      // this function will be called twice if viewOpts.reduce === true, once otherwise
 
-      if (viewOpts.base) {
-        if (viewOpts.base.currency !== key[1][0] || (viewOpts.base.currency !== 'XRP' && viewOpts.base.issuer !== key[1][1])) {
-          return;
+      if (viewOpts.reduce) {
+        // emit called twice, be more strict about matching 
+        // because the reverse trade is also passed to emit
+
+        if (viewOpts.trade) {
+
+          if (viewOpts.trade.currency !== key[0][0] || viewOpts.trade.issuer !== key[0][1]) {
+            return;
+          }
+
         }
-      }
-        
-      if (!viewOpts.reduce) {
+
+        if (viewOpts.base) {
+
+          if (viewOpts.base.currency !== key[1][0] || viewOpts.base.issuer !== key[1][1]) {
+            return;
+          }
+
+        }
+
+        resultHandler(offersExercisedReduce([[key]], [value], false));
+
+      } else {
+        // emit called once
+
+        if (viewOpts.trade) {
+          
+          // return if trade doesn't match either currency in the pair
+          if ((viewOpts.trade.currency !== key[0][0] || viewOpts.trade.issuer !== key[0][1])
+              && (viewOpts.trade.currency !== key[1][0] || viewOpts.trade.issuer !== key[1][1])) {
+            return;
+          }
+
+        }
+
+        if (viewOpts.base) {
+          
+          // return if base doesn't match either currency in the pair
+          if ((viewOpts.base.currency !== key[0][0] || viewOpts.base.issuer !== key[0][1])
+              && (viewOpts.base.currency !== key[1][0] || viewOpts.base.issuer !== key[1][1])) {
+            return;
+          }
+          
+        }
 
         resultHandler({key: key, value: value});
 
-      } else {
+      }
 
-        // use reduce function in 'reduce' mode to get reduced values
-        var reduceRes = offersExercisedReduce([[key]], [value], false);
-        resultHandler(reduceRes);
-        
-      }  
     }, !viewOpts.reduce);
   }
 
@@ -511,7 +542,7 @@ function offersExercisedReduce(keys, values, rereduce) {
 function formatReduceResult (reduceRes) {
 
   return {
-    time: reduceRes.openTime,
+    openTime: reduceRes.openTime,
     closeTime: reduceRes.closeTime,
     baseCurrVol: reduceRes.curr2Volume,
     tradeCurrVol: reduceRes.curr1Volume,
