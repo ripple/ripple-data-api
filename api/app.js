@@ -488,7 +488,6 @@ function gatewayCapitalizationHandler( req, res ) {
 
 
 
-// TODO
 /**
  *  exchangeRates returns the exchange rate(s) between two or more currencies
  *  for a given time range, broken down by the given time increment
@@ -675,7 +674,9 @@ function exchangeRatesHandler( req, res ) {
       return;
     }
 
-    res.send(results);
+    var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
+
+    res.send(finalResults);
   });
 
 
