@@ -347,6 +347,14 @@ function createTransactionProcessor(viewOpts, resultHandler) {
           
         }
 
+        // Flip the currencies if necessary
+        if (viewOpts.base.currency === key[1][0] && viewOpts.base.issuer === key[1][1]) {
+          key = [key[1].slice(), key[0].slice()].concat(key.slice(2));
+          value = [value[1], value[0], 1/value[2]];
+        }
+
+
+
         resultHandler({key: key, value: value});
 
       }
