@@ -459,12 +459,7 @@ function gatewayCapitalizationHandler( req, res ) {
           // Format and add startCapitalization data to each row
           var lastPeriodClose = startCapitalization;
             pair.results.forEach(function(row, index){
-              pair.results[index] = {
-                openTime: moment(row.key.slice(2)).format(),
-                open: lastPeriodClose,
-                delta: 0 - row.value,
-                close: lastPeriodClose - row.value
-              };
+              pair.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
               lastPeriodClose = lastPeriodClose - row.value;
             });
 
@@ -500,14 +495,190 @@ function gatewayCapitalizationHandler( req, res ) {
  *
  *  expects req.body to have:
  *  {
- *    currencies: [{currency: "XRP"}, {currency: "USD", issuer: "Bitstamp"}, ...]
- *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
- *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
- *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "all"
+ *    currencies: ['XRP', 'USD',...],
+ *    gateways: ['bitstamp', 'ripplecn',...]
  *  }
  */
 function exchangeRatesHandler( req, res ) {
-  res.send(404, 'Oops! This API route is still under development, try again soon.\n');
+
+  var startTime = moment().subtract('weeks', 1),
+    endTime = moment();
+
+  var gateways = [],
+    currencies = [],
+    gatewayCurrencyPairs = [];
+
+  // Parse gateways
+  if (typeof req.body.gateways === 'object') {
+
+    req.body.gateways.forEach(function(gateway){
+      var parsedGateway = parseGateway(gateway);
+      if (parsedGateway) {
+        gateways.push(parsedGateway);
+      } else {
+        res.send(500, { error: 'invalid or unknown gateway: ' + gateway });
+        return;
+      }
+    });
+
+  }
+
+  function parseGateway (nameOrAddress) {
+    // Check if gateway is a name or an address
+    if (ripple.UInt160.is_valid(nameOrAddress)) {
+
+      var gatewayName = getGatewayName(nameOrAddress);
+      if (gatewayName !== '') {
+        return parseGateway(gatewayName)
+      } else {
+        return { address: nameOrAddress };        
+      }
+
+    } else if (gatewayNameToAddress(nameOrAddress)){
+      var gateway = {
+        name: nameOrAddress, 
+        address: gatewayNameToAddress(nameOrAddress)
+      },
+      hotwallets = getHotWalletsForGateway(nameOrAddress);
+
+      if (hotwallets.length > 0) {
+        gateway.hotwallets = hotwallets;
+      }
+
+      return gateway;
+    } else {
+      return null;
+    }
+  }
+
+  // Parse currencies
+  var includeXRP = false;
+  if (typeof req.body.currencies === 'object') {
+    req.body.currencies.forEach(function(currency){
+      if (currency === 'XRP') {
+        includeXRP = true;
+      } else {
+        currencies.push(currency.toUpperCase());
+      }
+    });
+  }
+
+
+  // Get gateway/currency pairs to query CouchDB for
+  if (gateways.length > 0 && currencies.length > 0) {
+    gateways.forEach(function(gateway){
+      currencies.forEach(function(currency){
+        var pair = { 
+          address: gateway.address,
+          currency: currency
+        };
+        if (gateway.name) {
+          pair.name = gateway.name;
+        }
+        if (gateway.hotwallets && gateway.hotwallets.length > 0) {
+          pair.hotwallets = gateway.hotwallets;
+        }
+        gatewayCurrencyPairs.push(pair);
+      });
+    });
+  } else if (gateways.length > 0 && currencies.length === 0) {
+
+    if (_.every(gateways, function(gateway){ return gateway.name; })) {
+      gateways.forEach(function(gateway){
+        getCurrenciesForGateway(gateway.name).forEach(function(currency){
+          gatewayCurrencyPairs.push({
+            address: gateway.address,
+            currency: currency,
+            name: gateway.name,
+            hotwallets: gateway.hotwallets
+          });
+        });
+      });
+    } else {
+      res.send(500, { error: 'please specify currencies or use gateway names instead of accounts' });
+      return;
+    }
+
+  } else if (gateways.length === 0 && currencies.length > 0) {
+
+    currencies.forEach(function(currency){
+      getGatewaysForCurrency(currency).forEach(function(gateway){
+        gatewayCurrencyPairs.push({
+          address: gateway.address,
+          currency: currency,
+          name: gateway.name,
+          hotwallets: getHotWalletsForGateway(gateway.name)
+        });
+      });
+    });
+
+  } else {
+    res.send(500, { error: 'please specify at least one gateway and/or at least one currency'});
+    return;
+  }
+
+  var assetPairs = [];
+
+  for (var t = 0; t < gatewayCurrencyPairs.length; t++) {
+    var trade = gatewayCurrencyPairs[t];
+
+    if (includeXRP) {
+      assetPairs.push({
+        base: {currency: 'XRP'},
+        trade: {currency: trade.currency, issuer: trade.address}
+      });
+    }
+
+    for (var b = t + 1; b < gatewayCurrencyPairs.length; b++) {
+      var base = gatewayCurrencyPairs[b];
+
+      if (base) {
+        assetPairs.push({
+          base: {currency: base.currency, issuer: base.address},
+          trade: {currency: trade.currency, issuer: trade.address}
+        });
+      }
+    }
+  }
+
+  // Mimic calling offersExercised for each asset pair
+  async.mapLimit(assetPairs, 10, function(assetPair, asyncCallbackPair){
+
+    offersExercisedHandler({
+      body: {
+        base: assetPair.base,
+        trade: assetPair.trade,
+        startTime: startTime,
+        endTime: endTime,
+        timeIncrement: 'all'
+      }
+    }, {
+      send: function(data) {
+
+        if (data.error) {
+          asyncCallbackPair(data.error);
+          return;
+        }
+
+        if (data && data.length > 1) {
+          assetPair.rate = data[1][8]; // vwavPrice
+        } else {
+          assetPair.rate = 0;
+        }
+        asyncCallbackPair(null, assetPair);
+      }
+    });
+
+  }, function(err, results){
+    if (err) {
+      res.send(500, { error: err });
+      return;
+    }
+
+    res.send(results);
+  });
+
+
 }
 
 
@@ -919,7 +1090,7 @@ function offersExercisedHandler( req, res ) {
       var apiRes = {};
       apiRes.timeRetrieved = moment.utc().valueOf();
 
-      apiRes.rows = _.map(couchRes.rows, function(row){
+      apiRes.rows = _.map(finalRows, function(row){
 
         // reformat rows
         return {
