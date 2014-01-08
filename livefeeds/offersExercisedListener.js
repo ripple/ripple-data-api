@@ -250,19 +250,32 @@ function parseViewOpts(opts) {
     opts.reduce = false;
   }
 
-  if (opts.base && opts.base.issuer) {
-    var baseGatewayAddress = gatewayNameToAddress(opts.base.issuer, opts.base.currency);
-    if (baseGatewayAddress) {
-      opts.base.issuer = baseGatewayAddress;
+  if (opts.base) {
+
+    if (opts.base.issuer === '') {
+      delete opts.base.issuer;
+    } else if (opts.base.issuer) {
+
+      var baseGatewayAddress = gatewayNameToAddress(opts.base.issuer, opts.base.currency);
+      if (baseGatewayAddress) {
+        opts.base.issuer = baseGatewayAddress;
+      }
     }
   }
 
-  if (opts.trade && opts.trade.issuer) {
-    var tradeGatewayAddress = gatewayNameToAddress(opts.trade.issuer, opts.trade.currency);
-    if (tradeGatewayAddress) {
-      opts.trade.issuer = tradeGatewayAddress;
+  if (opts.trade) {
+    if (opts.trade.issuer === '') {
+      delete opts.trade.issuer;
+    } else if (opts.trade.issuer) {
+
+      var tradeGatewayAddress = gatewayNameToAddress(opts.trade.issuer, opts.trade.currency);
+      if (tradeGatewayAddress) {
+        opts.trade.issuer = tradeGatewayAddress;
+      }
     }
   }
+
+  console.log(JSON.stringify(opts));
 
   return opts;
 }
