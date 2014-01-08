@@ -175,7 +175,14 @@ function gatewayCapitalizationHandler( req, res ) {
   function parseGateway (nameOrAddress) {
     // Check if gateway is a name or an address
     if (ripple.UInt160.is_valid(nameOrAddress)) {
-      return { address: nameOrAddress };
+
+      var gatewayName = getGatewayName(nameOrAddress);
+      if (gatewayName !== '') {
+        return parseGateway(gatewayName)
+      } else {
+        return { address: nameOrAddress };        
+      }
+
     } else if (gatewayNameToAddress(nameOrAddress)){
       var gateway = {
         name: nameOrAddress, 
@@ -1209,6 +1216,17 @@ function getGatewaysForCurrency( currName ) {
 
   return issuers;
 
+}
+
+function getGatewayName(address) {
+  for (var g = 0; g < gatewayList.length; g++) {
+
+    if (_.find(gatewayList[g].accounts, function(account) {return account.address === address;})) {
+      return gatewayList[g].name;
+    }
+  }
+
+  return '';
 }
 
 /**
