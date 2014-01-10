@@ -920,7 +920,14 @@ function topMarketsHandler( req, res ) {
     });
 
     toXrpRateResults.forEach(function(element, index, array) {
-      finalRates.push(element * toUsdRateResults[index]);
+      if ((marketPairs[index]) && (marketPairs[index].base)) {
+        if (marketPairs[index].base.currency === 'USD') {
+          // use 1.0000 for USD since USD->XRP->USD is never quite 1.0000
+          finalRates.push(1.0);
+        } else {
+          finalRates.push(element * toUsdRateResults[index]);
+        }
+      }
     });
 
     finalRates.forEach(function(row) {
