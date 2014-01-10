@@ -737,6 +737,35 @@ function topMarketsHandler( req, res ) {
     }
   ];
 
+
+  var conversionPairs = [
+    {
+      // Bitstamp USD value of XRP
+      base: {currency: 'XRP'},
+      trade: {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+    },
+    {
+      // Bitstamp USD value of XRP
+      base: {currency: 'XRP'},
+      trade: {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+    },
+    {
+      // RippleCN USD value of XRP does not exist; use Bitstamp conversion rate
+      base: {currency: 'XRP'},
+      trade: {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+    },
+    {
+      // RippleChina USD value of XRP does not exist; use Bitstamp conversion rate
+      base: {currency: 'XRP'},
+      trade: {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+    },
+    {
+      // SnapSwap USD value of XRP
+      base: {currency: 'XRP'},
+      trade: {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
+    }
+  ];
+
   // parse startTime and endTime
   var startTime, endTime;
 
@@ -797,6 +826,110 @@ function topMarketsHandler( req, res ) {
     viewOpts.reduce = (req.body.reduce === true);
   }
 
+  // prepare results to send back
+  var resRows = [],
+    headerRow = [
+      'startTime', 
+      'baseCurrVolume', 
+      //'vwavPrice',
+      'finalConversionRate',
+      'marketValue'
+    ];
+
+  // data structure for grouping results 
+  var finalRows = [], finalRates = [], toXrpRateResults = [], toUsdRateResults = [];
+
+  // Mimic calling offersExercised for each asset pair
+  async.mapLimit(marketPairs, 10, function(assetPair, asyncCallbackPair){
+
+    offersExercisedHandler({
+      body: {
+        base: assetPair.base,
+        trade: assetPair.trade,
+        startTime: startTime,
+        endTime: endTime,
+        timeIncrement: 'all'
+      }
+    }, {
+      send: function(data) {
+
+        if (data.error) {
+          asyncCallbackPair(data.error);
+          return;
+        }
+
+        if (data && data.length > 1) {
+          assetPair.rate = data[1][8]; // vwavPrice
+        } else {
+          assetPair.rate = 0;
+        }
+        asyncCallbackPair(null, assetPair);
+      }
+    });
+
+  }, function(err, results){
+    if (err) {
+      res.send(500, { error: err });
+      return;
+    }
+
+    results.forEach(function(result) {
+      winston.info("XRP Rate: " + JSON.stringify(result.rate));
+
+      toXrpRateResults.push(result.rate);
+    });
+  });
+
+  // Mimic calling offersExercised for each XRP to USD pair
+  async.mapLimit(conversionPairs, 10, function(assetPair, asyncCallbackPair){
+
+    offersExercisedHandler({
+      body: {
+        base: assetPair.base,
+        trade: assetPair.trade,
+        startTime: startTime,
+        endTime: endTime,
+        timeIncrement: 'all'
+      }
+    }, {
+      send: function(data) {
+
+        if (data.error) {
+          asyncCallbackPair(data.error);
+          return;
+        }
+
+        if (data && data.length > 1) {
+          assetPair.rate = data[1][8]; // vwavPrice
+        } else {
+          assetPair.rate = 0;
+        }
+        asyncCallbackPair(null, assetPair);
+      }
+    });
+
+  }, function(err, results){
+    if (err) {
+      res.send(500, { error: err });
+      return;
+    }
+
+    results.forEach(function(result) {
+      winston.info("USD Rate: " + JSON.stringify(result.rate));
+
+      toUsdRateResults.push(result.rate);
+    });
+
+    toXrpRateResults.forEach(function(element, index, array) {
+      finalRates.push(element * toUsdRateResults[index]);
+    });
+
+    finalRates.forEach(function(row) {
+      winston.info("final conversion rate: " + row);
+    });
+    //res.send(finalRates);
+  });
+
   // determine the group_multiple from the timeMultiple field
   if (viewOpts.reduce === true && req.body.timeMultiple) {
     viewOpts.group_multiple = req.body.timeMultiple;
@@ -849,21 +982,6 @@ function topMarketsHandler( req, res ) {
     viewOpts.group = false; // default to day
   }
 
-  // prepare results to send back
-  var resRows = [],
-    headerRow = [
-      'startTime', 
-      'baseCurrVolume', 
-      'vwavPrice'
-    ];
-
-  if (viewOpts.reduce == true) {
-    resRows.push(headerRow);
-  }
-
-  // data structure for grouping results 
-  var finalRows = [];
-
   marketPairs.forEach(function(element, index, array) {
     // process current market pair
     marketPair = element;
@@ -892,11 +1010,6 @@ function topMarketsHandler( req, res ) {
     viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
     viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
-    winston.info('tradeCurr:' + JSON.stringify(tradeCurr));
-    winston.info('baseCurr:' + JSON.stringify(baseCurr));
-
-    winston.info('viewOpts:' + JSON.stringify(viewOpts));
-
     // query the couch db offersExercised map-reduce view
     db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
       if (err) {
@@ -905,16 +1018,15 @@ function topMarketsHandler( req, res ) {
         // TODO send error messages to api querier
       }
 
-      winston.info('Got ' + couchRes.rows.length + ' rows');
-      winston.info(JSON.stringify(couchRes.rows));
+      //winston.info('Got ' + couchRes.rows.length + ' rows');
+      //winston.info(JSON.stringify(couchRes.rows));
       
       if (viewOpts.reduce == true) {
         couchRes.rows.forEach(function(row){
-
           resRows.push([
             (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
             row.value.curr2Volume,
-            row.value.volumeWeightedAvg
+            //row.value.volumeWeightedAvg
           ]);
         });
       } else {      
@@ -922,9 +1034,8 @@ function topMarketsHandler( req, res ) {
           resRows.push(JSON.stringify(row));
         });
       }
-      winston.info("Res Rows: " + resRows);
 
-      if (req.body.timeMultiple) {
+      if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
         // data structures for processing rows
         var tabledRowCount = 0, newElementCount = 0;
         var tabledRows = [];
@@ -938,10 +1049,6 @@ function topMarketsHandler( req, res ) {
         tabledRows[tabledRowCount] = [];
 
         couchRes.rows.forEach(function(element, index, array) {
-
-          //winston.info('Couch result Index: ' + index);
-          //winston.info(element.value.curr2Volume);
-          //winston.info(element.value.volumeWeightedAvg);
 
           var elementTime = moment(element.value.openTime);
 
@@ -976,9 +1083,6 @@ function topMarketsHandler( req, res ) {
         tabledRows.forEach(function(element, index, array) {
 
           element.forEach(function(e, i, a) {
-            //winston.info(e);
-            //winston.info(e.value.curr2Volume);
-            //winston.info(e.value.volumeWeightedAvg);
 
             // if this is first column
             if (i === 0) {
@@ -1014,55 +1118,73 @@ function topMarketsHandler( req, res ) {
           groupedRows.unshift(headerRow);
 
           // use grouped rows as our final rows
-          finalRows += groupedRows;
+          finalRows = groupedRows;
         });
       } else {
-          // use original results as our final rows
-          finalRows += resRows;
+        // use original results as our final rows
+        finalRows = resRows;
       }
 
-      finalRows = resRows;
-
-      winston.info("Final Rows: " + finalRows);
-
-      // handle format option
-      if (!req.body.format || req.body.format === 'json') {
-
-        // TODO include time sent?
-        res.send(finalRows);
-
-      } else if (req.body.format === 'csv') {
-
-        var csvStr = _.map(finalRows, function(row){
-          return row.join(', ');
-        }).join('\n');
-
-        // provide output as CSV
-        res.end(csvStr);
-
-      } else if (req.body.format === 'json_verbose') {
-
-        // send as an array of json objects
-        var apiRes = {};
-        apiRes.timeRetrieved = moment.utc().valueOf();
-
-        apiRes.rows = _.map(finalRows, function(row){
-
-          // reformat rows
-          return {
-            openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-            baseCurrVol: row.value.curr2Volume,
-            vwavPrice: row.value.volumeWeightedAvg
-          };
-
+      // if we've exhausted currency pairs
+      if ((finalRows.length == finalRates.length) && (viewOpts.reduce == true)) {
+        finalRows.forEach(function(row, index, array) {
+          row.push(finalRates[index]);
+          // multiply base currency volume by the final conversion rate to create volume in USD
+          row.push(row[1]*finalRates[index]);
         });
 
-        res.json(apiRes);
+        finalRows.unshift(headerRow);
 
-      } else {
-        // TODO handle incorrect input
-        winston.error('incorrect format: ' + req.body.format);
+        //finalRows.forEach(function(element, index, array) {
+        //  winston.info(index + ": " + element);
+        //});        
+      }
 
+      // if we've assembled data for all top markets
+      if (finalRates.length+1 === finalRows.length) {
+
+        // display to log
+        //winston.info("Final Rows: " + finalRows);
+
+        // handle format option
+        if (!req.body.format || req.body.format === 'json') {
+
+          // send to client
+          res.send(finalRows); 
+          
+        } else if (req.body.format === 'csv') {
+
+          var csvStr = _.map(finalRows, function(row){
+            return row.join(', ');
+          }).join('\n');
+
+          // provide output as CSV
+          res.end(csvStr);
+
+        } else if (req.body.format === 'json_verbose') {
+
+          // send as an array of json objects
+          var apiRes = {};
+          apiRes.timeRetrieved = moment.utc().valueOf();
+
+          apiRes.rows = _.map(finalRows, function(row){
+
+            // reformat rows
+            return {
+              openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+              baseCurrVol: row.value.curr2Volume,
+              vwavPrice: row.value.volumeWeightedAvg
+            };
+
+          });
+
+          res.json(apiRes);
+
+        } else {
+          // TODO handle incorrect input
+          winston.error('incorrect format: ' + req.body.format);
+
+        }
       }
     });
   });
@@ -1262,8 +1384,7 @@ function offersExercisedHandler( req, res ) {
     viewOpts.group = false; // default to day
   }
 
-  winston.info('viewOpts:' + JSON.stringify(viewOpts));
-
+  //winston.info('viewOpts:' + JSON.stringify(viewOpts));
 
   db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
     if (err) {
