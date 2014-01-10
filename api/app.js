@@ -831,7 +831,6 @@ function topMarketsHandler( req, res ) {
     headerRow = [
       'startTime', 
       'baseCurrVolume', 
-      //'vwavPrice',
       'finalConversionRate',
       'marketValue'
     ];
@@ -1025,8 +1024,7 @@ function topMarketsHandler( req, res ) {
         couchRes.rows.forEach(function(row){
           resRows.push([
             (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-            row.value.curr2Volume,
-            //row.value.volumeWeightedAvg
+            row.value.curr2Volume
           ]);
         });
       } else {      
@@ -1078,7 +1076,7 @@ function topMarketsHandler( req, res ) {
 
         // data structures for grouping results 
         var groupedRows = [];
-        var groupedOpenTime, groupedBaseCurrVolume, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
+        var groupedOpenTime, groupedBaseCurrVolume;
      
         tabledRows.forEach(function(element, index, array) {
 
@@ -1088,31 +1086,13 @@ function topMarketsHandler( req, res ) {
             if (i === 0) {
               // set initial values for each group
               groupedBaseCurrVolume = 0;
-              groupedVwavPrice = 0;
-              groupedVwavNumerator = 0;
-              groupedVwavDenominator = 0;
             }
             // SUM: base currency volume
             groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
-
-            // regenerate volume weighted average price numerator, defined as sum of trade volume multiplied by VWAP
-            groupedVwavNumerator = groupedVwavNumerator + e.value.volumeWeightedAvg * e.value.curr1Volume;
-
-            // regenerate volume weighted average price denominator, defined as sum of trade volume
-            groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
           });
 
-          // regenerate volume weighted average price statistics over entire group
-          if (groupedVwavDenominator === 0) {
-            // don't divide by zero, set result to zero if denominator value is zero
-            groupedVwavPrice = 0;
-          } else {
-            // recalculate volume weighted average price over entire group
-            groupedVwavPrice = groupedVwavNumerator / groupedVwavDenominator;
-          }
-
           // create grouped result based on processed group of rows
-          groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedVwavPrice]);
+          groupedRows.push([groupedOpenTime, groupedBaseCurrVolume]);
 
           // add header row to results
           groupedRows.unshift(headerRow);
@@ -1151,7 +1131,7 @@ function topMarketsHandler( req, res ) {
 
           // send to client
           res.send(finalRows); 
-          
+
         } else if (req.body.format === 'csv') {
 
           var csvStr = _.map(finalRows, function(row){
@@ -1172,8 +1152,7 @@ function topMarketsHandler( req, res ) {
             // reformat rows
             return {
               openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-              baseCurrVol: row.value.curr2Volume,
-              vwavPrice: row.value.volumeWeightedAvg
+              baseCurrVol: row.value.curr2Volume
             };
 
           });
