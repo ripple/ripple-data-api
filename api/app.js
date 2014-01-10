@@ -873,7 +873,7 @@ function topMarketsHandler( req, res ) {
     }
 
     results.forEach(function(result) {
-      winston.info("XRP Rate: " + JSON.stringify(result.rate));
+      //winston.info("XRP Rate: " + JSON.stringify(result.rate));
 
       toXrpRateResults.push(result.rate);
     });
@@ -914,7 +914,7 @@ function topMarketsHandler( req, res ) {
     }
 
     results.forEach(function(result) {
-      winston.info("USD Rate: " + JSON.stringify(result.rate));
+      //winston.info("USD Rate: " + JSON.stringify(result.rate));
 
       toUsdRateResults.push(result.rate);
     });
@@ -931,7 +931,7 @@ function topMarketsHandler( req, res ) {
     });
 
     finalRates.forEach(function(row) {
-      winston.info("final conversion rate: " + row);
+      //winston.info("final conversion rate: " + row);
     });
     //res.send(finalRates);
   });
