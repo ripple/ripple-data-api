@@ -45,9 +45,16 @@ var allowCrossDomain = function(req, res, next) {
       next();
     }
 };
-app.use(allowCrossDomain);
 
+app.use(allowCrossDomain); 
 // TODO use express.json() instead of bodyParser
+
+app.get("/api/topMarkets", function(req, res) {
+  // pass GET requests through directly to the handler
+  topMarketsHandler(req, res);
+});
+
+ // TODO use express.json() instead of bodyParser
 app.use(express.bodyParser());
 
 // general api route handler
@@ -766,64 +773,126 @@ function topMarketsHandler( req, res ) {
     }
   ];
 
-  // parse startTime and endTime
-  var startTime, endTime;
+  if (req && req.body) {
+    // parse startTime and endTime
+    var startTime, endTime;
 
-  if (!req.body.startTime && !req.body.endTime) {
+    if (!req.body.startTime && !req.body.endTime) {
 
+      startTime = moment.utc().subtract('hours', 24);
+      endTime = moment.utc();
+
+    } else if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+
+      if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
+        startTime = moment.utc(req.body.startTime);
+        endTime = moment.utc(req.body.endTime);
+      } else {
+        endTime = moment.utc(req.body.startTime);
+        startTime = moment.utc(req.body.endTime);
+      }
+
+    } else {
+
+      if (!req.body.startTime && req.body.endTime) {
+        winston.error('invalid startTime: ' + req.body.startTime);
+        res.send(500, { error: 'invalid startTime: ' + req.body.startTime });
+      }
+
+      if (!moment(req.body.startTime).isValid()) {
+        winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
+        res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+      }
+
+      if (!req.body.endTime && req.body.startTime) {
+        winston.error('invalid endTime: ' + req.body.endTime);
+        res.send(500, { error: 'invalid endTime: ' + req.body.endTime });
+      }
+
+      if (!moment(req.body.endTime).isValid()) {
+        winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
+        res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+      }
+
+      return;
+    }
+
+    // handle descending/non-descending query
+    if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
+      viewOpts.descending = true;
+
+      // swap startTime and endTime if results will be in descending order
+      var tempTime = startTime;
+      startTime = endTime;
+      endTime = tempTime;
+    }
+
+    // set reduce option
+    if (!req.body.hasOwnProperty('reduce')) {
+      viewOpts.reduce = true;
+    } else {
+      viewOpts.reduce = (req.body.reduce === true);
+    }
+
+    // determine the group_multiple from the timeMultiple field
+    if (viewOpts.reduce === true && req.body.timeMultiple) {
+      viewOpts.group_multiple = req.body.timeMultiple;
+    } else {
+      viewOpts.group_multiple = 1;  // default to no multiple of time increment
+    }
+
+    var group_level_string;
+
+    // gather custom time period data used later for grouping
+    if (viewOpts.reduce === true && req.body.timeIncrement) {
+      // determine the group_level from the timeIncrement field
+      var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+        levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+      if (inc === 'al') {
+        viewOpts.group = false;
+      } else if (inc === 'no') {
+        viewOpts.reduce = false;
+      } else if (inc === 'we') {
+        viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
+        viewOpts.group_level = 3 + 2; // set group_level to day
+        group_level_string = 'weeks';
+      } else if (levels.indexOf(inc)) {
+        viewOpts.group_level = 3 + levels.indexOf(inc);
+        switch (inc) {
+          case 'ye': 
+            group_level_string = 'years';
+            break;
+          case 'mo': 
+            group_level_string = 'months';
+            break;
+          case 'da': 
+            group_level_string = 'days';
+            break;
+          case 'ho': 
+            group_level_string = 'hours';
+            break;
+          case 'mi': 
+            group_level_string = 'minutes';
+            break;
+          case 'se': 
+            group_level_string = 'seconds';
+            break;
+        }
+      } else {
+        viewOpts.group_level = 3 + 2; // default to day
+      } 
+    } else {
+      // TODO handle incorrect options better
+      viewOpts.group = false; // default to day
+    }
+
+  } else {
+    // setup default parameters if no request body
     startTime = moment.utc().subtract('hours', 24);
     endTime = moment.utc();
-
-  } else if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
-
-    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-      startTime = moment.utc(req.body.startTime);
-      endTime = moment.utc(req.body.endTime);
-    } else {
-      endTime = moment.utc(req.body.startTime);
-      startTime = moment.utc(req.body.endTime);
-    }
-
-  } else {
-
-    if (!req.body.startTime && req.body.endTime) {
-      winston.error('invalid startTime: ' + req.body.startTime);
-      res.send(500, { error: 'invalid startTime: ' + req.body.startTime });
-    }
-
-    if (!moment(req.body.startTime).isValid()) {
-      winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
-      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
-    }
-
-    if (!req.body.endTime && req.body.startTime) {
-      winston.error('invalid endTime: ' + req.body.endTime);
-      res.send(500, { error: 'invalid endTime: ' + req.body.endTime });
-    }
-
-    if (!moment(req.body.endTime).isValid()) {
-      winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
-      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
-    }
-
-    return;
-  }
-
-  // handle descending/non-descending query
-  if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
-    viewOpts.descending = true;
-
-    // swap startTime and endTime if results will be in descending order
-    var tempTime = startTime;
-    startTime = endTime;
-    endTime = tempTime;
-  }
-
-  // set reduce option
-  if (!req.body.hasOwnProperty('reduce')) {
     viewOpts.reduce = true;
-  } else {
-    viewOpts.reduce = (req.body.reduce === true);
+    viewOpts.group = false;
+    viewOpts.group_multiple = 1;  // default to no multiple of time increment
   }
 
   // prepare results to send back
@@ -930,63 +999,10 @@ function topMarketsHandler( req, res ) {
       }
     });
 
-    finalRates.forEach(function(row) {
-      //winston.info("final conversion rate: " + row);
-    });
-    //res.send(finalRates);
+    //finalRates.forEach(function(row) {
+    //  winston.info("final conversion rate: " + row);
+    //});
   });
-
-  // determine the group_multiple from the timeMultiple field
-  if (viewOpts.reduce === true && req.body.timeMultiple) {
-    viewOpts.group_multiple = req.body.timeMultiple;
-  } else {
-    viewOpts.group_multiple = 1;  // default to no multiple of time increment
-  }
-
-  var group_level_string;
-
-  // gather custom time period data used later for grouping
-  if (viewOpts.reduce === true && req.body.timeIncrement) {
-    // determine the group_level from the timeIncrement field
-    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
-      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
-    if (inc === 'al') {
-      viewOpts.group = false;
-    } else if (inc === 'no') {
-      viewOpts.reduce = false;
-    } else if (inc === 'we') {
-      viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
-      viewOpts.group_level = 3 + 2; // set group_level to day
-      group_level_string = 'weeks';
-    } else if (levels.indexOf(inc)) {
-      viewOpts.group_level = 3 + levels.indexOf(inc);
-      switch (inc) {
-        case 'ye': 
-          group_level_string = 'years';
-          break;
-        case 'mo': 
-          group_level_string = 'months';
-          break;
-        case 'da': 
-          group_level_string = 'days';
-          break;
-        case 'ho': 
-          group_level_string = 'hours';
-          break;
-        case 'mi': 
-          group_level_string = 'minutes';
-          break;
-        case 'se': 
-          group_level_string = 'seconds';
-          break;
-      }
-    } else {
-      viewOpts.group_level = 3 + 2; // default to day
-    } 
-  } else {
-    // TODO handle incorrect options better
-    viewOpts.group = false; // default to day
-  }
 
   marketPairs.forEach(function(element, index, array) {
     // process current market pair
@@ -1040,76 +1056,81 @@ function topMarketsHandler( req, res ) {
         });
       }
 
-      if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
-        // data structures for processing rows
-        var tabledRowCount = 0, newElementCount = 0;
-        var tabledRows = [];
-        var epochStartTime = moment(startTime);
-        var epochEndTime = moment(startTime);
+      if (req && req.body) {
+        if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
+          // data structures for processing rows
+          var tabledRowCount = 0, newElementCount = 0;
+          var tabledRows = [];
+          var epochStartTime = moment(startTime);
+          var epochEndTime = moment(startTime);
 
-        // define the epoch for grouping of results
-        epochEndTime.add(group_level_string, req.body.timeMultiple);
+          // define the epoch for grouping of results
+          epochEndTime.add(group_level_string, req.body.timeMultiple);
 
-        // create initial row of table for assembling grouped results
-        tabledRows[tabledRowCount] = [];
+          // create initial row of table for assembling grouped results
+          tabledRows[tabledRowCount] = [];
 
-        couchRes.rows.forEach(function(element, index, array) {
+          couchRes.rows.forEach(function(element, index, array) {
 
-          var elementTime = moment(element.value.openTime);
+            var elementTime = moment(element.value.openTime);
 
-          if (elementTime > epochEndTime) {
-            epochStartTime.add(group_level_string, req.body.timeMultiple);
-            epochEndTime.add(group_level_string, req.body.timeMultiple);
+            if (elementTime > epochEndTime) {
+              epochStartTime.add(group_level_string, req.body.timeMultiple);
+              epochEndTime.add(group_level_string, req.body.timeMultiple);
 
-            // if this is not the first row processed
-            if (index !== 0) {
-              // increment variable used for counting and indexing rows in table
-              tabledRowCount = tabledRowCount + 1;
+              // if this is not the first row processed
+              if (index !== 0) {
+                // increment variable used for counting and indexing rows in table
+                tabledRowCount = tabledRowCount + 1;
+              }
+
+              // create a new row if at boundary
+              tabledRows[tabledRowCount] = [];
+
+              // reset index for storage into new row
+              newElementCount = 0;
             }
 
-            // create a new row if at boundary
-            tabledRows[tabledRowCount] = [];
+            // store row to be grouped
+            tabledRows[tabledRowCount][newElementCount] = element;
 
-            // reset index for storage into new row
-            newElementCount = 0;
-          }
-
-          // store row to be grouped
-          tabledRows[tabledRowCount][newElementCount] = element;
-
-          // increment variable used for counting and indexing row elements
-          newElementCount = newElementCount + 1;
-        });
-
-        // data structures for grouping results 
-        var groupedRows = [];
-        var groupedOpenTime, groupedBaseCurrVolume;
-     
-        tabledRows.forEach(function(element, index, array) {
-
-          element.forEach(function(e, i, a) {
-
-            // if this is first column
-            if (i === 0) {
-              // set initial values for each group
-              groupedBaseCurrVolume = 0;
-            }
-            // SUM: base currency volume
-            groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+            // increment variable used for counting and indexing row elements
+            newElementCount = newElementCount + 1;
           });
 
-          // create grouped result based on processed group of rows
-          groupedRows.push([groupedOpenTime, groupedBaseCurrVolume]);
+          // data structures for grouping results 
+          var groupedRows = [];
+          var groupedOpenTime, groupedBaseCurrVolume;
+       
+          tabledRows.forEach(function(element, index, array) {
 
-          // add header row to results
-          groupedRows.unshift(headerRow);
+            element.forEach(function(e, i, a) {
 
-          // use grouped rows as our final rows
-          finalRows = groupedRows;
-        });
+              // if this is first column
+              if (i === 0) {
+                // set initial values for each group
+                groupedBaseCurrVolume = 0;
+              }
+              // SUM: base currency volume
+              groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+            });
+
+            // create grouped result based on processed group of rows
+            groupedRows.push([groupedOpenTime, groupedBaseCurrVolume]);
+
+            // add header row to results
+            groupedRows.unshift(headerRow);
+
+            // use grouped rows as our final rows
+            finalRows = groupedRows;
+          });
+        } else {
+          // use original results as our final rows
+          finalRows = resRows;
+        }
       } else {
-        // use original results as our final rows
-        finalRows = resRows;
+        // present results for GET request
+        finalRows = resRows;        
       }
 
       // if we've exhausted currency pairs
@@ -1120,6 +1141,7 @@ function topMarketsHandler( req, res ) {
           row.push(row[1]*finalRates[index]);
         });
 
+        // add header row to final result
         finalRows.unshift(headerRow);
 
         //finalRows.forEach(function(element, index, array) {
@@ -1132,44 +1154,48 @@ function topMarketsHandler( req, res ) {
 
         // display to log
         //winston.info("Final Rows: " + finalRows);
+        if (req && req.body) {
+          // handle format option
+          if (!req.body.format || req.body.format === 'json') {
 
-        // handle format option
-        if (!req.body.format || req.body.format === 'json') {
+            // send to client
+            res.send(finalRows); 
 
+          } else if (req.body.format === 'csv') {
+
+            var csvStr = _.map(finalRows, function(row){
+              return row.join(', ');
+            }).join('\n');
+
+            // provide output as CSV
+            res.send(csvStr);
+
+          } else if (req.body.format === 'json_verbose') {
+
+            // send as an array of json objects
+            var apiRes = {};
+            apiRes.timeRetrieved = moment.utc().valueOf();
+
+            apiRes.rows = _.map(finalRows, function(row){
+
+              // reformat rows
+              return {
+                openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+                baseCurrVol: row.value.curr2Volume
+              };
+
+            });
+
+            res.json(apiRes);
+
+          } else {
+            // TODO handle incorrect input
+            winston.error('incorrect format: ' + req.body.format);
+
+          }
+        } else {
           // send to client
           res.send(finalRows); 
-
-        } else if (req.body.format === 'csv') {
-
-          var csvStr = _.map(finalRows, function(row){
-            return row.join(', ');
-          }).join('\n');
-
-          // provide output as CSV
-          res.end(csvStr);
-
-        } else if (req.body.format === 'json_verbose') {
-
-          // send as an array of json objects
-          var apiRes = {};
-          apiRes.timeRetrieved = moment.utc().valueOf();
-
-          apiRes.rows = _.map(finalRows, function(row){
-
-            // reformat rows
-            return {
-              openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-              baseCurrVol: row.value.curr2Volume
-            };
-
-          });
-
-          res.json(apiRes);
-
-        } else {
-          // TODO handle incorrect input
-          winston.error('incorrect format: ' + req.body.format);
-
         }
       }
     });
