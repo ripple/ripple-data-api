@@ -827,64 +827,8 @@ function topMarketsHandler( req, res ) {
       endTime = tempTime;
     }
 
-    // set reduce option
-    if (!req.body.hasOwnProperty('reduce')) {
-      viewOpts.reduce = true;
-    } else {
-      viewOpts.reduce = (req.body.reduce === true);
-    }
-
-    // determine the group_multiple from the timeMultiple field
-    if (viewOpts.reduce === true && req.body.timeMultiple) {
-      viewOpts.group_multiple = req.body.timeMultiple;
-    } else {
-      viewOpts.group_multiple = 1;  // default to no multiple of time increment
-    }
-
-    var group_level_string;
-
-    // gather custom time period data used later for grouping
-    if (viewOpts.reduce === true && req.body.timeIncrement) {
-      // determine the group_level from the timeIncrement field
-      var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
-        levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
-      if (inc === 'al') {
-        viewOpts.group = false;
-      } else if (inc === 'no') {
-        viewOpts.reduce = false;
-      } else if (inc === 'we') {
-        viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
-        viewOpts.group_level = 3 + 2; // set group_level to day
-        group_level_string = 'weeks';
-      } else if (levels.indexOf(inc)) {
-        viewOpts.group_level = 3 + levels.indexOf(inc);
-        switch (inc) {
-          case 'ye': 
-            group_level_string = 'years';
-            break;
-          case 'mo': 
-            group_level_string = 'months';
-            break;
-          case 'da': 
-            group_level_string = 'days';
-            break;
-          case 'ho': 
-            group_level_string = 'hours';
-            break;
-          case 'mi': 
-            group_level_string = 'minutes';
-            break;
-          case 'se': 
-            group_level_string = 'seconds';
-            break;
-        }
-      } else {
-        viewOpts.group_level = 3 + 2; // default to day
-      } 
-    } else {
-      // TODO handle incorrect options better
-      viewOpts.group = false; // default to day
-    }
+    // set the return options based on body of the request
+    viewOpts = viewOptsFromReqBody(req.body, viewOpts);
 
   } else {
     // setup default parameters if no request body
@@ -1337,64 +1281,8 @@ function offersExercisedHandler( req, res ) {
   viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
   viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
-  // set reduce option
-  if (!req.body.hasOwnProperty('reduce')) {
-    viewOpts.reduce = true;
-  } else {
-    viewOpts.reduce = (req.body.reduce === true);
-  }
-
-  // determine the group_multiple from the timeMultiple field
-  if (viewOpts.reduce === true && req.body.timeMultiple) {
-    viewOpts.group_multiple = req.body.timeMultiple;
-  } else {
-    viewOpts.group_multiple = 1;  // default to no multiple of time increment
-  }
-
-  var group_level_string;
-
-  // gather custom time period data used later for grouping
-  if (viewOpts.reduce === true && req.body.timeIncrement) {
-    // determine the group_level from the timeIncrement field
-    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
-      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
-    if (inc === 'al') {
-      viewOpts.group = false;
-    } else if (inc === 'no') {
-      viewOpts.reduce = false;
-    } else if (inc === 'we') {
-      viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
-      viewOpts.group_level = 3 + 2; // set group_level to day
-      group_level_string = 'weeks';
-    } else if (levels.indexOf(inc)) {
-      viewOpts.group_level = 3 + levels.indexOf(inc);
-      switch (inc) {
-        case 'ye': 
-          group_level_string = 'years';
-          break;
-        case 'mo': 
-          group_level_string = 'months';
-          break;
-        case 'da': 
-          group_level_string = 'days';
-          break;
-        case 'ho': 
-          group_level_string = 'hours';
-          break;
-        case 'mi': 
-          group_level_string = 'minutes';
-          break;
-        case 'se': 
-          group_level_string = 'seconds';
-          break;
-      }
-    } else {
-      viewOpts.group_level = 3 + 2; // default to day
-    } 
-  } else {
-    // TODO handle incorrect options better
-    viewOpts.group = false; // default to day
-  }
+  // set the return options based on body of the request
+  viewOpts = viewOptsFromReqBody(req.body, viewOpts);
 
   //winston.info('viewOpts:' + JSON.stringify(viewOpts));
 
@@ -1941,6 +1829,73 @@ function getHotWalletsForGateway( name ) {
   });
   return hotwallets;
 }
+
+
+function viewOptsFromReqBody(body, previousViewOpts) {
+  // retain incoming view options
+  var viewOpts = previousViewOpts;
+
+  // set reduce option
+  if (!req.body.hasOwnProperty('reduce')) {
+    viewOpts.reduce = true;
+  } else {
+    viewOpts.reduce = (req.body.reduce === true);
+  }
+
+  // determine the group_multiple from the timeMultiple field
+  if (viewOpts.reduce === true && req.body.timeMultiple) {
+    viewOpts.group_multiple = req.body.timeMultiple;
+  } else {
+    viewOpts.group_multiple = 1;  // default to no multiple of time increment
+  }
+
+  var group_level_string;
+
+  // gather custom time period data used later for grouping
+  if (viewOpts.reduce === true && req.body.timeIncrement) {
+    // determine the group_level from the timeIncrement field
+    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+    if (inc === 'al') {
+      viewOpts.group = false;
+    } else if (inc === 'no') {
+      viewOpts.reduce = false;
+    } else if (inc === 'we') {
+      viewOpts.group_multiple = viewOpts.group_multiple * 7; // multiply by days in a week
+      viewOpts.group_level = 3 + 2; // set group_level to day
+      group_level_string = 'weeks';
+    } else if (levels.indexOf(inc)) {
+      viewOpts.group_level = 3 + levels.indexOf(inc);
+      switch (inc) {
+        case 'ye': 
+          group_level_string = 'years';
+          break;
+        case 'mo': 
+          group_level_string = 'months';
+          break;
+        case 'da': 
+          group_level_string = 'days';
+          break;
+        case 'ho': 
+          group_level_string = 'hours';
+          break;
+        case 'mi': 
+          group_level_string = 'minutes';
+          break;
+        case 'se': 
+          group_level_string = 'seconds';
+          break;
+      }
+    } else {
+      viewOpts.group_level = 3 + 2; // default to day
+    } 
+  } else {
+    // TODO handle incorrect options better
+    viewOpts.group = false; // default to day
+  }
+  return viewOpts;
+}
+
 
 app.use(express.static('public'));
 app.listen(config.port);
