@@ -460,7 +460,9 @@ function gatewayCapitalizationHandler( req, res ) {
           // Format and add startCapitalization data to each row
           var lastPeriodClose = startCapitalization;
             pair.results.forEach(function(row, index){
-              pair.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
+              if (row.key) {
+                pair.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
+              }
               lastPeriodClose = lastPeriodClose - row.value;
             });
 
@@ -1450,6 +1452,9 @@ function offersExercisedHandler( req, res ) {
 
         var elementTime = moment(element.value.openTime);
 
+        // set element time to be that of beginning of epoch (resolves RC-56)
+        element.value.epochTime = epochStartTime.format();
+
         if (elementTime > epochEndTime) {
           epochStartTime.add(group_level_string, req.body.timeMultiple);
           epochEndTime.add(group_level_string, req.body.timeMultiple);
@@ -1522,7 +1527,8 @@ function offersExercisedHandler( req, res ) {
           groupedOpenPrice = e.value.open;
 
           // LAST: open time
-          groupedOpenTime = (e.key ? moment.utc(e.key.slice(2)).format(DATEFORMAT) : moment.utc(e.value.openTime).format(DATEFORMAT));
+          // set element time to be that of beginning of epoch (resolves RC-56)
+          groupedOpenTime = e.value.epochTime;
 
           // MAX: high price
           groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
@@ -1739,9 +1745,8 @@ function accountsCreatedHandler( req, res ) {
       // TODO send error messages to api querier
     }
 
-    winston.info('Got ' + couchRes.rows.length + ' rows');
-    winston.info(JSON.stringify(couchRes.rows));
-
+    //winston.info('Got ' + couchRes.rows.length + ' rows');
+    //winston.info(JSON.stringify(couchRes.rows));
 
     // prepare results to send back
     var resRows = [],
