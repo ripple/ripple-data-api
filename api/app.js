@@ -1562,6 +1562,7 @@ function offersExercisedHandler( req, res ) {
         if (groupedOpenTime !== 0) {
           // create grouped result based on processed group of rows
           groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+          groupedOpenTime = 0;
         }
       });
 
