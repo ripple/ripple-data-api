@@ -1423,12 +1423,12 @@ function offersExercisedHandler( req, res ) {
 
     // data structure for grouping results 
     var finalRows = [];
-    if (req.body.timeMultiple) {
+    if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
       // data structures for processing rows
       var tabledRowCount = 0, newElementCount = 0;
       var tabledRows = [];
-      var epochStartTime = moment(startTime);
-      var epochEndTime = moment(startTime);
+      var epochStartTime = moment.utc(startTime);
+      var epochEndTime = moment.utc(startTime);
 
       // define the epoch for grouping of results
       epochEndTime.add(group_level_string, req.body.timeMultiple);
@@ -1437,6 +1437,12 @@ function offersExercisedHandler( req, res ) {
       tabledRows[tabledRowCount] = [];
 
       couchRes.rows.forEach(function(element, index, array) {
+
+        // if this is the first row processed (i.e., the header row)
+        if (index === 0) {
+          // bypass header row
+          return;
+        }
 
         /*
         winston.info('Couch result Index: ' + index);
@@ -1450,27 +1456,27 @@ function offersExercisedHandler( req, res ) {
         winston.info(element.value.volumeWeightedAvg);
         */
 
-        var elementTime = moment(element.value.openTime);
+        var elementTime = moment.utc(element.value.openTime);
 
-        // set element time to be that of beginning of epoch (resolves RC-56)
-        element.value.epochTime = epochStartTime.format();
-
-        if (elementTime > epochEndTime) {
+        // until element time is before or equal to epoch close time
+        while (elementTime.diff(epochEndTime) > 0) {
+          // set element time to be that of beginning of epoch
+          element.value.epochTime = epochStartTime.format(DATEFORMAT);
+    
+          // increment epoch start & close time
           epochStartTime.add(group_level_string, req.body.timeMultiple);
           epochEndTime.add(group_level_string, req.body.timeMultiple);
 
-          // if this is not the first row processed
-          if (index !== 0) {
-            // increment variable used for counting and indexing rows in table
-            tabledRowCount = tabledRowCount + 1;
-          }
-
-          // create a new row if at boundary
+          // create a new row for every epoch
+          tabledRowCount = tabledRowCount + 1;
           tabledRows[tabledRowCount] = [];
 
           // reset index for storage into new row
           newElementCount = 0;
         }
+
+        // set element time to be that of beginning of epoch
+        element.value.epochTime = epochStartTime.format(DATEFORMAT);
 
         // store row to be grouped
         tabledRows[tabledRowCount][newElementCount] = element;
@@ -1481,7 +1487,7 @@ function offersExercisedHandler( req, res ) {
 
       // data structures for grouping results 
       var groupedRows = [];
-      var groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
+      var groupedOpenTime = 0, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
           groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
    
       tabledRows.forEach(function(element, index, array) {
@@ -1489,7 +1495,7 @@ function offersExercisedHandler( req, res ) {
 
         element.forEach(function(e, i, a) {
           /*
-          winston.info('Inner new row index: ' + i);
+          winston.info('column index: ' + i);
           winston.info(e);
           winston.info(e.value.curr2Volume);
           winston.info(e.value.curr1Volume);
@@ -1552,8 +1558,11 @@ function offersExercisedHandler( req, res ) {
           groupedVwavPrice = groupedVwavNumerator / groupedVwavDenominator;
         }
 
-        // create grouped result based on processed group of rows
-        groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+        // don't include empty rows
+        if (groupedOpenTime !== 0) {
+          // create grouped result based on processed group of rows
+          groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+        }
       });
 
       // add header row to results
