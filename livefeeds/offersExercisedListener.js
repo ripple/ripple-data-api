@@ -4,7 +4,7 @@ var Remote,
   gateways,
   remote;
 
-if (require) {
+if (typeof require != 'undefined') {
 
   /* Loading with Node.js */
   var Remote = require('ripple-lib').Remote,
@@ -12,7 +12,7 @@ if (require) {
     moment = require('moment'),
     gateways = require('./gateways.json');
 
-} else if (ripple && moment && gateways) {
+} else if (ripple && moment) {
 
   /* Loading in a webpage */
   Remote = ripple.Remote;
@@ -99,12 +99,12 @@ function OffersExercisedListener(opts, displayFn) {
 
   // Wrapper to call the displayFn and update the openTime and closeTime
   this.finishedInterval = function() {
-    this.storedResults.closeTime = moment().toArray().slice(0,6);
-
+    this.storedResults.closeTime = moment.utc().toArray().slice(0,6);
+    
     this.displayFn(formatReduceResult(this.storedResults));
 
     this.storedResults = {
-      openTime: moment().toArray().slice(0,6),
+      openTime: moment.utc().toArray().slice(0,6),
     };
   };
 
@@ -155,7 +155,7 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
     listener.viewOpts.openTime = row.time || row.openTime || row[0];
 
     listener.storedResults = {
-      openTime: moment(row.time || row.openTime || row[0]).toArray().slice(0,6),
+      openTime: moment.utc(row.time || row.openTime || row[0]).toArray().slice(0,6),
       curr1Volume: row.tradeCurrVol || row[2],
       curr2Volume: row.baseCurrVol || row[1],
       numTrades: row.numTrades || row[3],
@@ -188,7 +188,7 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
         listener.storedResults = offersExercisedReduce(null, [reducedTrade, listener.storedResults], true);
       }
 
-      listener.storedResults.closeTime = moment().toArray().slice(0,6);
+      listener.storedResults.closeTime = moment.utc().toArray().slice(0,6);
 
       // Call displayFn every time a new trade comes in, as well as after the interval
       listener.displayFn(formatReduceResult(listener.storedResults));
@@ -198,8 +198,8 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 
     // handle first interval
 
-    var endOfFirstIncrement = moment(listener.viewOpts.openTime).add(listener.viewOpts.timeIncrement, listener.viewOpts.timeMultiple),
-      firstIncrementRemainder = endOfFirstIncrement.diff(moment());
+    var endOfFirstIncrement = moment.utc(listener.viewOpts.openTime).add(listener.viewOpts.timeIncrement, listener.viewOpts.timeMultiple),
+      firstIncrementRemainder = endOfFirstIncrement.diff(moment.utc());
 
 
     // If there is time left in the first timeIncrement, wait until that 
@@ -236,7 +236,7 @@ OffersExercisedListener.prototype.updateViewOpts = function(newOpts) {
 function parseViewOpts(opts) {
   // TODO validate opts more thoroughly
 
-  opts.openTime = moment(opts.openTime).toArray().slice(0,6);
+  opts.openTime = moment.utc(opts.openTime).toArray().slice(0,6);
 
   if (opts.timeIncrement) {
     opts.reduce = true;
@@ -653,6 +653,6 @@ function getCurrenciesForGateway( name ) {
 
 
 
-if (module) {
+if (typeof module != 'undefined') {
   module.exports = OffersExercisedListener;
 }
