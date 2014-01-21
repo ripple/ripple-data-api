@@ -1505,6 +1505,7 @@ function offersExercisedHandler( req, res ) {
           // if this is first column
           if (i === 0) {
             // set initial values for each group
+            groupedOpenPrice = e.value.open;
             groupedClosePrice = e.value.close;
             groupedBaseCurrVolume = 0;
             groupedTradeCurrVolume = 0;
@@ -1524,8 +1525,8 @@ function offersExercisedHandler( req, res ) {
           // SUM: number trades
           groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
 
-          // LAST: open price
-          groupedOpenPrice = e.value.open;
+          // LAST: close price
+          groupedClosePrice = e.value.close;
 
           // LAST: open time
           // set element time to be that of beginning of epoch (resolves RC-56)
