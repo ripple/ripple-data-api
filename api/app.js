@@ -12,6 +12,7 @@ var winston = require('winston'),
     '@' + config.couchdb.host + 
     ':' + config.couchdb.port + 
     '/' + config.couchdb.database),
+  Q = require('q'),
   gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
@@ -838,7 +839,7 @@ function topMarketsHandler( req, res ) {
     ];
 
   // data structure for grouping results 
-  var finalRows = [], finalRates = [], toXrpRateResults = [], toUsdRateResults = [];
+  var orderedRows = [], finalRows = [], finalRates = [], toXrpRateResults = [], toUsdRateResults = [];
 
   // Mimic calling offersExercised for each asset pair
   async.mapLimit(marketPairs, 10, function(assetPair, asyncCallbackPair){
@@ -931,11 +932,6 @@ function topMarketsHandler( req, res ) {
         }
       }
     });
-
-    finalRates.forEach(function(row) {
-      //winston.info("final conversion rate: " + row);
-    });
-    //res.send(finalRates);
   });
 
   // determine the group_multiple from the timeMultiple field
@@ -990,9 +986,9 @@ function topMarketsHandler( req, res ) {
     viewOpts.group = false; // default to day
   }
 
-  marketPairs.forEach(function(element, index, array) {
-    // process current market pair
-    marketPair = element;
+  var getPairValue = function(marketPair, viewOpts) {
+    var deferred = Q.defer();
+
 
     if (marketPair.trade) {
       if (marketPair.trade.currency === 'XRP') {
@@ -1022,160 +1018,159 @@ function topMarketsHandler( req, res ) {
     db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
       if (err) {
         winston.error('Error with request: ' + err);
-        return;
-        // TODO send error messages to api querier
-      }
-
-      //winston.info('Got ' + couchRes.rows.length + ' rows');
-      //winston.info(JSON.stringify(couchRes.rows));
-      
-      if (viewOpts.reduce == true) {
-        couchRes.rows.forEach(function(row){
-          resRows.push([
-            (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-            row.value.curr2Volume
-          ]);
-        });
-      } else {      
-        couchRes.rows.forEach(function(row){
-          resRows.push(JSON.stringify(row));
-        });
-      }
-
-      if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
-        // data structures for processing rows
-        var tabledRowCount = 0, newElementCount = 0;
-        var tabledRows = [];
-        var epochStartTime = moment(startTime);
-        var epochEndTime = moment(startTime);
-
-        // define the epoch for grouping of results
-        epochEndTime.add(group_level_string, req.body.timeMultiple);
-
-        // create initial row of table for assembling grouped results
-        tabledRows[tabledRowCount] = [];
-
-        couchRes.rows.forEach(function(element, index, array) {
-
-          var elementTime = moment(element.value.openTime);
-
-          if (elementTime > epochEndTime) {
-            epochStartTime.add(group_level_string, req.body.timeMultiple);
-            epochEndTime.add(group_level_string, req.body.timeMultiple);
-
-            // if this is not the first row processed
-            if (index !== 0) {
-              // increment variable used for counting and indexing rows in table
-              tabledRowCount = tabledRowCount + 1;
-            }
-
-            // create a new row if at boundary
-            tabledRows[tabledRowCount] = [];
-
-            // reset index for storage into new row
-            newElementCount = 0;
-          }
-
-          // store row to be grouped
-          tabledRows[tabledRowCount][newElementCount] = element;
-
-          // increment variable used for counting and indexing row elements
-          newElementCount = newElementCount + 1;
-        });
-
-        // data structures for grouping results 
-        var groupedRows = [];
-        var groupedOpenTime, groupedBaseCurrVolume;
-     
-        tabledRows.forEach(function(element, index, array) {
-
-          element.forEach(function(e, i, a) {
-
-            // if this is first column
-            if (i === 0) {
-              // set initial values for each group
-              groupedBaseCurrVolume = 0;
-            }
-            // SUM: base currency volume
-            groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
-          });
-
-          // create grouped result based on processed group of rows
-          groupedRows.push([groupedOpenTime, groupedBaseCurrVolume]);
-
-          // add header row to results
-          groupedRows.unshift(headerRow);
-
-          // use grouped rows as our final rows
-          finalRows = groupedRows;
-        });
+        deferred.reject(new Error(err));
       } else {
-        // use original results as our final rows
-        finalRows = resRows;
+        deferred.resolve(couchRes.rows);
       }
+    });
+    return deferred.promise;
+  };
 
-      // if we've exhausted currency pairs
-      if ((finalRows.length == finalRates.length) && (viewOpts.reduce == true)) {
-        finalRows.forEach(function(row, index, array) {
-          row.push(finalRates[index]);
+  // align calls to couch such that our returns are synchronous
+  Q.all([
+    getPairValue(marketPairs[0], viewOpts),
+    getPairValue(marketPairs[1], viewOpts),
+    getPairValue(marketPairs[2], viewOpts),
+    getPairValue(marketPairs[3], viewOpts),
+    getPairValue(marketPairs[4], viewOpts)
+  ]).spread(function(pZero, pOne, pTwo, pThree, pFour) {
+
+    // assemble sequential couch results into ordered array
+    resRows.push(pZero);
+    resRows.push(pOne);
+    resRows.push(pTwo);
+    resRows.push(pThree);
+    resRows.push(pFour);
+
+    // create rows with time, volume, base-to-USD conversion rate, & market cap in USD
+    resRows.forEach(function(row, index, array) {
+      for (var key in row) {
+        if (row.hasOwnProperty(key)) {
+          //winston.info(row[key].value.curr2Volume + " * " + finalRates[index] + " = " + row[key].value.curr2Volume*finalRates[index]);
+
           // multiply base currency volume by the final conversion rate to create volume in USD
-          row.push(row[1]*finalRates[index]);
-        });
-
-        finalRows.unshift(headerRow);
-
-        //finalRows.forEach(function(element, index, array) {
-        //  winston.info(index + ": " + element);
-        //});        
-      }
-
-      // if we've assembled data for all top markets
-      if (finalRates.length+1 === finalRows.length) {
-
-        // display to log
-        //winston.info("Final Rows: " + finalRows);
-
-        // handle format option
-        if (!req.body.format || req.body.format === 'json') {
-
-          // send to client
-          res.send(finalRows); 
-
-        } else if (req.body.format === 'csv') {
-
-          var csvStr = _.map(finalRows, function(row){
-            return row.join(', ');
-          }).join('\n');
-
-          // provide output as CSV
-          res.end(csvStr);
-
-        } else if (req.body.format === 'json_verbose') {
-
-          // send as an array of json objects
-          var apiRes = {};
-          apiRes.timeRetrieved = moment.utc().valueOf();
-
-          apiRes.rows = _.map(finalRows, function(row){
-
-            // reformat rows
-            return {
-              openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-              baseCurrVol: row.value.curr2Volume
-            };
-
-          });
-
-          res.json(apiRes);
-
-        } else {
-          // TODO handle incorrect input
-          winston.error('incorrect format: ' + req.body.format);
-
+          orderedRows.push([moment.utc(row[key].value.openTime).format(DATEFORMAT),
+                          row[key].value.curr2Volume, finalRates[index], 
+                          row[key].value.curr2Volume*finalRates[index]]);
         }
       }
     });
-  });
+
+    // time multiples for topMarkets currently untested
+    if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
+      // data structures for processing rows
+      var tabledRowCount = 0, newElementCount = 0;
+      var tabledRows = [];
+      var epochStartTime = moment(startTime);
+      var epochEndTime = moment(startTime);
+
+      // define the epoch for grouping of results
+      epochEndTime.add(group_level_string, req.body.timeMultiple);
+
+      // create initial row of table for assembling grouped results
+      tabledRows[tabledRowCount] = [];
+
+      orderedRes.rows.forEach(function(element, index, array) {
+
+        var elementTime = moment(element.value.openTime);
+
+        if (elementTime > epochEndTime) {
+          epochStartTime.add(group_level_string, req.body.timeMultiple);
+          epochEndTime.add(group_level_string, req.body.timeMultiple);
+
+          // if this is not the first row processed
+          if (index !== 0) {
+            // increment variable used for counting and indexing rows in table
+            tabledRowCount = tabledRowCount + 1;
+          }
+
+          // create a new row if at boundary
+          tabledRows[tabledRowCount] = [];
+
+          // reset index for storage into new row
+          newElementCount = 0;
+        }
+
+        // store row to be grouped
+        tabledRows[tabledRowCount][newElementCount] = element;
+
+        // increment variable used for counting and indexing row elements
+        newElementCount = newElementCount + 1;
+      });
+
+      // data structures for grouping results 
+      var groupedRows = [];
+      var groupedOpenTime, groupedBaseCurrVolume;
+   
+      tabledRows.forEach(function(element, index, array) {
+
+        element.forEach(function(e, i, a) {
+
+          // if this is first column
+          if (i === 0) {
+            // set initial values for each group
+            groupedBaseCurrVolume = 0;
+          }
+          // SUM: base currency volume
+          groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+        });
+
+        // create grouped result based on processed group of rows
+        groupedRows.push([groupedOpenTime, groupedBaseCurrVolume]);
+
+        // add header row to results
+        groupedRows.unshift(headerRow);
+
+        // use grouped rows as our final rows
+        finalRows = groupedRows;
+      });
+    } else {
+      // use original results as our final rows
+      finalRows = orderedRows;
+    }
+
+    // add header row to results
+    finalRows.unshift(headerRow);
+
+    // handle format option
+    if (!req.body.format || req.body.format === 'json') {
+
+      // send to client
+      res.send(finalRows); 
+
+    } else if (req.body.format === 'csv') {
+
+      var csvStr = _.map(finalRows, function(row){
+        return row.join(', ');
+      }).join('\n');
+
+      // provide output as CSV
+      res.end(csvStr);
+
+    } else if (req.body.format === 'json_verbose') {
+
+      // send as an array of json objects
+      var apiRes = {};
+      apiRes.timeRetrieved = moment.utc().valueOf();
+
+      apiRes.rows = _.map(finalRows, function(row){
+
+        // reformat rows
+        return {
+          openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+          baseCurrVol: row.value.curr2Volume
+        };
+
+      });
+
+      res.json(apiRes);
+
+    } else {
+      // TODO handle incorrect input
+      winston.error('incorrect format: ' + req.body.format);
+
+    }
+  }); 
 }
 
 
@@ -1398,7 +1393,7 @@ function offersExercisedHandler( req, res ) {
         'vwavPrice'
       ];
 
-    if (viewOpts.reduce == true) {
+    if (viewOpts.reduce === true) {
       resRows.push(headerRow);
 
       couchRes.rows.forEach(function(row){
