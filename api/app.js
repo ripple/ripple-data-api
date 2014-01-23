@@ -25,6 +25,7 @@ var apiHandlers = {
   'topmarkets': topMarketsHandler,
   'accountscreated': accountsCreatedHandler,
   'gatewaycapitalization': gatewayCapitalizationHandler,
+  'issuercapitalization': issuerCapitalizationHandler,
   'exchangerates': exchangeRatesHandler,
   'gettransaction': getTransactionHandler,
   'numaccounts': numAccountsHandler
@@ -403,6 +404,9 @@ function gatewayCapitalizationHandler( req, res ) {
         async.map(pair.hotwallets, function(hotwallet, asyncCallbackHotwallet){
 
           var hotwalletViewOpts = {
+            // using pair.address here to set keys creates consistency AND reveals Bitstamp's hot wallet
+            //startkey: [pair.address, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
+            //endkey: [pair.address, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
             startkey: [pair.gateway, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
             endkey: [pair.gateway, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
             reduce: true
@@ -487,6 +491,286 @@ function gatewayCapitalizationHandler( req, res ) {
 
 
 
+/**
+ *  issuerCapitalization returns the total capitalization (outstanding balance)
+ *  of a specified issuer & specified currency pair, over the given time range.
+ *  
+ *  Available options are:
+ *  {
+ *    pairs: [issuer: ('Bitstamp' or 'rvY...'),
+ *            currency: ('USD' or 'BTC')],
+ *           [issuer: ('Bitstamp' or 'rvY...'),
+ *            currency: ('USD' or 'BTC')],
+ *            .
+ *            .
+ *            .
+ *    
+ *    // the following options are optional
+ *    // by default it will return the gateway's current balance
+ *    startTime: (any momentjs-readable date),
+ *    endTime: (any momentjs-readable date),
+ *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // defaults to 'all'
+ *    timeMultiple: positive integer, defaults to 1
+ *  }
+ */
+function issuerCapitalizationHandler( req, res ) {
+
+  var issuerCurrencyPairs = [];
+
+  winston.info(JSON.stringify(req.body));
+
+  if (typeof req.body.pairs === 'object') {
+    req.body.pairs.forEach(function(pair){
+      winston.info("Incoming pair: " + JSON.stringify(pair));
+      if (pair.issuer) {
+        pair.name = getGatewayName(pair.issuer);
+
+        hotwallets = getHotWalletsForGateway(pair.name);
+
+        if (hotwallets.length > 0) {
+          pair.hotwallets = hotwallets;
+        }
+
+        if (pair.issuer.hotwallets && pair.issuer.hotwallets.length > 0) {
+          pair.hotwallets = pair.issuer.hotwallets;
+        }
+
+        issuerCurrencyPairs.push(pair);
+
+      } else {
+        winston.error("Encountered issuer-currency pair with empty issuer");
+      }
+    });
+  } else {
+    res.send(500, { error: 'please specify at least one issuer-currency pair'});
+    return;
+  }
+  
+  // Parse start and end times
+  var startTime, 
+    endTime;
+
+  if (req.body.startTime) {
+    
+    if (!moment(req.body.startTime).isValid()) {
+      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ', please provide a Moment.js readable timestamp'});
+      return;
+    }
+
+    startTime = moment(req.body.startTime);
+  }
+
+  if (req.body.endTime) {
+      
+    if (!moment(req.body.endTime).isValid()) {
+      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ', please provide a Moment.js readable timestamp'});
+      return;
+    }
+
+    endTime = moment(req.body.endTime);
+  }
+
+  if (startTime && endTime) {
+    if (endTime.isBefore(startTime)) {
+      var tempTime = startTime;
+      startTime = endTime;
+      endTime = tempTime;
+    }
+  } else if (startTime) {
+    endTime = moment();
+  } else if (endTime) {
+    startTime = endTime;
+    endTime = moment();
+  } else {
+    startTime = moment(0);
+    endTime = moment(99999999999999);    
+  }
+
+  if (req.body.descending) {
+    var tempTime = startTime;
+      startTime = endTime;
+      endTime = tempTime;
+  }
+
+
+  // Parse timeIncrement and timeMultiple
+  var group,
+    group_level,
+    group_multiple;
+  if (typeof req.body.timeMultiple === 'number') {
+    group_multiple = req.body.timeMultiple;
+  } else {
+    group_multiple = 1;
+  }
+
+  if (req.body.timeIncrement) {
+    var inc = req.body.timeIncrement.toLowerCase().slice(0, 2),
+      levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
+    
+    if (inc === 'al') {
+
+      group = false;
+
+    } else if (inc === 'we') {
+
+      group_multiple = group_multiple * 7; // multiply by days in a week
+      group_level = 2; // set group_level to day
+
+    } else if (levels.indexOf(inc) !== -1) {
+
+      group_level = levels.indexOf(inc);
+
+    } else {
+
+      group = false;
+    } 
+  } else {
+
+    // TODO handle incorrect options better
+    group = false;
+  }
+
+
+
+  async.mapLimit(issuerCurrencyPairs, 10, function(pair, asyncCallbackPair){
+
+    // Setup CouchDB view options
+    var viewOpts = {
+      startkey: [pair.issuer, pair.currency].concat(startTime.toArray().slice(0,6)),
+      endkey: [pair.issuer, pair.currency].concat(endTime.toArray().slice(0,6)),
+      reduce: true
+    };
+    if (group) {
+      viewOpts.group = group;
+    }
+    if (group_level) {
+      // +3 to account for 1-based indexing in CouchDB and 
+      // startkey having the [pair.issuer, pair.currency] first
+      viewOpts.group_level = group_level + 3; 
+    }
+
+
+
+    // Query CouchDB for changes in trustline balances
+    db.view('trustlines', 'trustlineBalanceChangesByAccount', viewOpts, function(err, trustlineRes){
+      if (err) {
+        asyncCallbackPair(err);
+        return;
+      }
+
+      pair.results = trustlineRes.rows;
+
+      var initialValueViewOpts = {
+        startkey: [pair.issuer, pair.currency],
+        endkey: viewOpts.startkey,
+        group: false
+      };
+
+      db.view('trustlines', 'trustlineBalanceChangesByAccount', initialValueViewOpts, function(err, initValRes){
+        if (err) {
+          asyncCallbackPair(err);
+          return;
+        }
+
+        var startCapitalization = 0;
+        if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
+          startCapitalization = 0 - initValRes.rows[0].value;
+        }
+
+        // Get hotwallet balances
+        if (!pair.hotwallets) {
+          pair.hotwallets = [];
+        }
+        async.map(pair.hotwallets, function(hotwallet, asyncCallbackHotwallet){
+
+          var hotwalletViewOpts = {
+            startkey: [pair.issuer, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
+            endkey: [pair.issuer, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
+            reduce: true
+          };
+          if (group) {
+            hotwalletViewOpts.group = group;
+          }
+          if (group_level) {
+            hotwalletViewOpts.group_level = group_level;
+          }
+
+
+          db.view('trustlines', 'trustlineBalancesBetweenAccounts', hotwalletViewOpts, asyncCallbackHotwallet);
+
+        }, function(err, hotwalletResults){
+          if (err) {
+            asyncCallbackPair(err);
+            return;
+          }
+
+          // Subtract hotwallet balances from totals
+          if (hotwalletResults) {
+            hotwalletResults.forEach(function(hotwallet){
+              winston.info("received hotwallet rows");
+
+              //winston.info(util.inspect(hotwallet));
+              //winston.info(util.inspect(pair));
+
+              hotwallet.rows.forEach(function(hotwalletRow){
+                winston.info("hotwalletrow: " + JSON.stringify(hotwalletRow));
+
+                var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
+                  return pairRow.key === hotwalletRow.key;
+                });
+
+                if (pairRowIndex !== -1) {
+                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletRow.value.balanceChange;
+                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' + hotwalletRow.value.balanceChange + ' from account balance for final balance of ' + pair.results[pairRowIndex].value);
+                }
+              });
+            });
+          }
+
+          // Group rows using group_multiple
+          if (group_multiple && group_multiple > 1) {
+            var newResults = [],
+              tempRow;
+            pair.results.forEach(function(row, index){
+              if (index % group_multiple === 0) {
+                if (tempRow) {
+                  newResults.push(tempRow);
+                }
+
+                tempRow = row;
+              }
+              tempRow.value += row.value;
+            });
+
+            pair.results = newResults;
+          }
+
+          // Format and add startCapitalization data to each row
+          var lastPeriodClose = startCapitalization;
+            pair.results.forEach(function(row, index){
+              if (row.key) {
+                pair.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
+              }
+              lastPeriodClose = lastPeriodClose - row.value;
+            });
+
+          asyncCallbackPair(null, pair);
+        });
+
+      });
+    });
+  }, function(err, results){
+    if (err) {
+      res.send(500, {error: 'error retrieving data from CouchDB: ' + err});
+      return;
+    }
+
+    // TODO support different result formats
+
+    res.send(results);
+  });
+
+}
 
 
 
