@@ -404,11 +404,11 @@ function gatewayCapitalizationHandler( req, res ) {
           }
         });
         
-        winston.info("Adjusted trust line: " + util.inspect(pair.results[0].value));
-    
         var startCapitalization = 0;
-        if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
-          startCapitalization = 0 - initValRes.rows[0].value;
+        
+        if (pair.results) {
+          winston.info("Adjusted trust line: " + util.inspect(pair.results[0].value));
+          startCapitalization = 0 - pair.results[0].value;
         }
 
         // Get hotwallet balances
@@ -701,12 +701,12 @@ function issuerCapitalizationHandler( req, res ) {
             pair.results[index].value = element.value + trustlineRes.rows[index].value;
           }
         });
-        
-        winston.info("Adjusted trust line: " + util.inspect(pair.results[0].value));
-    
+      
         var startCapitalization = 0;
-        if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
-          startCapitalization = 0 - initValRes.rows[0].value;
+        
+        if (pair.results) {
+          winston.info("Adjusted trust line: " + util.inspect(pair.results[0].value));
+          startCapitalization = 0 - pair.results[0].value;
         }
 
         // Get hotwallet balances
