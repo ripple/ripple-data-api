@@ -378,8 +378,8 @@ function gatewayCapitalizationHandler( req, res ) {
         asyncCallbackPair(err);
         return;
       }
-
-      pair.results = trustlineRes.rows;
+      // don't do this here, this is just the CHANGES in the trust lines
+      //pair.results = trustlineRes.rows;
 
       var initialValueViewOpts = {
         startkey: [pair.address, pair.currency],
@@ -393,6 +393,19 @@ function gatewayCapitalizationHandler( req, res ) {
           return;
         }
 
+        winston.info("Initial trust line: " + util.inspect(initValRes.rows[0].value));
+    
+        pair.results = initValRes.rows;
+        
+        initValRes.rows.forEach(function(element, index, array) {
+          if (pair.results && trustlineRes.rows) {
+            winston.info("Trust line " + element.value + " adjusted by " + trustlineRes.rows[index].value);
+            pair.results[index].value = element.value + trustlineRes.rows[index].value;
+          }
+        });
+        
+        winston.info("Adjusted trust line: " + util.inspect(pair.results[0].value));
+    
         var startCapitalization = 0;
         if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
           startCapitalization = 0 - initValRes.rows[0].value;
@@ -406,10 +419,11 @@ function gatewayCapitalizationHandler( req, res ) {
 
           var hotwalletViewOpts = {
             // using pair.address here to set keys creates consistency AND reveals Bitstamp's hot wallet
-            //startkey: [pair.address, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
-            //endkey: [pair.address, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
-            startkey: [pair.gateway, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
-            endkey: [pair.gateway, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
+            startkey: [pair.address, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
+            endkey: [pair.address, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
+            // original implementation
+            //startkey: [pair.gateway, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
+            //endkey: [pair.gateway, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
             reduce: true
           };
           if (group) {
@@ -431,15 +445,21 @@ function gatewayCapitalizationHandler( req, res ) {
           // Subtract hotwallet balances from totals
           if (hotwalletResults) {
             hotwalletResults.forEach(function(hotwallet){
+
               hotwallet.rows.forEach(function(hotwalletRow){
 
+                var hotwalletBalance = hotwalletRow.value.latestBalance + hotwalletRow.value.balanceChange;
                 var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
                   return pairRow.key === hotwalletRow.key;
                 });
 
                 if (pairRowIndex !== -1) {
-                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletRow.value.balanceChange;
-                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' + hotwalletRow.value.balanceChange + ' from account balance for final balance of ' + pair.results[pairRowIndex].value);
+                  var accountBalance = pair.results[pairRowIndex].value;
+
+                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletBalance;
+                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' 
+                    + hotwalletBalance + ' from account balance of ' 
+                    + accountBalance + ' for final balance of ' + pair.results[pairRowIndex].value);
                 }
               });
             });
@@ -671,16 +691,19 @@ function issuerCapitalizationHandler( req, res ) {
           return;
         }
 
-        winston.info("Initial trust lines: " + util.inspect(initValRes.rows));
+        winston.info("Initial trust line: " + util.inspect(initValRes.rows[0].value));
     
         pair.results = initValRes.rows;
         
         initValRes.rows.forEach(function(element, index, array) {
           if (pair.results && trustlineRes.rows) {
+            winston.info("Trust line " + element.value + " adjusted by " + trustlineRes.rows[index].value);
             pair.results[index].value = element.value + trustlineRes.rows[index].value;
           }
         });
         
+        winston.info("Adjusted trust line: " + util.inspect(pair.results[0].value));
+    
         var startCapitalization = 0;
         if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
           startCapitalization = 0 - initValRes.rows[0].value;
@@ -717,11 +740,7 @@ function issuerCapitalizationHandler( req, res ) {
           if (hotwalletResults) {
             hotwalletResults.forEach(function(hotwallet){
 
-              //winston.info(util.inspect(hotwallet));
-              //winston.info(util.inspect(pair));
-
               hotwallet.rows.forEach(function(hotwalletRow){
-                winston.info("hotwalletrow: " + JSON.stringify(hotwalletRow));
 
                 var hotwalletBalance = hotwalletRow.value.latestBalance + hotwalletRow.value.balanceChange;
                 var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
