@@ -1,0 +1,11 @@
+{
+  "port": 5993,
+  "couchdb": {
+    "username": "REDACTED",
+    "password": "REDACTED",
+    "host": "localhost",
+    "port": 5984,
+    "database": "REDACTED"
+
+  }
+}
