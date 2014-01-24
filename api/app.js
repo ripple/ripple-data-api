@@ -4,6 +4,7 @@ var winston = require('winston'),
   async = require('async'),
   clone = require('clone'),
   express = require('express'),
+  util = require('util'),
   ripple = require('ripple-lib'),
   app = express(),
   config = require('./apiConfig.json'),
@@ -658,8 +659,6 @@ function issuerCapitalizationHandler( req, res ) {
         return;
       }
 
-      pair.results = trustlineRes.rows;
-
       var initialValueViewOpts = {
         startkey: [pair.issuer, pair.currency],
         endkey: viewOpts.startkey,
@@ -672,6 +671,16 @@ function issuerCapitalizationHandler( req, res ) {
           return;
         }
 
+        winston.info("Initial trust lines: " + util.inspect(initValRes.rows));
+    
+        pair.results = initValRes.rows;
+        
+        initValRes.rows.forEach(function(element, index, array) {
+          if (pair.results && trustlineRes.rows) {
+            pair.results[index].value = element.value + trustlineRes.rows[index].value;
+          }
+        });
+        
         var startCapitalization = 0;
         if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
           startCapitalization = 0 - initValRes.rows[0].value;
@@ -707,7 +716,6 @@ function issuerCapitalizationHandler( req, res ) {
           // Subtract hotwallet balances from totals
           if (hotwalletResults) {
             hotwalletResults.forEach(function(hotwallet){
-              winston.info("received hotwallet rows");
 
               //winston.info(util.inspect(hotwallet));
               //winston.info(util.inspect(pair));
@@ -715,13 +723,18 @@ function issuerCapitalizationHandler( req, res ) {
               hotwallet.rows.forEach(function(hotwalletRow){
                 winston.info("hotwalletrow: " + JSON.stringify(hotwalletRow));
 
+                var hotwalletBalance = hotwalletRow.value.latestBalance + hotwalletRow.value.balanceChange;
                 var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
                   return pairRow.key === hotwalletRow.key;
                 });
 
                 if (pairRowIndex !== -1) {
-                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletRow.value.balanceChange;
-                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' + hotwalletRow.value.balanceChange + ' from account balance for final balance of ' + pair.results[pairRowIndex].value);
+                  var accountBalance = pair.results[pairRowIndex].value;
+
+                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletBalance;
+                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' 
+                    + hotwalletBalance + ' from account balance of ' 
+                    + accountBalance + ' for final balance of ' + pair.results[pairRowIndex].value);
                 }
               });
             });
@@ -747,13 +760,17 @@ function issuerCapitalizationHandler( req, res ) {
 
           // Format and add startCapitalization data to each row
           var lastPeriodClose = startCapitalization;
+
+          if (pair.results) {          
             pair.results.forEach(function(row, index){
               if (row.key) {
                 pair.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
               }
               lastPeriodClose = lastPeriodClose - row.value;
             });
-
+          } else {
+            winston.error("Pair results does not exist");
+          }
           asyncCallbackPair(null, pair);
         });
 
