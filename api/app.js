@@ -908,7 +908,7 @@ function exchangeRatesHandler( req, res ) {
     currencies.forEach(function(currency){
       getGatewaysForCurrency(currency).forEach(function(gateway){
         gatewayCurrencyPairs.push({
-          address: gateway.address,
+          address: gateway.account,
           currency: currency,
           name: gateway.name,
           hotwallets: getHotWalletsForGateway(gateway.name)
