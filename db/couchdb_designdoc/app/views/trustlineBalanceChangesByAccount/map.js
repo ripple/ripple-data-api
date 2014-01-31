@@ -12,7 +12,7 @@ function( doc ) {
 
     tx.metaData.AffectedNodes.forEach( function( affNode ) {
 
-      var node = affNode.CreatedNode || affNode.ModifiedNode;
+      var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
 
       if ( !node || node.LedgerEntryType !== "RippleState" ) {
         return;
@@ -58,8 +58,8 @@ function( doc ) {
         return;
       }
 
-      emit( [ lowParty, currency ].concat( timestamp ), [ balChange, finalBal ] );
-      emit( [ highParty, currency ].concat( timestamp ), [ ( 0 - balChange ), ( 0 - finalBal ) ] );
+      emit( [ lowParty, currency ].concat( timestamp ), balChange );
+      emit( [ highParty, currency ].concat( timestamp ), ( 0 - balChange ) );
 
     } );
   } );
