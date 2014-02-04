@@ -676,7 +676,7 @@ function issuerCapitalizationHandler( req, res ) {
         pair.results = initValRes.rows;
         
         initValRes.rows.forEach(function(element, index, array) {
-          if (pair.results && trustlineRes.rows) {
+          if (pair.results && trustlineRes.rows && pair.results.length > 0 & trustlineRes.rows.length > 0) {
             pair.results[index].value = element.value + trustlineRes.rows[index].value;
           }
         });
@@ -908,7 +908,7 @@ function exchangeRatesHandler( req, res ) {
     currencies.forEach(function(currency){
       getGatewaysForCurrency(currency).forEach(function(gateway){
         gatewayCurrencyPairs.push({
-          address: gateway.address,
+          address: gateway.account,
           currency: currency,
           name: gateway.name,
           hotwallets: getHotWalletsForGateway(gateway.name)
