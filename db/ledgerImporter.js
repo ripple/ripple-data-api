@@ -160,11 +160,12 @@ function importIntoCouchDb(opts) {
                 importIntoCouchDb(opts);
               });
               return;
-            } 
+            }
 
             // newly saved ledgers don't continue hash chain of the ledgers
             // preceding them that are already in the database
-            if (res.rows[0].doc.ledger_hash !== res.rows[1].doc.parent_hash) {
+            if (!res || !res.rows || res.rows.length === 0 || !res.rows[0].doc || 
+              res.rows[0].doc.ledger_hash !== res.rows[1].doc.parent_hash) {
               console.log('The parent_hash of the earliest ledger saved in this batch ' +
                 '(ledger_index: ' + saveRes.earliestLedgerIndex + ') ' +
                 'did not match the ledger_hash of the ledger before it in the database, ' + 
