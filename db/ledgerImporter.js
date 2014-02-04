@@ -469,7 +469,7 @@ function getLedger (identifier, callback, servers) {
       console.log('Error calculating transaction hash: ', e, e.stack);
       ledgerJsonTxHash = '';
     }
-    if (ledgerJsonTxHash !== ledger.transaction_hash) {
+    if (ledgerJsonTxHash && ledgerJsonTxHash !== ledger.transaction_hash) {
 
       console.log('transactions do not hash to the expected value for ' + 
         'ledger_index: ' + ledger.ledger_index + '\n' +
