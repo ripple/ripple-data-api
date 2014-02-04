@@ -394,7 +394,7 @@ function getLedger (identifier, callback, servers) {
     }
 
     // check if the server returned a buffer/string instead of json
-    if (typeof res.body === 'string') {
+    if (typeof res.body === 'string' || res.body.constructor.name === 'Buffer') {
       // console.log('rippled returned a buffer instead of a JSON object for request: ' + 
       //   JSON.stringify(reqData.params[0]) + '. Trying again...');
       // servers[server] = 'tryAgain';
