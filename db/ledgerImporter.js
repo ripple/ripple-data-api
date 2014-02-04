@@ -428,7 +428,7 @@ function getLedger (identifier, callback, servers) {
       //   JSON.stringify(res.error || res.body || res));
       
       if (DEBUG_MODE) {
-        console.log('malformed ledger');
+        console.log('Malformed ledger: ', res);
       }
       
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
@@ -466,6 +466,7 @@ function getLedger (identifier, callback, servers) {
     try {
      ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
     } catch(e) {
+      console.log('Error calculating transaction hash: ', e, e.stack);
       ledgerJsonTxHash = '';
     }
     if (ledgerJsonTxHash !== ledger.transaction_hash) {
