@@ -1491,7 +1491,7 @@ function topMarketsHandler( req, res ) {
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
  *    reduce: true/false, // optional, defaults to true
  *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
- *    
+ *    limit: optional, ignored unless reduce is false - limit the number of returned trades
  *    format: (either 'json', 'json_verbose', 'csv') // optional, defaults to 'json'
  *  }
  */
@@ -1668,6 +1668,9 @@ function offersExercisedHandler( req, res ) {
     
     // TODO handle incorrect options better
     viewOpts.group = false; // default to day
+  } else if (req.body.limit && typeof req.body.limit == "number") {
+    //if reduce is true, limit the number of trades returned
+    viewOpts.limit = req.body.limit;
   }
 
   //winston.info('viewOpts:' + JSON.stringify(viewOpts));
@@ -1675,8 +1678,8 @@ function offersExercisedHandler( req, res ) {
   db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
     if (err) {
       winston.error('Error with request: ' + err);
+      res.send(500, { error: err });
       return;
-      // TODO send error messages to api querier
     }
 
     //winston.info('Got ' + couchRes.rows.length + ' rows');
