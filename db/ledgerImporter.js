@@ -81,6 +81,8 @@ importIntoCouchDb(processOptions);
  */
 function importIntoCouchDb(opts) {
 
+  opts.startLedger = opts.lastLedger;
+
   // if minLedger is not set, set minLedger to be the latest ledger saved to couchdb
   // if lastLedger is not set it will be set to the last closed ledger in getLedger()
   if (opts.minLedgerIndex || opts.minLedgerHash) {
@@ -94,6 +96,7 @@ function importIntoCouchDb(opts) {
 
       opts.minLedgerHash = latestLedger.hash;
       opts.minLedgerIndex = latestLedger.index;
+
       startImporting(opts);
     });
   }
@@ -176,6 +179,7 @@ function importIntoCouchDb(opts) {
               
               setImmediate(function(){
                 importIntoCouchDb({
+                  startLedger: opts.startLedger,
                   minLedgerIndex: Math.min(opts.minLedgerIndex, saveRes.earliestLedgerIndex - 100),
                   lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
                   batchSize: opts.batchSize,
@@ -202,6 +206,7 @@ function importIntoCouchDb(opts) {
 
                 setTimeout(function(){
                   importIntoCouchDb({
+                    startLedger: opts.startLedger,
                     minLedgerIndex: saveRes.earliestLedgerIndex,
                     lastLedger: Math.min(parseInt(latestLedger.ledger_index, 10), saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
                     batchSize: opts.batchSize,
@@ -222,13 +227,17 @@ function importIntoCouchDb(opts) {
               // TODO is this the right way to handle continous importing?
               if (saveRes.numLedgersSaved > 0) {
                 setImmediate(function(){
-                  importIntoCouchDb({batchSize: opts.batchSize});
+                  importIntoCouchDb({
+                    batchSize: opts.batchSize
+                  });
                 });
 
               } else {
                 // wait a couple of seconds for new ledgers to close before trying again
                 setTimeout(function(){
-                  importIntoCouchDb({batchSize: opts.batchSize});
+                  importIntoCouchDb({
+                    batchSize: opts.batchSize
+                  });
                 }, 5000);
               }  
             } else {
@@ -289,6 +298,10 @@ function getLedgerBatch (opts, callback) {
       return;
     }
 
+    if (!opts.startLedger) {
+      opts.startLedger = ledger.ledger_index;
+    }
+
     if (opts.minLedgerIndex < 32570) {
       opts.minLedgerIndex = 32570;
     }
@@ -321,7 +334,7 @@ function getLedgerBatch (opts, callback) {
     // if the process has not yet reached the minLedgerIndex
     // continue with the next ledger
     if (reachedMinLedger) {
-      fs.writeFile(tombstone_url, opts.minLedgerIndex, function(err){
+      fs.writeFile(tombstone_url, opts.startLedger, function(err){
         if (err) {
           throw (new Error('Cannot save to ' + tombstone_url + ' please check that that path is writeable. Error: ' + err));
         }
