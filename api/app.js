@@ -1663,7 +1663,7 @@ function offersExercisedHandler( req, res ) {
     } else {
       viewOpts.group_level = 3 + 2; // default to day
     } 
-  } else {
+  } else if (viewOpts.reduce !== true) {
     // TODO handle incorrect options better
     viewOpts.group = false; // default to day
   }
