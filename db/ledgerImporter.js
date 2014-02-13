@@ -1,4 +1,5 @@
 var request = require('request'),
+  fs = require('fs'),
   moment = require('moment'),
   _ = require('lodash'),
   diff = require('deep-diff'),
@@ -10,6 +11,8 @@ var request = require('request'),
     '@' + config.couchdb.host + 
     ':' + config.couchdb.port),
   db = nano.use(config.couchdb.database);
+
+var tombstone_url = './last_ledger_saved.txt';
 
 // TODO think about how to handle errors such that the script restarts
 // and doesn't continue with more recent ledgers while leaving an earlier
@@ -78,12 +81,14 @@ importIntoCouchDb(processOptions);
  */
 function importIntoCouchDb(opts) {
 
+  opts.startLedger = opts.lastLedger;
+
   // if minLedger is not set, set minLedger to be the latest ledger saved to couchdb
   // if lastLedger is not set it will be set to the last closed ledger in getLedger()
   if (opts.minLedgerIndex || opts.minLedgerHash) {
     startImporting(opts);
   } else {
-    getLatestLedgerInCouchDb(function(err, latestLedger){
+    getLatestLedgerSaved(function(err, latestLedger){
       if (err) {
         console.log('problem getting last ledger saved to CouchDB: ' + err);
         return;
@@ -91,6 +96,7 @@ function importIntoCouchDb(opts) {
 
       opts.minLedgerHash = latestLedger.hash;
       opts.minLedgerIndex = latestLedger.index;
+
       startImporting(opts);
     });
   }
@@ -173,6 +179,7 @@ function importIntoCouchDb(opts) {
               
               setImmediate(function(){
                 importIntoCouchDb({
+                  startLedger: opts.startLedger,
                   minLedgerIndex: Math.min(opts.minLedgerIndex, saveRes.earliestLedgerIndex - 100),
                   lastLedger: saveRes.earliestLedgerIndex + saveRes.numLedgersSaved,
                   batchSize: opts.batchSize,
@@ -191,7 +198,7 @@ function importIntoCouchDb(opts) {
                 'did not match the parent_hash of the ledger after them in the database, ' +
                 'starting the process again with lastLedger set later...');
 
-              getLatestLedgerInCouchDb(function(err, latestLedger){
+              getLatestLedgerSaved(function(err, latestLedger){
                 if (err) {
                   console.log('problem gettting latest ledger in CouchDB: ' + err);
                   return;
@@ -199,6 +206,7 @@ function importIntoCouchDb(opts) {
 
                 setTimeout(function(){
                   importIntoCouchDb({
+                    startLedger: opts.startLedger,
                     minLedgerIndex: saveRes.earliestLedgerIndex,
                     lastLedger: Math.min(parseInt(latestLedger.ledger_index, 10), saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 100),
                     batchSize: opts.batchSize,
@@ -219,13 +227,17 @@ function importIntoCouchDb(opts) {
               // TODO is this the right way to handle continous importing?
               if (saveRes.numLedgersSaved > 0) {
                 setImmediate(function(){
-                  importIntoCouchDb({batchSize: opts.batchSize});
+                  importIntoCouchDb({
+                    batchSize: opts.batchSize
+                  });
                 });
 
               } else {
                 // wait a couple of seconds for new ledgers to close before trying again
                 setTimeout(function(){
-                  importIntoCouchDb({batchSize: opts.batchSize});
+                  importIntoCouchDb({
+                    batchSize: opts.batchSize
+                  });
                 }, 5000);
               }  
             } else {
@@ -278,10 +290,16 @@ function getLedgerBatch (opts, callback) {
   }
 
   // get ledger from rippled API
-  getLedger(opts.lastLedger, function(err, ledger){
+  getLedger({
+    identifier: opts.lastLedger
+  }, function(err, ledger){
     if (err) {
       callback(err);
       return;
+    }
+
+    if (!opts.startLedger) {
+      opts.startLedger = ledger.ledger_index;
     }
 
     if (opts.minLedgerIndex < 32570) {
@@ -289,7 +307,18 @@ function getLedgerBatch (opts, callback) {
     }
 
     opts.results.push(ledger);
-    opts.lastLedger = ledger.parent_hash;
+
+    // Use parent_hash or ledger_index as lastLedger
+    if (/[0-9A-F]{64}/.test(ledger.parent_hash)) {
+      opts.lastLedger = ledger.parent_hash;      
+    } else if (typeof ledger.ledger_index === 'number'){
+      opts.lastLedger = ledger.ledger_index - 1;
+    } else {
+      throw(new Error('Malformed ledger: ' + JSON.stringify(ledger)));
+    }
+
+    opts.prevLedgerIndex = ledger.ledger_index;
+
 
     // determine whether the process has reached the minLedgerHash or minLedgerIndex
     var reachedMinLedger = ((opts.minLedgerIndex && opts.minLedgerIndex >= ledger.ledger_index) || opts.minLedgerHash === ledger.ledger_hash);
@@ -304,7 +333,14 @@ function getLedgerBatch (opts, callback) {
 
     // if the process has not yet reached the minLedgerIndex
     // continue with the next ledger
-    if (!reachedMinLedger) {
+    if (reachedMinLedger) {
+      fs.writeFile(tombstone_url, opts.startLedger, function(err){
+        if (err) {
+          throw (new Error('Cannot save to ' + tombstone_url + ' please check that that path is writeable. Error: ' + err));
+        }
+        console.log('Saved last ledger index to: ' + tombstone_url);
+      });
+    } else { 
       setImmediate(function(){
         getLedgerBatch(opts, callback);
       });
@@ -320,7 +356,11 @@ function getLedgerBatch (opts, callback) {
  *
  *  identifier: ledger_index or ledger_hash
  */
-function getLedger (identifier, callback, servers) {
+function getLedger (opts, callback) {
+
+  var identifier = opts.identifier,
+    prevLedgerIndex = opts.prevLedgerIndex,
+    servers = opts.servers
 
   if (typeof identifier === 'function' && !callback) {
     callback = identifier;
@@ -383,12 +423,15 @@ function getLedger (identifier, callback, servers) {
       console.log('error getting ledger: ' + 
         (reqData.params[0].ledger_index || reqData.params[0].ledger_hash || 'closed') + 
         ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
-        '\nTrying next server...');
+        '\nTrying next server... (previous ledger index was: ' + prevLedgerIndex + ')');
 
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
-        getLedger (identifier, callback, servers);
+        getLedger ({
+          identifier: identifier,
+          servers: servers}
+          , callback);
       });
       return;
     }
@@ -402,7 +445,10 @@ function getLedger (identifier, callback, servers) {
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setTimeout(function(){
-        getLedger (identifier, callback, servers);
+        getLedger ({
+          identifier: identifier,
+          servers: servers
+          }, callback);
       }, 1000);
       return;
     }
@@ -416,7 +462,11 @@ function getLedger (identifier, callback, servers) {
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
-        getLedger (identifier, callback, servers);
+        getLedger ({
+          identifier: identifier,
+          prevLedgerIndex: prevLedgerIndex,
+          servers: servers
+        }, callback);
       });
       return;
     }
@@ -435,7 +485,11 @@ function getLedger (identifier, callback, servers) {
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
       
       setImmediate(function(){
-        getLedger (identifier, callback, servers);
+        getLedger ({
+          identifier: identifier,
+          prevLedgerIndex: prevLedgerIndex,
+          servers: servers
+        }, callback);
       });
       return;
     }
@@ -453,7 +507,11 @@ function getLedger (identifier, callback, servers) {
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
-        getLedger (identifier, callback, servers);
+        getLedger ({
+          identifier: identifier,
+          prevLedgerIndex: prevLedgerIndex,
+          servers: servers
+        }, callback);
       });
 
       return;
@@ -481,7 +539,11 @@ function getLedger (identifier, callback, servers) {
       _.find(servers, function(serv){ return serv.server === server; }).attempt++;
 
       setImmediate(function(){
-        getLedger (identifier, callback, servers);
+        getLedger ({
+          identifier: identifier,
+          prevLedgerIndex: prevLedgerIndex,
+          servers: servers
+        }, callback);
       });
 
       return;
@@ -552,10 +614,29 @@ function formatRemoteLedger(ledger) {
 
 
 /**
- *  getLatestLedgerInCouchDb gets the ledger with the highest
+ *  getLatestLedgerSaved gets the ledger with the highest
  *  index saved in CouchDB
  */
-function getLatestLedgerInCouchDb(callback) {
+function getLatestLedgerSaved(callback) {
+
+  fs.readFile(tombstone_url, {encoding: 'utf8'}, function(err, data){
+    if (err) {
+      console.log('Cannot read tombstone file, getting last ledger saved from CouchDB');
+
+      getLatestLedgerSavedToCouchDB(callback);
+      return;
+    }
+
+    var lastLedger = parseInt(data, 10);
+    console.log('lastLedger: ' + lastLedger);
+
+    callback(null, {index: lastLedger});
+  });
+  
+}
+
+
+function getLatestLedgerSavedToCouchDB(callback) {
   db.list({descending:true, startkey:'_c', limit: 20}, function(err, res){
     if (err) {
       callback(err);
