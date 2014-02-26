@@ -1,4 +1,5 @@
-ripplecharts v2.0
+ripplecharts data api
 =================
 
-Version 2.0 of the RippleCharts data collection and graphing service
+
+Data end point for ripplecharts and other applications that need historical data.
