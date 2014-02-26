@@ -1,6 +1,6 @@
 // function map (doc) {
 function(doc) {
-  
+
   var time = new Date(doc.close_time_timestamp);
   var timestamp = [
     time.getUTCFullYear(), 
@@ -125,7 +125,7 @@ function(doc) {
       trustBalFinal = parseFloat(node.FinalFields.Balance.value); 
     }
 
-    if (node.PreviousFields && node.PreviousFields.Balance.value) {
+    if (node.PreviousFields && node.PreviousFields.Balance) {
       trustBalPrev = parseFloat(node.PreviousFields.Balance.value);
     } else {
       trustBalPrev = 0;
@@ -141,7 +141,7 @@ function(doc) {
     }
 
     // Set currency
-    balChange.currency = node.FinalFields.Balance.currency;
+    balChange.currency = (node.NewFields || node.FinalFields).Balance.currency;
 
     // Set issuer
     if ((parseFloat(trustHigh.value) === 0 && parseFloat(trustLow.value) === 0) ||
@@ -170,7 +170,7 @@ function(doc) {
   function xrpToDrops (xrp) {
     return parseFloat(xrp) * 1000000.0;
   }
-  
+
 }
 
 // function emit(key, value) {
