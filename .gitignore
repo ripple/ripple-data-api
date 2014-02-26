@@ -2,5 +2,6 @@
 /db/spreadsheets/
 *.log
 *config.*
+!*config.*.example
 *.DS_Store
 
