@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Ripple Growth</title>
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
+<style>
+@import url(lib/bootstrap/bootstrap.min.css);
+@import url(lib/datepicker.css);
+@import url(linechart.css);
+
+body {
+	font-family:"Open Sans", Helvetica, Arial, sans-serif;
+	text-align:center;
+}
+
+h2 {font-size:36px; margin:.5em}
+h3 {font-size:21px}
+
+#interval {margin-bottom:2em;}
+#interval a {
+	font-size:14px;
+ 	display: inline-block;
+ 	text-decoration: none;
+  	color:#666;
+  	margin:0 1em;
+}
+
+#interval a:hover {
+  	color: #999;
+}
+
+#interval a.selected {
+  	color: #3369a8;
+  	font-weight:bold;
+}
+
+#range {
+	display:none;
+	padding:.5em;
+}
+
+#range input {text-align:center}
+</style>
+
+<h3 style="color: red;">INTERNAL USE ONLY</h3>
+<h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+<hr>
+
+<h2>Growth of The Ripple Network</h2>
+
+<div id="interval"></div>
+<div id="range">
+	<input id="startTime"/>
+	<span>to</span>
+	<input id="endTime"/>
+</div>
+
+<script src="lib/d3/d3.min.js"></script>
+<script src="lib/jquery/jquery.min.js"></script>
+<script src="lib/bootstrap/bootstrap.min.js"></script>
+<script src="lib/bootstrap-datepicker.js"></script>
+<script src="lib/moment.min.js"></script>  
+<script src="lib/linechart.js"></script>  
+<script>
+
+//used to load intital chart, probably a better way to do this
+jQuery.fn.d3Click = function () {
+  this.each(function (i, e) {
+    var evt = document.createEvent("MouseEvents");
+    evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+
+    e.dispatchEvent(evt);
+  });
+};
+
+
+$('#startTime').datepicker().on('changeDate', function(e){
+	var start = new Date(e.date);
+	var end   = new Date($('#endTime').val());
+
+  totalAccounts.update(getIncrement(start, end), start, end);
+  offersExercised.update(getIncrement(start, end), start, end); 
+	$(this).datepicker('hide');
+});
+
+$('#endTime').datepicker().on('changeDate', function(e){
+	var start = new Date($('#startTime').val());
+	var end   = new Date(e.date);
+	
+	totalAccounts.update(getIncrement(start, end), start, end);
+  offersExercised.update(getIncrement(start, end), start, end);	
+  $(this).datepicker('hide');
+});
+
+var apiBase     = "http://ct.ripple.com:5993/api/";
+var offersURL   = apiBase + "offersExercised";
+var numAccounts = apiBase + "numAccounts";
+var accountsURL = apiBase + "accountsCreated";
+//var accountsCreated = "acSample.txt";
+
+var lineData     = [];
+var accountBasis = 0;  //number of accounts at the begining of the chart
+var intervalA    = d3.select("#interval").selectAll("a")
+    .data([
+      //{name: "1s",  increment:"second", offset: function(d) { return d3.time.day.offset(d, -1); }},
+      {name: "10m", increment:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
+      {name: "1h",  increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -1); }},
+      {name: "12h", increment:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
+      {name: "24h", increment:"hour", offset: function(d) { return d3.time.hour.offset(d, -24); }},
+      {name: "3d",  increment:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
+      {name: "1m",  increment:"hour",   offset: function(d) { return d3.time.month.offset(d, -1); }},
+      {name: "6m",  increment:"day",    offset: function(d) { return d3.time.month.offset(d, -6); }},
+      {name: "max", increment:"day",    offset: function(d) { return d3.time.year.offset(d, -10); }},
+      {name: "custom"}
+    ])
+	.enter().append("a")
+    .attr("href", "#")
+    .classed("selected", function(z, i) { return !i; })
+    .text(function(d) { return d.name; })
+    .on("click", function(d){
+    	d3.event.preventDefault();
+    	var that = this;
+  		intervalA.classed("selected", function() { return this === that; });
+  		if (d.name == "custom") {
+  			$('#range').slideToggle();		
+  		} else selectRange (d);
+    });
+
+var monthNames = [ "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December" ];
+
+totalAccounts = new LineChart({
+	title : "Total Accounts",
+	leftTitle : "Accounts Created",
+  rightTitle : "Total",
+	tooltip : function (d, increment) {
+		return "<div>"+parseDate(d.x.local(), increment) + 
+			"</div><span>Accounts Created:</span>" + d.y2 + 
+			"<br/><span>Total Accounts:</span>" + d.y
+		},
+});
+
+totalAccounts.update = function (increment, start, end) {
+	totalAccounts.fadeOut();
+
+	if (start.getFullYear()<2005) { //because of bug in API for earlier dates		
+		totalAccounts.basis = 0;
+  		totalAccounts.updateHelper({
+	  		startTime     : start,
+	    	endTime       : end,
+	    	timeIncrement : increment,
+	  	}); 
+	  			
+	} else {
+		var request = d3.xhr(numAccounts);
+		var data = {time:start};
+		
+		request.header("Content-type","application/x-www-form-urlencoded");
+	  	request.post(params(data), function(error, xhr) {
+	  		data = JSON.parse(xhr.response);
+	  		totalAccounts.basis = data.totalAccounts;
+	  		totalAccounts.updateHelper({
+		  		startTime     : start,
+		    	endTime       : end,
+		    	timeIncrement : increment,
+		  	});  	
+	  	});		
+	}	
+}  
+
+totalAccounts.updateHelper = function (data) {
+	var request  = d3.xhr(accountsURL);
+	var lineData = [];
+	 	
+  	request.header("Content-type","application/x-www-form-urlencoded");
+  	request.post(params(data), function(error, xhr) {
+
+  	points = JSON.parse(xhr.response);
+  	points.splice(0,1);
+  	points.reverse();
+  	//console.log(points);
+  	
+  	total    = totalAccounts.basis;
+    lineData = points.map(function(d){
+    	total += d[1];
+   		return {
+   			x  : moment.utc(d[0]),
+   			y  : total,
+   			y2 : d[1]}
+  	});
+  	
+  	//console.log(lineData);
+    totalAccounts.redraw(data.timeIncrement, lineData);
+  }); 
+} 
+
+offersExercised = new LineChart({
+	title : "Offers Exercised (Bitstamp USD/XRP)",
+	leftTitle : "Offers Excercised",
+	rightTitle : "Total",
+	tooltip : function (d, increment) {
+		return "<div>"+parseDate(d.x.local(), increment) + 
+			"</div><span>Offers Exercised:</span>" + d.y2 + 
+			"<br/><span>Total:</span>" + d.y;
+	}
+});
+
+offersExercised.update = function (increment, start, end) {
+	offersExercised.fadeOut();
+	
+	var request  = d3.xhr(offersURL);
+	var lineData = [];
+		
+  	request.header("Content-type","application/x-www-form-urlencoded");
+  	request.post(params({
+  		startTime     : start,
+    	endTime       : end,
+    	timeIncrement : increment,
+    	"base[currency]"  : "XRP",
+    	"trade[currency]" : "USD",
+    	"trade[issuer]"   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"
+    	}), function(error, xhr) {
+
+	  	points = JSON.parse(xhr.response);
+	  	points.splice(0,1);
+	  	points.reverse();
+	  	//console.log(points);
+	  	
+	  	total    = 0;
+	    lineData = points.map(function(d){
+	    	total += d[3];
+	   		return {
+	   			x  : moment.utc(d[0]),
+	   			y  : total,
+	   			y2 : d[3]}
+	  	});
+	  	
+	  	//console.log(lineData);
+	    offersExercised.redraw(increment, lineData);	
+	});
+}
+
+//load intital graphs
+$('#interval a').eq(7).d3Click();
+
+function selectRange (d) {
+  	var end   = new Date;
+  	var start = d.offset(end);
+  	
+  	$('#startTime').datepicker('setValue', start);
+  	$('#endTime').datepicker('setValue', end);
+  	totalAccounts.update(d.increment, start, end);
+  	offersExercised.update(d.increment, start, end);
+} 
+
+function params(o) {
+  var s = [];
+  for (var key in o) {
+  s.push(key + "=" + encodeURIComponent(o[key]));
+  }
+  return s.join("&");
+}
+
+function getIncrement (start, end) {
+	var difference = Math.ceil((end - start) / 86400000);
+	
+	if      (difference<2)   return "second"; //1 day or less
+	else if (difference<15)  return "minute"; //2 weeks
+	else if (difference<90)  return "hour";   //3 months
+	else if (difference<720) return "day";    //2 years
+	else 					 return "month";	
+}
+
+function parseDate (date, increment) 
+{
+  
+  if      (increment == "month") return monthNames[date.month()] + " " + date.year();
+  else if (increment == "day")   return monthNames[date.month()] + " " + date.date();
+  else return monthNames[date.month()] + " " + date.date() + " &middot " + date.format("hh:mm");
+
+}
+
+</script>
+

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
+<title>Ripple Charts</title>
+<style>
+
+@import url(bootstrap/bootstrap.min.css);
+@import url(priceChart.css);
+@import url(orderBook.css);
+
+body {
+  font-family:"Open Sans", Helvetica, Arial, sans-serif;
+  text-align:center;
+}
+
+</style>
+
+<h3 style="color: red;">INTERNAL USE ONLY</h3>
+<h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+<hr>
+    
+  <div id="interval"></div>
+  
+<script src="d3/d3.min.js"></script>
+<script src="ripple/ripple-0.7.30-min.js"></script>
+<script src="capChart.js"></script>
+<script>
+  var base      = "http://ct.ripple.com:5993/api/";
+  var offersURL = base + "gatewayCapitalization";
+
+  var intervalA = d3.select("#interval").selectAll("a")
+  .data([
+    {name: "10m", interval:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
+    {name: "1h",  interval:"minute", offset: function(d) { return d3.time.hour.offset(d, -1); }},
+    {name: "12h", interval:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
+    {name: "24h", interval:"hour", offset: function(d) { return d3.time.day.offset(d, -1); }},
+    {name: "3d",  interval:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
+    {name: "1m",  interval:"day", offset: function(d) { return d3.time.month.offset(d, -1); }},
+    {name: "3m",  interval:"day", offset: function(d) { return d3.time.month.offset(d, -3); }},
+    {name: "6m",  interval:"day", offset: function(d) { return d3.time.month.offset(d, -6); }},
+    {name: "1y",  interval:"day", offset: function(d) { return d3.time.year.offset(d, -1); }},
+    {name: "max", interval:"day", offset: function(d) { return d3.time.year.offset(d, -10); }}])
+  .enter().append("a")
+  .attr("href", "#")
+  .classed("selected", function(_, i) { return !i; })
+  .text(function(d) { return d.name; })
+  .on("click", function(d) {
+    d3.event.preventDefault();
+    var that = this;
+    intervalA.classed("selected", function() { return this === that; });
+    capChart.load(d);
+  });
+  
+  capChart = new CapitalizationChart({url:offersURL});
+  
+</script>

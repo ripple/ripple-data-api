@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
+<title>Ripple Charts</title>
+<style>
+
+@import url(bootstrap/bootstrap.min.css);
+@import url(priceChart.css);
+@import url(orderBook.css);
+
+body {
+  font-family:"Open Sans", Helvetica, Arial, sans-serif;
+  text-align:center;
+}
+.wrap {
+  text-align:left;
+  display:inline-block;
+  width:1120px;  
+}
+
+h2 {text-align:center}
+select {
+  width:auto;
+  margin:2px;
+}
+
+#currency-pair {
+  margin-left:55px;
+  display:inline-block;	
+}
+
+#currency-pair h3 {
+  margin: 0 0 .5em;
+  background: #f6f6f6;
+}
+
+#base, #quote {
+  display: inline-block;
+}
+
+#flip {
+  margin: 0 10px;
+  font-size:12px;	
+  cursor:pointer;
+}
+
+#interval {margin-left:50px}
+#interval a, #chartType a {
+  font-size:12px;
+  display: inline-block;
+  text-decoration: none;
+  color:#666;
+  margin:0 .5em;
+}
+
+#interval a:hover, #chartType a:hover {
+  color: #999;
+}
+
+#interval a.selected, #chartType a.selected {
+  color: #3369a8;
+  font-weight:bold;
+}
+
+#chartType {
+  display:inline-block;
+  margin:0 2em;
+}
+
+#bookChart {margin-top:1em}
+</style>
+
+<h3 style="color: red;">INTERNAL USE ONLY</h3>
+<h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+<hr>
+    
+<div id="trades" style="display:none">
+  <div><span id="last-price"></span><span class="symbol-quote"></span></div>
+  <table>
+    <thead>
+      <th>Time</th>
+      <th>Amount (<span class="symbol-base"></span>)</th>
+      <th>Price (<span class="symbol-quote"></span>)</th>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+<div class="wrap">
+  <div id="currency-pair">
+    <div id="base"></div>
+    <span id="flip">Flip</span>
+    <div id="quote"></div>
+  </div>
+  
+  <div id="chartType"></div>
+  <div id="interval"></div>
+  <div id="priceChart"></div>
+  <h2>Order Book</h2>
+  <div id="bookChart"></div>
+  <div id="bookTables"></div>
+</div>
+
+<script src="d3/d3.min.js"></script>
+<script src="ripple/ripple-0.7.30-min.js"></script>
+<script src="moment.min.js"></script>
+<script src="apiHandler.js"></script>
+<script src="priceChart.js"></script>
+<script src="currency.js"></script>
+<script src="transactionFeed.js"></script>
+<script src="orderBook.js"></script>
+<script>
+
+var apiUrl = "http://ct.ripple.com:5993/api";
+
+var loaded = false,
+  trade    = {currency:"USD", issuer:"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+  base     = {currency:"XRP", issuer:""},
+  dropdownB = ripple.currencyDropdown().selected(trade)
+    .on("change", function(d) {
+      if (loaded) {
+        priceChart.load(base, trade = d, d3.select("#interval .selected").datum());
+        book.getMarket(base, trade);
+      }}),
+  dropdownA = ripple.currencyDropdown().selected(base)
+    .on("change", function(d) {
+      if (loaded) {
+        priceChart.load(base = d, trade, d3.select("#interval .selected").datum());
+        book.getMarket(base, trade);
+      }});
+
+d3.select("#base").call(dropdownA);
+d3.select("#quote").call(dropdownB);
+d3.select("#flip").on("click", function(){ //probably better way to do this
+  dropdownA.selected(trade);
+  dropdownB.selected(base);
+  d3.select("#base").selectAll("select").remove();
+  d3.select("#quote").selectAll("select").remove();
+  loaded = false;
+  d3.select("#base").call(dropdownA);
+  d3.select("#quote").call(dropdownB);
+  loaded = true;
+  swap   = trade;
+  trade  = base;
+  base   = swap;
+  priceChart.load(base, trade, d3.select("#interval .selected").datum());
+  book.getMarket(base, trade);
+});
+
+var intervalA = d3.select("#interval").selectAll("a")
+  .data([
+    {name: "10m", interval:"second", offset: function(d) { return d3.time.minute.offset(d, -10); }},
+    {name: "1h",  interval:"minute", offset: function(d) { return d3.time.hour.offset(d, -1); }},
+    {name: "12h", interval:"minute", offset: function(d) { return d3.time.hour.offset(d, -12); }},
+    {name: "24h", interval:"hour", offset: function(d) { return d3.time.day.offset(d, -1); }},
+    {name: "3d",  interval:"hour", offset: function(d) { return d3.time.day.offset(d, -3); }},
+    {name: "1m",  interval:"day", offset: function(d) { return d3.time.month.offset(d, -1); }},
+    {name: "3m",  interval:"day", offset: function(d) { return d3.time.month.offset(d, -3); }},
+    {name: "6m",  interval:"day", offset: function(d) { return d3.time.month.offset(d, -6); }},
+    {name: "1y",  interval:"day", offset: function(d) { return d3.time.year.offset(d, -1); }},
+    {name: "max", interval:"day", offset: function(d) { return d3.time.year.offset(d, -10); }}])
+  .enter().append("a")
+  .attr("href", "#")
+  .classed("selected", function(_, i) { return !i; })
+  .text(function(d) { return d.name; })
+  .on("click", function(d) {
+    d3.event.preventDefault();
+    var that = this;
+    intervalA.classed("selected", function() { return this === that; });
+    priceChart.load(base, trade, d);
+  });
+
+var chartType = d3.select("#chartType").selectAll("a")
+  .data(["line", "candlestick"])
+  .enter().append("a")
+  .attr("href", "#")
+  .classed("selected", function(_, i) { return !i; })
+  .text(function(d) { return d })		
+  .on("click", function(d) {
+    d3.event.preventDefault();
+    var that = this;
+    chartType.classed("selected", function() { return this === that; });
+    chartType.selected = d;
+    priceChart.setType(d);
+  });
+
+  chartType.selected = "line";
+
+var priceChart = new PriceChart ({
+  id     : "#priceChart",
+  url    : apiUrl,	
+  type   : chartType.selected,
+  width  : 1000,
+  height : 500,
+});	
+
+
+//load initial graph
+setTimeout(function(){
+  loaded = true;
+  d3.select("#interval a:nth-child(5)")[0][0].click();
+}, 100);
+
+var remote = new ripple.Remote.from_config({
+  //"trace" : true,
+  "websocket_ip"   : "s_west.ripple.com",
+  "websocket_port" : 443,
+  "websocket_ssl"  : true
+});
+  
+  
+//feed = new TransactionFeed({remote:remote,base:base,trade:trade});
+//feed.listen();
+
+book = new OrderBook ({
+  chartID : "bookChart",
+  tableID : "bookTables",
+});
+
+book.resetChart();
+  
+remote.connect();
+remote.on('connect', function(){
+  book.getMarket(base, trade);
+}); 
+ 
+</script>

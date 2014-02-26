@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<head>
+    <script type="text/javascript" src="./jquery.js"></script>
+</head>
+
+<body>
+
+    <h2>Ripple Data Test</h2>
+
+    <h3 style="color: red;">INTERNAL USE ONLY</h3>
+    <h5 style="color: red;">This data has not been thoroughly vetted yet and may contain errors. Please email <a href="mailto:evan@ripple.com">Evan Schwartz</a> if any of the numbers seem questionable.</h5>
+
+    <br>
+
+    *Note that if you group the data by a timeInterval such as 'day', the first and last groupings may display unusually small numbers if the startTime and/or endTime values fall in the middle of those groupings.
+
+    <hr>
+
+    <h3>accountsCreated</h3>
+
+    <form name="accountsCreatedData">
+        <br>Start Time:
+        <input type="text" name="startTime" size="50" value="">
+
+        <br>End Time:
+        <input type="text" name="endTime" size="50" value="">
+
+        <br>Time Interval:
+        <select name="timeIncrement">
+            <option value="all">All</option>
+            <option value="year">Year</option>
+            <option value="month">Month</option>
+            <option value="day" selected>Day</option>
+            <option value="hour">Hour</option>
+            <option value="minute">Minute</option>
+            <option value="second">Second</option>
+        </select>
+
+        <br>
+        <button id="submit">Submit</button>
+    </form>
+
+    <h3>Results:</h3>
+    <table id="accountsCreatedResults"></table>
+
+    <script type="text/javascript">
+    $('#submit').click(function(e) {
+        e.preventDefault();
+
+        $('#accountsCreatedResults').html('');
+
+        var formData = {};
+        $.each($('[name="accountsCreatedData"]').serializeArray(), function(index, val) {
+            formData[val.name] = val.value;
+        });
+
+        $.post('/api/accountsCreated/', formData, function(res) {
+            res.forEach(function(row) {
+                $('#accountsCreatedResults').append('<tr><td>' + row.join('</td><td>') + '</td></tr>');
+            });
+        });
+
+
+
+    });
+    </script>
+
+    <hr>
+
+    <h3>offersExercised</h3>
+    <form name="offersExercisedData">
+        Base Currency:
+        <input type="text" name="baseCurrency" value="USD">Base Currency Issuer:
+        <input type="text" name="baseCurrencyIssuer" value="Bitstamp">
+
+        <br>Trade Currency:
+        <input type="text" name="tradeCurrency" value="XRP">Trade Currency Issuer:
+        <input type="text" name="tradeCurrencyIssuer">
+
+        <br>Start Time:
+        <input type="text" name="startTime" size="50" value="">
+
+        <br>End Time:
+        <input type="text" name="endTime" size="50" value="">
+
+        <br>Time Group:
+        <select name="timeMultiple">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="5">5</option>
+            <option value="7">7</option>
+            <option value="10">10</option>
+        </select>
+
+        <br>Time Interval:
+        <select name="timeIncrement">
+            <option value="all" selected>All</option>
+            <option value="year">Year</option>
+            <option value="month">Month</option>
+            <option value="week">Week</option>
+            <option value="day">Day</option>
+            <option value="hour">Hour</option>
+            <option value="minute">Minute</option>
+            <option value="second">Second</option>
+            <option value="none">Don't Group</option>
+        </select>
+        <!-- Result Format:
+        <input type="radio" name="csv" value="true" checked> CSV
+        <input type="radio" name="csv" value="false"> JSON
+ -->
+        <br>
+        <button id="offersExercisedSubmit">Submit</button>
+    </form>
+
+    <h3>Results:</h3>
+    <table id="offersExercisedResults">
+    </table>
+
+    <script type="text/javascript">
+    var now = new Date();
+    $('[name=startTime]').attr('value', now.toString());
+    $('[name=endTime]').attr('value', (new Date(now.valueOf() - 2592000000)).toString());
+
+    $('#offersExercisedSubmit').click(function(e) {
+        e.preventDefault();
+
+        $('#offersExercisedResults').html('');
+
+        var formData = {};
+        $.each($('[name="offersExercisedData"]').serializeArray(), function(index, val) {
+            formData[val.name] = val.value;
+        });
+
+        formData.base = {
+            currency: formData.baseCurrency
+        };
+        if (formData.baseCurrencyIssuer && formData.baseCurrencyIssuer !== '') {
+            formData.base.issuer = formData.baseCurrencyIssuer;
+        }
+        delete formData.baseCurrency;
+        delete formData.baseCurrencyIssuer;
+
+        formData.trade = {
+            currency: formData.tradeCurrency
+        };
+        if (formData.tradeCurrencyIssuer && formData.tradeCurrencyIssuer !== '') {
+            formData.trade.issuer = formData.tradeCurrencyIssuer;
+        }
+        delete formData.tradeCurrency;
+        delete formData.tradeCurrencyIssuer;
+
+        // TODO change this back to being an option
+        formData.format = 'csv';
+
+        console.log('Sending formData: ' + JSON.stringify(formData));
+
+        $.post('/api/offersExercised/', formData, function(res) {
+
+            $('#offersExercisedResults').html('');
+
+            if (formData.format === 'csv') {
+
+                var rows = res.split('\n');
+                rows.forEach(function(row) {
+                    $('#offersExercisedResults').append('<tr><td>' + row.split(',').join('</td><td>') + '</td><tr>');
+                });
+
+            } else {
+
+                $('#offersExercisedResults').append(res);
+
+            }
+
+        });
+    });
+    </script>
+
+    <hr>
+
+</body>
+
+</html>

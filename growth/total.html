@@ -1,0 +1,118 @@
+<script src="lib/d3/d3.min.js"></script>
+<script src="lib/jquery/jquery.min.js"></script>
+
+
+<script>
+	var base      = "http://ct.ripple.com:5993/api/";
+	var offersURL = base + "offersexercised";
+	
+	d3.json("gateways.json", function(error, gateways) {
+		list = {};
+		base = trade = gateways; 
+		base.push({accounts : [ {address:"",currencies: ["XRP"] } ] });
+		console.log(trade);
+		count = 0;
+		for (key in base) {
+			baseAccounts = base[key].accounts[0];
+			baseIssuer = baseAccounts.address;
+			for (var i=0; i<baseAccounts.currencies.length; i++) {
+				baseCurrency = baseAccounts.currencies[i];
+				
+				for (index in trade) {
+					tradeAccounts = trade[index].accounts[0];
+					tradeIssuer = tradeAccounts.address;
+					
+					if (tradeIssuer==baseIssuer) continue;
+					for (var j=0; j<tradeAccounts.currencies.length; j++) {
+						tradeCurrency = tradeAccounts.currencies[j];
+						id  = baseCurrency+"/"+baseIssuer+"/"+tradeCurrency+"/"+tradeIssuer;
+						id2 = tradeCurrency+"/"+tradeIssuer+"/"+baseCurrency+"/"+baseIssuer;
+						if (list[id2] || list[id]) {
+							continue;
+						}
+						
+						count++;
+						list[id] = {
+							baseCurrency:baseCurrency,
+							baseIssuer:baseIssuer,
+							tradeCurrency:tradeCurrency,
+							tradeIssuer:tradeIssuer};
+							
+					}
+				}
+			}
+		}
+		
+		console.log(count);
+		//return;
+		//console.log(list);
+
+		count = 0;
+		results = {};
+		var deferreds = [];
+		
+		for (x in list) {
+			count++;
+			//if (count>100) break;
+
+			deferreds.push(
+			$.post(offersURL, {
+		  		startTime     : new Date,
+		  		endTime       : d3.time.year.offset(new Date, -10),
+		  		timeIncrement : "day",
+		  		descending    : true,
+		  		"trade[currency]" : list[x].tradeCurrency,
+		  		"trade[issuer]"   : list[x].tradeIssuer,
+		  		"base[currency]"  : list[x].baseCurrency,
+		  		"base[issuer]"	  : list[x].baseIssuer,
+		
+		  	}, function(data) {
+		  		data
+		  		//console.log(data);
+				if (data.length<2) console.log("no trades");
+	  			else {
+		  			data.splice(0,1); //remove first		  		
+					
+					for (var z=0; z<data.length; z++) {
+						time = data[z][0];
+						num  = data[z][3];
+						if (results[time]) results[time] += num;
+						else results[time] = num;
+					}
+				}
+		  	}));
+		}
+		
+		console.log(count);
+		
+		$.when.apply(null, deferreds).done(function(){
+			//console.log(results);
+			keys = [];
+			for (key in results) {
+				keys.push(key);
+			}
+			
+			keys.sort(dateSort);
+			var total = 0;
+			for (var i=0; i<keys.length; i++) {
+				count = results[keys[i]];
+				total += count;
+				$('body').append('<pre>'+keys[i]+','+count+','+total+'</pre>');	
+			}
+		});
+	});
+	
+var dateSort = function (date1, date2) {
+  if (date1 > date2) return 1;
+  if (date1 < date2) return -1;
+  return 0;
+};
+
+function params(o) {
+  var s = [];
+  for (var key in o) {
+  s.push(key + "=" + encodeURIComponent(o[key]));
+  }
+  return s.join("&");
+}  	
+</script>
