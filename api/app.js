@@ -35,7 +35,6 @@ var apiRoutes = {
   'issuercapitalization'  : require("./routes/issuerCapitalization"),
   'exchangerates'         : require("./routes/exchangeRates"),
   'gettransaction'        : require("./routes/getTransaction"),
-  'numtransactions'       : require("./routes/numTransactions"),
 };
 
 
