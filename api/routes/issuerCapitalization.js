@@ -58,12 +58,12 @@ function issuerCapitalization( req, res ) {
   
   
 //Parse start and end times
-  var results = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
   
-  if (results.error) res.send(500, { error: results.error });
+  if (time.error) res.send(500, { error: time.error });
   
-  var startTime = results.start;
-  var endTime   = results.end;
+  var startTime = time.start;
+  var endTime   = time.end;
 
 //Parse timeIncrement and timeMultiple
   var results = tools.parseTimeIncrement(req.body.timeIncrement);
@@ -96,7 +96,7 @@ function issuerCapitalization( req, res ) {
     }
 
     // Query CouchDB for changes in trustline balances
-    db.view('trustlines', 'trustlineBalanceChangesByAccount', viewOpts, function(err, trustlineRes){
+    db.view('balanceChangesByAccount', 'v1', viewOpts, function(err, trustlineRes){
       if (err) {
         asyncCallbackPair(err);
         return;
@@ -111,7 +111,7 @@ function issuerCapitalization( req, res ) {
       };
 
 
-      db.view('trustlines', 'trustlineBalanceChangesByAccount', initialValueViewOpts, function(err, initValRes){
+      db.view('balanceChangesByAccount', 'v1', initialValueViewOpts, function(err, initValRes){
         if (err) {
           asyncCallbackPair(err);
           return;

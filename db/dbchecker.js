@@ -71,9 +71,7 @@ function verifyFromLedgerIndex (ledgerIndex, prevLedgerHash) {
 
           if (!ledger) {
             winston.info('ledger ' + (ledgerIndex + r) + ' not in database, trying again in a few seconds');
-            setTimeout(function(){
-              verifyFromLedgerIndex(ledgerIndex + r, prevLedgerHash);
-            }, 5000);
+            timedVerify(ledgerIndex + r, prevLedgerHash);  //recursive call
             return;
           }
 
@@ -152,4 +150,11 @@ function addLeadingZeros (number, digits) {
 
   return numStr;
 
+}
+
+
+function timedVerify(fn, l, p){
+    setTimeout(function(){
+      verifyFromLedgerIndex(l, p);
+    }, 5000);
 }

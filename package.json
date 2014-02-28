@@ -1,7 +1,11 @@
 {
-  "name": "ripplecharts-api",
+  "name": "ripple-data-api",
   "version": "0.0.1",
-  "description": "API wrapper around ripplecharts couchdb",
+  "description": "API wrapper around couchdb for historical data from the ripple network",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ripple/ripple-data-api"
+  },
   "engines": {
     "node": ">=0.10"
   },
@@ -23,6 +27,7 @@
     "express": "~3.4.4",
     "request": "~2.27.0",
     "clone": "~0.1.11",
-    "q": "~1.0.0"
+    "q": "~1.0.0",
+    "deep-diff": "^0.1.4"
   }
 }

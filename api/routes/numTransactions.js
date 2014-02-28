@@ -31,12 +31,12 @@ var moment = require('moment'),
 function numTransactions (req, res) {
   
   //Parse start and end times
-  var results = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
   
-  if (results.error) res.send(500, { error: results.error });
+  if (time.error) res.send(500, { error: time.error });
   
-  var startTime = results.start;
-  var endTime   = results.end;
+  var startTime = time.start;
+  var endTime   = time.end;
   
   //parse time increment
   var results = tools.parseTimeIncrement(req.body.timeIncrement);

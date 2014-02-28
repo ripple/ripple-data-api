@@ -331,7 +331,7 @@ function topMarkets( req, res ) {
     viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
     // query the couch db offersExercised map-reduce view
-    db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
+    db.view("offersExercised", "v1", viewOpts, function(err, couchRes){
       if (err) {
         winston.error('Error with request: ' + err);
         deferred.reject(new Error(err));

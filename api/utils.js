@@ -1,12 +1,12 @@
 var  _   = require('lodash'),
   moment = require('moment');
-  
+ 
+ 
 /**
  *  gatewayNameToAddress translates a given name and, 
  *  optionally, a currency to its corresponding ripple address or
  *  returns null
  */
-
 exports.gatewayNameToAddress = function ( name, currency ) {
 
 
@@ -41,17 +41,22 @@ exports.gatewayNameToAddress = function ( name, currency ) {
  *  getGatewayName returns the name
  *  of a known gateway that matches the given address
  */ 
- 
 exports.getGatewayName = function (address) {
+  
+  function checkAddress (account) {
+    return account.address === address;  
+  }
+  
   for (var g = 0; g < gatewayList.length; g++) {
 
-    if (_.find(gatewayList[g].accounts, function(account) {return account.address === address;})) {
+    if (_.find(gatewayList[g].accounts, checkAddress)) {
       return gatewayList[g].name;
     }
   }
 
   return '';
 }
+
 
 /**
  *  getGatewaysForCurrency takes a currency and returns
@@ -73,7 +78,6 @@ exports.getGatewaysForCurrency = function( currName ) {
   });
 
   return issuers;
-
 }
 
 
@@ -102,9 +106,11 @@ exports.getHotWalletsForGateway = function( name ) {
   return hotwallets;
 }
 
+
+
 exports.parseTimeRange = function (time1, time2, descending) {
 
-  var startTime, endTime;
+  var startTime, endTime, tempTime;
 
   if (time1) {
     if (!moment(time1).isValid()) {
@@ -124,9 +130,9 @@ exports.parseTimeRange = function (time1, time2, descending) {
 
   if (startTime && endTime) {
     if (endTime.isBefore(startTime)) { //swap times
-      var tempTime = startTime;
-      startTime    = endTime;
-      endTime      = tempTime;
+      tempTime  = startTime;
+      startTime = endTime;
+      endTime   = tempTime;
     }
   } else if (startTime) {
     endTime = moment.utc();
@@ -141,13 +147,15 @@ exports.parseTimeRange = function (time1, time2, descending) {
   }
 
   if (descending) {  //swap times
-    var tempTime = startTime;
-      startTime  = endTime;
-      endTime    = tempTime;
+    tempTime  = startTime;
+    startTime = endTime;
+    endTime   = tempTime;
   }
   
   return {start:startTime, end:endTime};  
 }
+
+
 
 exports.parseTimeIncrement = function (inc) {
   var results = {};
