@@ -1,7 +1,7 @@
 *node_modules*
-/db/spreadsheets/
+*designdoc.json
 *.log
 *config.*
 !*config.*.example
 *.DS_Store
-
+last_ledger_saved.txt
