@@ -1,18 +1,29 @@
-var request = require('request'),
-  fs = require('fs'),
-  moment = require('moment'),
-  _ = require('lodash'),
-  diff = require('deep-diff'),
-  ripple = require('ripple-lib'),
-  Ledger = require('../node_modules/ripple-lib/src/js/ripple/ledger').Ledger,
-  config = require('./config'),
-  nano = require('nano')('http://' + config.couchdb.username + 
-    ':' + config.couchdb.password + 
-    '@' + config.couchdb.host + 
-    ':' + config.couchdb.port),
-  db = nano.use(config.couchdb.database);
-
+var fs     = require('fs'),
+  request  = require('request'),
+  moment   = require('moment'),
+  _        = require('lodash'),
+  diff     = require('deep-diff'),
+  ripple   = require('ripple-lib'),
+  Ledger   = require('../node_modules/ripple-lib/src/js/ripple/ledger').Ledger,
+  env      = process.env.NODE_ENV || "development",
+  DBconfig = require('../db.config.json')[env],
+  db       = require('nano')(DBconfig.protocol+
+    '://' + DBconfig.username + 
+    ':'   + DBconfig.password + 
+    '@'   + DBconfig.host + 
+    ':'   + DBconfig.port + 
+    '/'   + DBconfig.database);
+  
 var tombstone_url = './last_ledger_saved.txt';
+
+var config = {
+  batchSize : 100,
+  rippleds : [
+    'http://s_east.ripple.com:51234',
+    'http://s_west.ripple.com:51234'
+  ]
+};
+
 
 // TODO think about how to handle errors such that the script restarts
 // and doesn't continue with more recent ledgers while leaving an earlier
@@ -106,6 +117,7 @@ function importIntoCouchDb(opts) {
     console.log('\nStarting importIntoCouchDb at ' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ' with options: ' + JSON.stringify(opts));
 
     getLedgerBatch(opts, function(err, res){
+
       if (err) {
         console.log('problem getting ledger batch: ' + err + '\nTrying again in a few seconds...');
 
@@ -238,7 +250,7 @@ function importIntoCouchDb(opts) {
                   importIntoCouchDb({
                     batchSize: opts.batchSize
                   });
-                }, 5000);
+                }, 2000);
               }  
             } else {
 
@@ -642,7 +654,9 @@ function getLatestLedgerSavedToCouchDB(callback) {
       callback(err);
       return;
     }
-
+    
+    if (!res.rows.length) return callback(null, {index:1,hash:null}); //no ledgers saved, ledgerIndex = 1;
+    
     var latestIndex = _.find(res.rows, function(row){      
       try {
         return (row.id.length === 10 && parseInt(row.id, 10) > 32570);

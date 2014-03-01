@@ -1,0 +1,37 @@
+{
+  "development" : {
+    "port" : 5993,
+    "couchdb" : {
+      "username" : "REDACTED",
+      "password" : "REDACTED",
+      "host"     : "localhost",
+      "port"     : 5984,
+      "database" : "REDACTED",
+      "protocol" : "http"
+    }
+  },
+  
+  "staging" : {
+    "port" : 5993,
+    "couchdb" : {
+      "username" : "REDACTED",
+      "password" : "REDACTED",
+      "host"     : "localhost",
+      "port"     : 5984,
+      "database" : "REDACTED",
+      "protocol" : "http"
+    }
+  },
+  
+  "production" : {
+    "port" : 5993,
+    "couchdb" : {
+      "username" : "REDACTED",
+      "password" : "REDACTED",
+      "host"     : "localhost",
+      "port"     : 5984,
+      "database" : "REDACTED",
+      "protocol" : "http"
+    }
+  }
+}

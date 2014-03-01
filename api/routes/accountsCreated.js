@@ -70,7 +70,7 @@ function accountsCreated( req, res ) {
 
   //winston.info('viewOpts: ' + JSON.stringify(viewOpts));
 
-  db.view('accounts', 'accountsCreated', viewOpts, function(err, couchRes){
+  db.view('accountsCreated', 'v1', viewOpts, function(err, couchRes){
 
     if (err) {
       winston.error('Error with request: ' + err);

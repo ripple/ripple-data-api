@@ -211,7 +211,7 @@ function offersExercised( req, res ) {
 
   //winston.info('viewOpts:' + JSON.stringify(viewOpts));
 
-  db.view("transactions", "offersExercised", viewOpts, function(err, couchRes){
+  db.view("offersExercised", "v1", viewOpts, function(err, couchRes){
     if (err) {
       winston.error('Error with request: ' + err);
       res.send(500, { error: err });
