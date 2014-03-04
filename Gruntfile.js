@@ -1,16 +1,34 @@
 module.exports = function(grunt) {
   
 //var userConfig = require( './build.config.js' );
-  var deploymentEnvironment = process.env.NODE_ENV || "development";
-  var deploymentConfig      = require( './deployment.config.js' )(deploymentEnvironment);
-
-  grunt.loadNpmTasks('grunt-npm-install');
-  grunt.loadNpmTasks('grunt-contrib-jshint');
-  grunt.loadNpmTasks('grunt-contrib-watch');
-  grunt.loadNpmTasks('grunt-develop');
+  var env               = process.env.NODE_ENV || "development";
+  var deploymentConfig  = require('./deployment.config.js')(env);
+  var DBconfig          = require('./db.config.json')[env];
+  var db = DBconfig.protocol +
+    '://' + DBconfig.host  + 
+    ':'   + DBconfig.port  + 
+    '/'   + DBconfig.database;
+    
      
-  grunt.initConfig({
+  var gruntConfig = {
     pkg    : grunt.file.readJSON('package.json'),
+    "couch-compile": {
+      app: {
+        files: {
+          "designdoc.json": "design/*"
+          
+        }
+      }
+    },
+    "couch-push": {   
+      options : {
+        user : DBconfig.username,
+        pass : DBconfig.password, 
+      },
+      localhost : {
+        files : {}
+      }
+    },
     jshint : {
       files   : [
         'api/**/*.js', 
@@ -45,10 +63,19 @@ module.exports = function(grunt) {
     develop : {
       server : {
         file : 'api/app.js'
-        //env  : { NODE_ENV : 'development'}
       }
     }
-  });
+  };
   
-  grunt.registerTask('default', ['jshint', 'npm-install']);
+  
+  gruntConfig["couch-push"].localhost.files[db] = "designdoc.json";
+  grunt.initConfig(gruntConfig);
+  
+  grunt.loadNpmTasks('grunt-npm-install');
+  grunt.loadNpmTasks('grunt-contrib-jshint');
+  grunt.loadNpmTasks('grunt-contrib-watch');
+  grunt.loadNpmTasks('grunt-develop');
+  grunt.loadTasks('./node_modules/grunt-couch/tasks');
+  
+  grunt.registerTask('default', ['jshint', 'npm-install', 'couch-compile', 'couch-push']);
 };
