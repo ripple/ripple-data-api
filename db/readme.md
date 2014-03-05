@@ -45,7 +45,7 @@ design/
   |  |- validate_doc_update.js
 ```
 
-views stored in this structure will be combined into a single JSON file and uploaded to couchDB via grunt.  Any new or
+Views stored in this structure will be combined into a single JSON file and uploaded to couchDB via grunt.  Any new or
 modified views will be reindexed, unchanged views will be ignored.
 
 

@@ -4,11 +4,11 @@
  *
  *  Available command line options:
  *
- *  - node importer.js            //historical import from current last closed ledger
- *  - node importer.js live       //live update as well as historical import
- *  - node importer.js liveOnly   //live updating only
- *  - node ledgerImporter.js <minLedger>               //historical import from current last closed ledger to specified minumum
- *  - node ledgerImporter.js <minLedger> <lastLedger>  //historical import of specified range
+ *  - node importer.js                          //historical import from current last closed ledger
+ *  - node importer.js live                     //live update as well as historical import
+ *  - node importer.js liveOnly                 //live updating only
+ *  - node importer.js <minLedger>              //historical import from current last closed ledger to specified minumum
+ *  - node importer.js <minLedger> <maxLedger>  //historical import of specified range
  */
 
 ledgerImporter();

@@ -1,13 +1,31 @@
 {
   "development": {
-    "port" : 5993
+    "port"       : 5993,
+    "batchSize"  : 1000,
+    "startIndex" : 1,
+    "rippleds"   :  [
+      "http://s_east.ripple.com:51234",
+      "http://s_west.ripple.com:51234"
+    ]
   },
   
   "staging": {
-    "port" : 5993
+    "port"       : 5993,
+    "batchSize"  : 1000,
+    "startIndex" : 32570, //effective genesis ledger
+    "rippleds"   :  [
+      "http://s_east.ripple.com:51234",
+      "http://s_west.ripple.com:51234"
+    ]
   },
   
   "production": {
-    "port" : 5993
+    "port"       : 5993,
+    "batchSize"  : 1000,
+    "startIndex" : 32570, //effective genesis ledger
+    "rippleds"   :  [
+      "http://s_east.ripple.com:51234",
+      "http://s_west.ripple.com:51234"
+    ]
   }
 }
