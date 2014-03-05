@@ -15,7 +15,7 @@ module.exports = function(grunt) {
     "couch-compile": {
       app: {
         files: {
-          "designdoc.json": "design/*"
+          "db/designdoc.json": "db/design/*"
           
         }
       }
@@ -31,9 +31,8 @@ module.exports = function(grunt) {
     },
     jshint : {
       files   : [
-        'api/**/*.js', 
-        //'db/**/*.js', 
-        '!db/couchdb_designdoc/**/*.js'
+        'api/**/*.js' 
+        //'db/**/*.js' 
         ],
       options : {
         'validthis': true,
@@ -68,7 +67,7 @@ module.exports = function(grunt) {
   };
   
   
-  gruntConfig["couch-push"].localhost.files[db] = "designdoc.json";
+  gruntConfig["couch-push"].localhost.files[db] = "db/designdoc.json";
   grunt.initConfig(gruntConfig);
   
   grunt.loadNpmTasks('grunt-npm-install');
