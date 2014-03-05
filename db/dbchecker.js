@@ -40,35 +40,60 @@ function checker (config) {
   }
 */  
   this.checkDB = function (database, callback) {
-     db = database;
-     verifyFromLedgerIndex(config.startIndex, null, callback);
+    db = database;
+    
+    //get last saved index
+    db.list({descending:true, startkey:'_c', limit: 1}, function(err, res){
+      if (err) return callback(err);
+      if (!res.rows.length) return callback({
+        message     : 'no ledgers saved to couchDB',
+        ledgerIndex : 1
+      });
+      
+      var index = parseInt(res.rows[0].id, 10);
+      console.log("ledger: ", index);
+      
+      verifyFromLedgerIndex(index, null, callback);
+    });
   }
   
-  function verifyFromLedgerIndex (ledgerIndex, prevLedgerHash, callback) {
+  function verifyFromLedgerIndex (ledgerIndex, parentHash, callback) {
   
-      var indexes = _.range(ledgerIndex, ledgerIndex + config.batchSize),
-        docsNames = _.map(indexes, function(index){
+  
+      var minIndex = ledgerIndex>config.batchSize ? ledgerIndex-config.batchSize : 1;
+      var indexes  = _.range(minIndex, ledgerIndex),
+        docsNames  = _.map(indexes, function(index){
           return addLeadingZeros(index, 10);
         });
   
       //winston.info('Getting docs: ' + JSON.stringify(docsNames));
-  
+      //console.log(docNames);
+      
       db.fetch({keys: docsNames}, function(err, body){
   
           if (err) return callback({message:err,ledgerIndex:ledgerIndex});
   
           // winston.info(JSON.stringify(body));
   
-          for (var r = 0, len = body.rows.length; r < len; r++) {
-  
-            var row = body.rows[r],
+          
+          //for (var r = 0, len = body.rows.length; r < len; r++) {
+          for (var r=body.rows.length-1; r>=0; r--) {
+
+            var row  = body.rows[r],
               ledger = row.doc;
-  
+            
+            
             if (!ledger) {
-              return callback ({
-                message     : "Ledger " + (ledgerIndex + r) + " not found",
-                ledgerIndex : ledgerIndex + r
-              });
+              if ((minIndex + r)<config.startIndex)
+                return callback({
+                  message     : "Reached start index",
+                  ledgerIndex : config.startIndex
+                });  
+                
+              else return callback ({
+                  message     : "Ledger " + (minIndex + r) + " not found",
+                  ledgerIndex : minIndex + r
+                });
               
               //winston.info('ledger ' + (ledgerIndex + r) + ' not in database, trying again in a few seconds');
               //timedVerify(ledgerIndex + r, prevLedgerHash);  //recursive call
@@ -85,24 +110,16 @@ function checker (config) {
             }
   
             // check ledger chain is intact
-            if (prevLedgerHash) {
+            if (parentHash) {
   
-              if (prevLedgerHash !== ledger.parent_hash) {
+              if (parentHash !== ledger.ledger_hash) {
                 return callback({
                   message: 'problem in ledger chain. ledger ' + ledger.ledger_index +
-                  ' has parent_hash: ' + ledger.parent_hash + ' but the prevLedgerHash is: ' + prevLedgerHash,
-                  ledgerIndex : ledger.ledger_index-10, //set the minumum back a few ledgers
+                  ' has ledger_hash: ' + ledger.ledger_hash + ' but the next ledger\'s parent hash is: ' + parentHash,
+                  ledgerIndex : ledger.ledger_index+10, //set the start point ahead a few ledgers
                 });
-              }
-  
-            } else if (ledgerIndex != config.startIndex){
-  
-              return callback({
-                message     : 'prevLedgerHash: ' + prevLedgerHash + ' for ledgerIndex: ' + ledgerIndex,
-                ledgerIndex : ledgerIndex
-              });
-            
-            }
+              }  
+            } 
   
             // check transactions has correctly
             if (!verifyLedgerTransactions(ledger)) {
@@ -112,17 +129,16 @@ function checker (config) {
               });
             }
   
-            prevLedgerHash = ledger.ledger_hash;
-  
+            parentHash = ledger.parent_hash;
           }
   
-          if (config.debug) 
-            winston.info('Verified ledgers: ' + ledgerIndex + 
-              " to " + (ledgerIndex + config.batchSize) + 
+          if (config.debug>1) 
+            winston.info('Verified ledgers: ' + minIndex + 
+              " to " + ledgerIndex + 
               " (" + (new Date().toString()) + ")");
   
           setImmediate(function(){
-            verifyFromLedgerIndex(ledgerIndex + config.batchSize, body.rows[body.rows.length-1].doc.ledger_hash, callback);
+            verifyFromLedgerIndex(minIndex, parentHash, callback);
           });
       });
   

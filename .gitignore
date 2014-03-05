@@ -4,4 +4,4 @@
 *config.*
 !*config.*.example
 *.DS_Store
-last_ledger_saved.txt
+deploymenet.environments.json

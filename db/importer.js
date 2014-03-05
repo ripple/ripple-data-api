@@ -42,7 +42,12 @@ function ledgerImporter () {
   var dbChecker = require('./dbchecker.js')(config);
   
   var options = {},
-    DEBUG = 2;
+    DEBUG;
+  
+//absolute minimum start index must be at least 1 ... currently,
+//it must be at least the index of the "effective genesis ledger"
+//if (!config.startIndex || config.startIndex<1)     config.startIndex = 1;
+  if (!config.startIndex || config.startIndex<32570) config.startIndex = 32570;
   
   var numericOptions = _.filter(_.map(process.argv, function(opt){
     return parseInt(opt, 10);
@@ -78,19 +83,16 @@ function ledgerImporter () {
   if (live || liveOnly) importLive();
   
   function importHistorical(opts) {
-    //if we are starting this process, there is definitely at least some
-    //historical gap that needs to be filled. 
+    //if we are starting this process, there is definitely at 
+    //least some historical gap that needs to be filled. 
     //get the last saved ledger
     //set it as the min for for historical import
     //start importing from the most recent closed ledger
     //when we hit the min, run the db checker
     //if the db checker indicates the stored data is
-    //not accurate, restart the historical importer from the last point
-    //where its correct, to a newly defined minumum
+    //not accurate or incomplete, restart the historical 
+    //importer from the last point where its correct.
     
-    //stored data: lastSavedLedger - from live importer
-    //stored data: historical min  
-    //stored data: historical max
     
     //get the last closed ledger from rippled
     //work back from there
@@ -167,16 +169,16 @@ function ledgerImporter () {
   function checkDB (opts) {
     winston.info("checking DB....");
     dbChecker.checkDB(db, function(res){
-      //console.log(res);
-      if (DEBUG>1) winston.info(res);
+      
+      if (DEBUG) winston.info(res);
       var index = res.ledgerIndex;
-      //index is last correct ledger.  If this is greater
-      //than or equal to the current last saved ledger,
-      //we are done.  otherwise, we set this as the min,
-      //and start importing?
+      //index is last correct ledger.  If this is less
+      //than or equal to the minimum ledger, we are done.  
+      //otherwise, we set this as the last ledger and start importing
       //console.log(index, last);
-      if (index<last) importHistorical({
-          minLedgerIndex : index,
+      if (index>config.startIndex) importHistorical({
+          minLedgerIndex : config.startIndex,
+          lastLedger     : index,
           checkDB        : opts.checkDB
         });
       else winston.info("DB check complete"); 
