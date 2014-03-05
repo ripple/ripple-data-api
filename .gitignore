@@ -4,4 +4,4 @@
 *config.*
 !*config.*.example
 *.DS_Store
-deploymenet.environments.json
+deployment.environments.json
