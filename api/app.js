@@ -4,7 +4,6 @@ var config   = require('../deployment.environments.json')[env];
 
 //local vars
 var winston = require('winston'),
-  _         = require('lodash'),
   express   = require('express'),
   app       = express();
   
@@ -34,7 +33,7 @@ var apiRoutes = {
   'accountscreated'       : require("./routes/accountsCreated"),
   'issuercapitalization'  : require("./routes/issuerCapitalization"),
   'exchangerates'         : require("./routes/exchangeRates"),
-  'valueSent'             : require("./routes/valueSent"),
+  'valuesent'             : require("./routes/valueSent"),
   'gettransaction'        : require("./routes/getTransaction"), //is this useable?
 };
 
