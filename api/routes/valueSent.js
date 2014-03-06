@@ -13,9 +13,9 @@ var winston = require('winston'),
  *    
  *  startTime     : // range start date + time
  *  endTime       : // range end date + time
- *  timeIncrement : // second, minute, etc
- *  descending    : // true/false - optional, defaults to false
- *  reduce        : // true/false - optional, ignored if timeIncrement set
+ *  timeIncrement : // second, minute, etc.     - optional, defaluts to "all"
+ *  descending    : // true/false               - optional, defaults to false
+ *  reduce        : // true/false               - optional, ignored if timeIncrement set
  * }
  *
  * response: {
@@ -170,7 +170,7 @@ function valueSent( req, res ) {
     };
     
     if (req.body.timeIncrement) response.timeIncrement = req.body.timeIncrement;
-    res.send(200, response);
+    res.send(response);
   });
 }
 

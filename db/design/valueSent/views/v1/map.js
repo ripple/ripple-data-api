@@ -21,7 +21,7 @@ function(doc) {
       return;
     }
 
-    var src_balance_changes = parseBalanceChanges(tx, tx.Account);
+    var src_balance_changes = parseBalanceChanges(tx);
 
     if (src_balance_changes.length > 0) {
       src_balance_changes.forEach(function(bal_change){
@@ -31,10 +31,12 @@ function(doc) {
 
   });
 
-  function parseBalanceChanges (tx, address) {
+  function parseBalanceChanges (tx) {
 
     var addressBalanceChanges = [];
-
+    var address     = tx.Account;
+    var destination = tx.Destination || null;
+    
     tx.metaData.AffectedNodes.forEach(function(affNode){
 
       var node = affNode.CreatedNode || affNode.ModifiedNode || affNode.DeletedNode;
@@ -60,7 +62,7 @@ function(doc) {
       // Look for trustline balance change in RippleState node
       if (node.LedgerEntryType === 'RippleState') {
 
-        var currBalChange = parseTrustlineBalanceChange(node, address);
+        var currBalChange = parseTrustlineBalanceChange(node, address, destination);
         if (currBalChange) {
           addressBalanceChanges.push(currBalChange);
         }
@@ -108,7 +110,7 @@ function(doc) {
     return null;
   }
 
-  function parseTrustlineBalanceChange (node, address) {
+  function parseTrustlineBalanceChange (node, address, destination) {
 
     var balChange = {
         value: 0,
@@ -153,7 +155,12 @@ function(doc) {
       return null; 
     }
     
-    if (balChange.value > 0) return null;
+    //value should be negative unless sending to the issuer
+    if (balChange.value > 0 && destination &&
+      trustLow.issuer === destination) 
+        balChange.value = 0 - balChange.value; 
+        
+    else if (balChange.value > 0) return null;
 /*
     // Set value
     if (trustLow.issuer === address) {

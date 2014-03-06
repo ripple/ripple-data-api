@@ -34,6 +34,7 @@ var apiRoutes = {
   'issuercapitalization'  : require("./routes/issuerCapitalization"),
   'exchangerates'         : require("./routes/exchangeRates"),
   'valuesent'             : require("./routes/valueSent"),
+  'totalvaluesent'        : require("./routes/totalValueSent"),
   'gettransaction'        : require("./routes/getTransaction"), //is this useable?
 };
 

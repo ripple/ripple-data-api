@@ -6,22 +6,25 @@ var winston = require('winston'),
   Q         = require('q');
 
 /**
- *  topMarkets returns reduced or individual 
- *  trade-level data about trades that were executed
+ *  topMarkets: 
+ * 
+ *  the total trading volume for the top 5 markets on the ripple network 
+ *  for a given time period, normalized USD. Returns data for the last 24 hours 
+ *  if no arguments are given.
  *
- *  expects req.body to have:
- *  {
- *    base: {currency: "XRP"},
- *    trade: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
- *    
- *    descending: true/false, // optional, defaults to true
- *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
- *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
- *    reduce: true/false, // optional, defaults to true
- *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
- *    
- *    format: (either 'json', 'json_verbose', 'csv') // optional, defaults to 'json'
+ *  request : {
+ *   
+ *    startTime : (any momentjs-readable date), // optional,  defaults to 1 day ago if endTime is absent
+ *    endTime   : (any momentjs-readable date), // optional,  defaults to now if startTime is absent
  *  }
+ * 
+ * 
+ *  response : [
+ * 
+ *   ['startTime','baseCurrVolume','finalCoversionRate','marketValue'], //header row
+ *    ... //one row for each of the top 5 markets
+ *  ]
+ * 
  */
 
 function topMarkets( req, res ) {
@@ -128,6 +131,16 @@ function topMarkets( req, res ) {
     return;
   }
 
+
+  if (endTime.isBefore(startTime)) { //swap times
+    tempTime  = startTime;
+    startTime = endTime;
+    endTime   = tempTime;
+  } else if (endTime.isSame(startTime)) {
+    return res.send(500, { error: 'please provide 2 distinct times'});
+  }
+  
+/*
   // handle descending/non-descending query
   if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
     viewOpts.descending = true;
@@ -144,6 +157,7 @@ function topMarkets( req, res ) {
   } else {
     viewOpts.reduce = (req.body.reduce === true);
   }
+*/
 
   // prepare results to send back
   var resRows = [],
