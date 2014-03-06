@@ -136,14 +136,14 @@ function offersExercised( req, res ) {
 
     // swap startTime and endTime if results will be in descending order
     var tempTime = startTime;
-    startTime = endTime;
-    endTime = tempTime;
+    startTime    = endTime;
+    endTime      = tempTime;
 
   }
 
   // set startkey and endkey for couchdb query
   viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
-  viewOpts.endkey = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
+  viewOpts.endkey   = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
 
   // set reduce option
   if (!req.body.hasOwnProperty('reduce')) {

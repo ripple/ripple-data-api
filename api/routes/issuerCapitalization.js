@@ -60,7 +60,7 @@ function issuerCapitalization( req, res ) {
 //Parse start and end times
   var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
   
-  if (time.error) res.send(500, { error: time.error });
+  if (time.error) return res.send(500, { error: time.error });
   
   var startTime = time.start;
   var endTime   = time.end;

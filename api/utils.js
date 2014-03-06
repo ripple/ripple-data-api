@@ -127,12 +127,14 @@ exports.parseTimeRange = function (time1, time2, descending) {
 
     endTime = moment(time2).utc();
   } 
-
+  
   if (startTime && endTime) {
     if (endTime.isBefore(startTime)) { //swap times
       tempTime  = startTime;
       startTime = endTime;
       endTime   = tempTime;
+    } else if (endTime.isSame(startTime)) {
+      return { error: 'please provide 2 distinct times'};
     }
   } else if (startTime) {
     endTime = moment.utc();
@@ -161,7 +163,7 @@ exports.parseTimeIncrement = function (inc) {
   var results = {};
   
   if (inc) {
-      inc  = inc.toLowerCase().slice(0, 2),
+      inc    = inc.toLowerCase().slice(0, 2),
       levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
     
     if (inc === 'al') {
@@ -172,7 +174,7 @@ exports.parseTimeIncrement = function (inc) {
 
       results.group_multiple = group_multiple * 7; // multiply by days in a week
       results.group_level    = 2; // set group_level to day
-
+      
     } else if (levels.indexOf(inc) !== -1) {
 
       results.group_level = levels.indexOf(inc);
