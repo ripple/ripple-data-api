@@ -95,6 +95,8 @@ function issuerCapitalization( req, res ) {
       viewOpts.group_level = group_level + 3; 
     }
 
+      viewOpts.stale = "ok"; //dont wait for updates
+      
     // Query CouchDB for changes in trustline balances
     db.view('balanceChangesByAccount', 'v1', viewOpts, function(err, trustlineRes){
       if (err) {
@@ -107,7 +109,8 @@ function issuerCapitalization( req, res ) {
       var initialValueViewOpts = {
         startkey : [pair.issuer, pair.currency],
         endkey   : viewOpts.startkey,
-        group    : false
+        group    : false,
+        stale    : "ok"
       };
 
 

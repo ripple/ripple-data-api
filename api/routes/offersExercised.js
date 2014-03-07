@@ -209,7 +209,7 @@ function offersExercised( req, res ) {
     viewOpts.limit = req.body.limit;
   }
 
-  //winston.info('viewOpts:' + JSON.stringify(viewOpts));
+  viewOpts.stale = "ok"; //dont wait for updates
 
   db.view("offersExercised", "v1", viewOpts, function(err, couchRes){
     if (err) {

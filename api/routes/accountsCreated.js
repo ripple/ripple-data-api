@@ -68,8 +68,8 @@ function accountsCreated( req, res ) {
     viewOpts.group_level = 1 + 2; // default to day
   }
 
-  //winston.info('viewOpts: ' + JSON.stringify(viewOpts));
-
+  viewOpts.stale = "ok"; //dont wait for updates
+  
   db.view('accountsCreated', 'v1', viewOpts, function(err, couchRes){
 
     if (err) {

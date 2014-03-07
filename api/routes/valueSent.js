@@ -143,6 +143,7 @@ function valueSent( req, res ) {
   if (results.group_level)            viewOpts.group_level = results.group_level + 3;
   else if (req.body.reduce === false) viewOpts.reduce      = false;
   
+  viewOpts.stale = "ok"; //dont wait for updates
   
   //Query CouchDB with the determined viewOpts
   db.view('valueSent', 'v1', viewOpts, function(err, result) {
