@@ -111,7 +111,7 @@ function ledgerImporter () {
             if (err.type && 
                 err.type=='parentHash' &&
                 err.index) {
-              console.log(err);
+              if (DEBUG) winston.info(err);
               importHistorical({
                 minLedgerHash : err.index, 
                 checkDB       : opts.checkDB
@@ -140,7 +140,7 @@ function ledgerImporter () {
               err.type=='parentHash' &&
               err.index &&
               !opts.stopAfter) {
-            console.log(err, opts);
+            if (DEBUG) winston.info(err);
             importHistorical({
               minLedgerHash : err.index, 
               checkDB       : opts.checkDB
@@ -270,6 +270,8 @@ function ledgerImporter () {
       // NOTE: if this is live and we are reaching the batch size, we might
       // not be importing fast enough.
       if (!res.reachedMinLedger) {
+
+        
         saveBatchToCouchDb(res.results, function(err, saveRes) {
           if (err) {
             
@@ -280,6 +282,19 @@ function ledgerImporter () {
             callback({error:err,type:"couchDB"});
             return;
           }
+          
+          //if the number saved is less than the batch size,
+          //we must have reached data that has already been imported.
+          //if thats the case, we want to run the db checker to skip 
+          //past the data already handled.
+          if (!opts.live && opts.checkDB && 
+            saveRes.numLedgersSaved<config.batchSize) {
+            checkDB(opts);  
+          } else {
+            setImmediate(function(){
+              startImporting(opts, callback);
+            });  
+          }               
         });
         
       } else {
@@ -503,14 +518,15 @@ function ledgerImporter () {
           results: opts.results.slice(),
           reachedMinLedger: reachedMinLedger
         });
+        
         opts.results = [];
-      }
-  
-      // if the process has not yet reached the minLedgerIndex
-      // continue with the next ledger batch
-      if (reachedMinLedger) { 
-        if (DEBUG && !opts.live) winston.info ("Reached Min Ledger: " + ledger.ledger_index);
+        
+        if (reachedMinLedger && DEBUG && !opts.live) 
+          winston.info ("Reached Min Ledger: " + ledger.ledger_index);
+          
       } else {
+        
+        //continue importing ledgers
         setImmediate(function(){
           getLedgerBatch(opts, callback);
         });
@@ -843,7 +859,8 @@ function ledgerImporter () {
   *  in the given batch to the CouchDB instance
   */
   function saveBatchToCouchDb (ledgerBatch, callback) {
-  
+    var d = Date.now();
+    
     // console.log('Saving ' + ledgerBatch.length + ' ledgers');
   
     ledgerBatch.sort(function(a, b){
@@ -914,13 +931,17 @@ function ledgerImporter () {
           return;
         }
   
-        if (DEBUG) {
-          if (docs.length==1) winston.info('Saved ledger: ' + firstLedger +  
-            ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
+        if (DEBUG) { 
+          var info;
+          
+          if (docs.length==1) info = 'Saved ledger: ' + firstLedger + ' to CouchDB';
             
-          else winston.info('Saved ' + docs.length + ' ledgers from ' + firstLedger + 
-            ' to ' + lastLedger + 
-            ' to CouchDB (' + moment().format("YYYY-MM-DD HH:mm:ss Z") + ')');
+          else info = 'Saved ' + docs.length + ' ledgers from ' + firstLedger + 
+            ' to ' + lastLedger + ' to CouchDB';
+            
+
+          d = (Date.now()-d)/1000;
+          winston.info(info + " in " + d + "s. ("+moment().format()+")");
         }
         //re - index here
         indexer.pingCouchDB();

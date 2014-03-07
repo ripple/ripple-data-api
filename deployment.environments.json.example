@@ -1,7 +1,7 @@
 {
   "development": {
     "port"       : 5993,
-    "batchSize"  : 1000,
+    "batchSize"  : 100,
     "startIndex" : 1,
     "rippleds"   :  [
       "http://s_east.ripple.com:51234",
@@ -11,7 +11,7 @@
   
   "staging": {
     "port"       : 5993,
-    "batchSize"  : 1000,
+    "batchSize"  : 100,
     "startIndex" : 32570, //effective genesis ledger
     "rippleds"   :  [
       "http://s_east.ripple.com:51234",
@@ -21,7 +21,7 @@
   
   "production": {
     "port"       : 5993,
-    "batchSize"  : 1000,
+    "batchSize"  : 100,
     "startIndex" : 32570, //effective genesis ledger
     "rippleds"   :  [
       "http://s_east.ripple.com:51234",

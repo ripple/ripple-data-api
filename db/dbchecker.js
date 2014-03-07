@@ -51,7 +51,7 @@ function checker (config) {
       });
       
       var index = parseInt(res.rows[0].id, 10);
-      console.log("ledger: ", index);
+      if (config.debug) winston.info("Last saved ledger: " + index);
       
       verifyFromLedgerIndex(index, null, callback);
     });
