@@ -58,9 +58,9 @@ function checker (config) {
   }
   
   function verifyFromLedgerIndex (ledgerIndex, parentHash, callback) {
+      var batchSize = config.batchSize*5;
   
-  
-      var minIndex = ledgerIndex>config.batchSize ? ledgerIndex-config.batchSize : 1;
+      var minIndex = ledgerIndex>batchSize ? ledgerIndex-batchSize : 1;
       var indexes  = _.range(minIndex, ledgerIndex),
         docsNames  = _.map(indexes, function(index){
           return addLeadingZeros(index, 10);
@@ -75,6 +75,22 @@ function checker (config) {
   
           // winston.info(JSON.stringify(body));
   
+          //don't know what situation would
+          if (!body || !body.rows) {
+            winston.error("ledger: "+ledgerIndex+" - invalid response from couchDB:" + JSON.stringify(body));
+            return callback("db check error at ledger: " + ledgerIndex);
+            
+          } else if (!body.rows.length) {
+            if (ledgerIndex<config.startIndex) return callback({
+                message     : "Reached start index",
+                ledgerIndex : config.startIndex
+              });  
+                
+            else return callback ({
+                message     : "Ledger " + (ledgerIndex) + " not found",
+                ledgerIndex : ledgerIndex
+              });  
+          }
           
           //for (var r = 0, len = body.rows.length; r < len; r++) {
           for (var r=body.rows.length-1; r>=0; r--) {
