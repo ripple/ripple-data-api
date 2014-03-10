@@ -23,8 +23,7 @@ function ledgerImporter () {
     diff     = require('deep-diff'),
     ripple   = require('ripple-lib'),
     Ledger   = require('../node_modules/ripple-lib/src/js/ripple/ledger').Ledger,
-    options  = {},
-    last; //last saved ledger
+    options  = {};
   
   winston.add(winston.transports.File, { filename: 'importer.log' });
       
@@ -102,7 +101,8 @@ function ledgerImporter () {
       getLatestLedgerSaved(function(err,res){
         if (err) return winston.error("error getting ledger from DB: "+ err);
         
-        opts.minLedgerIndex = last = res.index;
+        if (!res || !res.index) opts.minLedgerIndex = config.startIndex || 1; //no ledgers in db
+        else opts.minLedgerIndex = res.index;
         
         //start importing
         winston.info("Starting historical import ("+opts.minLedgerIndex+" to LCL)");
@@ -221,8 +221,6 @@ function ledgerImporter () {
           winston.error('problem saving ledger batch to CouchDB: ' + err);
           return;
         }
-
-        last = ledger.ledger_index; //track last saved ledger;
 
         //start batch with the next ledger as the minimum       
         startImporting({ 
@@ -420,8 +418,7 @@ function ledgerImporter () {
             
             
             if (opts.live) { 
-              last = index; //track last saved ledger
-              
+
               //if we are live, we want to start the process again.
               setImmediate(function(){
                 startImporting({
@@ -432,7 +429,6 @@ function ledgerImporter () {
                           
             } else {
               //this probably will only be true if the live importer isnt running
-              if (index>last) last = index; 
               callback(null, {message:"Reached min ledger"});              
             } 
           });
@@ -804,7 +800,7 @@ function ledgerImporter () {
         return;
       }
       
-      if (!res.rows.length) return callback(null, {index:1,hash:null}); //no ledgers saved, ledgerIndex = 1;
+      if (!res.rows.length) return callback(null, {index:null,hash:null}); //no ledgers saved;
       
       var latestIndex = _.find(res.rows, function(row){      
         try {
