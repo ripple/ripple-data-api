@@ -2,7 +2,8 @@ var winston = require('winston'),
   moment    = require('moment'),
   ripple    = require('ripple-lib'),
   _         = require('lodash');
-  
+ 
+var DEBUG = false; 
 /**
  *  offersExercised returns reduced or individual 
  *  trade-level data about trades that were executed
@@ -23,7 +24,8 @@ var winston = require('winston'),
  */
 
 function offersExercised( req, res ) {
-
+  var t = Date.now();//tracking elapsed time
+  
   var viewOpts = {};
 
   //winston.info('req.body: ' + JSON.stringify(req.body));
@@ -141,10 +143,6 @@ function offersExercised( req, res ) {
 
   }
 
-  // set startkey and endkey for couchdb query
-  viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
-  viewOpts.endkey   = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
-
   // set reduce option
   if (!req.body.hasOwnProperty('reduce')) {
     viewOpts.reduce = true;
@@ -209,9 +207,18 @@ function offersExercised( req, res ) {
     viewOpts.limit = req.body.limit;
   }
 
-  viewOpts.stale = "ok"; //dont wait for updates
-
+  
+  // set startkey and endkey for couchdb query
+  viewOpts.startkey = [tradeCurr, baseCurr].concat(startTime.toArray().slice(0,6));
+  viewOpts.endkey   = [tradeCurr, baseCurr].concat(endTime.toArray().slice(0,6));
+  viewOpts.stale    = "ok"; //dont wait for updates
+  
+  
+  if (DEBUG) var d = Date.now();
   db.view("offersExercised", "v1", viewOpts, function(err, couchRes){
+
+    if (DEBUG) d = (Date.now()-d)/1000;
+
     if (err) {
       winston.error('Error with request: ' + err);
       res.send(500, { error: err });
@@ -235,31 +242,7 @@ function offersExercised( req, res ) {
         'vwavPrice'
       ];
 
-    if (viewOpts.reduce === true) {
-      resRows.push(headerRow);
-
-      couchRes.rows.forEach(function(row){
-
-        resRows.push([
-          (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
-          row.value.curr2Volume,
-          row.value.curr1Volume,
-          row.value.numTrades,
-          row.value.open,
-          row.value.close,
-          row.value.high,
-          row.value.low,
-          row.value.volumeWeightedAvg
-          ]);
-      });
-    } else {      
-      couchRes.rows.forEach(function(row){
-        resRows.push(JSON.stringify(row));
-      });
-    }
-
     // data structure for grouping results 
-    var finalRows = [];
     if ((req.body.timeMultiple) && (req.body.timeMultiple > 1)) {
       // data structures for processing rows
       var tabledRowCount = 0, newElementCount = 0;
@@ -274,12 +257,6 @@ function offersExercised( req, res ) {
       tabledRows[tabledRowCount] = [];
 
       couchRes.rows.forEach(function(element, index, array) {
-
-        // if this is the first row processed (i.e., the header row)
-        if (index === 0) {
-          // bypass header row
-          return;
-        }
 
         /*
         winston.info('Couch result Index: ' + index);
@@ -323,7 +300,6 @@ function offersExercised( req, res ) {
       });
 
       // data structures for grouping results 
-      var groupedRows = [];
       var groupedOpenTime = 0, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades,
           groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice, groupedVwavNumerator, groupedVwavDenominator;
    
@@ -399,30 +375,57 @@ function offersExercised( req, res ) {
         // don't include empty rows
         if (groupedOpenTime !== 0) {
           // create grouped result based on processed group of rows
-          groupedRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
+          resRows.push([groupedOpenTime, groupedBaseCurrVolume, groupedTradeCurrVolume, groupedNumTrades, groupedOpenPrice, groupedClosePrice, groupedHighPrice, groupedLowPrice, groupedVwavPrice]);
           groupedOpenTime = 0;
         }
       });
 
       // add header row to results
-      groupedRows.unshift(headerRow);
+      resRows.unshift(headerRow);
+      
+    } else if (viewOpts.reduce === true) {
+      
+      resRows.push(headerRow);
 
-      // use grouped rows as our final rows
-      finalRows = groupedRows;
-    } else {
-      // use original results as our final rows
-      finalRows = resRows;
+      couchRes.rows.forEach(function(row){
+
+        resRows.push([
+          (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+          row.value.curr2Volume,
+          row.value.curr1Volume,
+          row.value.numTrades,
+          row.value.open,
+          row.value.close,
+          row.value.high,
+          row.value.low,
+          row.value.volumeWeightedAvg
+          ]);
+      });
+      
+    } else {      
+      couchRes.rows.forEach(function(row){
+        resRows.push(JSON.stringify(row));
+      });
     }
+    
 
+    if (DEBUG) {
+      t = (Date.now()-t)/1000;
+      var interval = req.body.timeMultiple  ? req.body.timeMultiple  : "";
+      interval    += req.body.timeIncrement ? req.body.timeIncrement : "";
+    
+      console.log("interval: "+interval, "database: "+d+"s","total: "+t+"s");
+    }
+    
     // handle format option
     if (!req.body.format || req.body.format === 'json') {
 
       // TODO include time sent?
-      res.send(finalRows);
+      res.send(resRows);
 
     } else if (req.body.format === 'csv') {
 
-      var csvStr = _.map(finalRows, function(row){
+      var csvStr = _.map(resRows, function(row){
         return row.join(', ');
       }).join('\n');
 
@@ -435,7 +438,7 @@ function offersExercised( req, res ) {
       var apiRes = {};
       apiRes.timeRetrieved = moment.utc().valueOf();
 
-      apiRes.rows = _.map(finalRows, function(row){
+      apiRes.rows = _.map(resRows, function(row){
 
         // reformat rows
         return {

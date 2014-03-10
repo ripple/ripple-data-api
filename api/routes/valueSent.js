@@ -130,11 +130,17 @@ function valueSent( req, res ) {
 
 
 
-  //set view options   
-  var length   = results.group_level ? results.group_level + 1 : 6; 
+
+  //var length   = results.group_level ? results.group_level + 1 : 6; 
+  //console.log(length);
+  //console.log(results.group_level);
+  //console.log(req.body.timeIncrement);
+  //console.log(startTime.toArray().slice(0,length));
+  
+  //set view options    
   var viewOpts = {
-    startkey : [currency, issuer].concat(startTime.toArray().slice(0,length)),
-    endkey   : [currency, issuer].concat(endTime.toArray().slice(0,length))  
+    startkey : [currency, issuer].concat(startTime.toArray().slice(0,6)),
+    endkey   : [currency, issuer].concat(endTime.toArray().slice(0,6))  
   };
 
 
@@ -144,6 +150,7 @@ function valueSent( req, res ) {
   else if (req.body.reduce === false) viewOpts.reduce      = false;
   
   viewOpts.stale = "ok"; //dont wait for updates
+  console.log(viewOpts);
   
   //Query CouchDB with the determined viewOpts
   db.view('valueSent', 'v1', viewOpts, function(err, result) {
