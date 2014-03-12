@@ -155,6 +155,7 @@ the number of ripple accounts that have been created over time.
     endTime       : (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
     timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
     descending    : true/false, // optional, defaults to true
+    reduce        : true/false  // optional, ignored if timeIncrement is set. false returns individual accounts created
     format        : 'json', 'csv', or 'json_verbose'
  }
 ```

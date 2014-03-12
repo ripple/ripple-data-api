@@ -1,6 +1,7 @@
 var winston = require('winston'),
   moment    = require('moment'),
-  _         = require('lodash');
+  _         = require('lodash'),
+  tools     = require('../utils');
   
   
 /**
@@ -13,61 +14,57 @@ var winston = require('winston'),
  *    descending: true/false, // optional, defaults to true
  *    format: 'json', 'csv', or 'json_verbose'
  *  }
+ * 
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Dec 30, 2012 10:00 am",
+      "endTime"   : "Jan 30, 2014 10:00 am"
+
+    }' http://localhost:5993/api/accountsCreated
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Dec 30, 2012 10:00 am",
+      "endTime"   : "Jan 30, 2014 10:00 am",
+      "reduce"    : false
+
+    }' http://localhost:5993/api/accountsCreated 
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Mar 9, 2012 10:00 am",
+      "endTime"   : "Mar 10, 2014 10:00 am",
+      "reduce"    : false
+
+    }' http://localhost:5993/api/accountsCreated
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Mar 9, 2012 10:00 am",
+      "endTime"   : "Mar 10, 2014 10:00 am",
+      "reduce" : false
+
+    }' http://localhost:5993/api/accountsCreated
+         
  */
 function accountsCreated( req, res ) {
 
   var viewOpts = {};
 
-  // parse startTime and endTime
-  // TODO handle incorrect startTime/endTime values
-  var startTime, endTime;
-  if (!req.body.startTime && !req.body.endTime) {
-    // default
-    startTime = moment.utc().subtract('days', 30);
-    endTime = moment.utc();
-  } else if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-    startTime = moment.utc(req.body.startTime);
-    endTime = moment.utc(req.body.endTime);
-  } else {
-    endTime = moment.utc(req.body.startTime);
-    startTime = moment.utc(req.body.endTime);
-  } 
-
-  // handle descending/non-descending query
-  if (!req.body.hasOwnProperty('descending') || req.body.descending === true) {
-    viewOpts.descending = true;
-
-    // swap startTime and endTime if results will be in descending order
-    var tempTime = startTime;
-    startTime = endTime;
-    endTime = tempTime;
-  }
+  //Parse start and end times
+  var range = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  
+  if (range.error) return res.send(500, { error: range.error });  
 
   // set startkey and endkey for couchdb query
-  viewOpts.startkey = startTime.toArray().slice(0,6);
-  viewOpts.endkey = endTime.toArray().slice(0,6);
-
-  // always reduce
-  viewOpts.reduce = true;
-  var inc = req.body.timeIncrement ? req.body.timeIncrement.toLowerCase() : null;
+  viewOpts.startkey = range.start.toArray().slice(0,6);
+  viewOpts.endkey   = range.end.toArray().slice(0,6);
   
-  // determine the group_level from the timeIncrement field
-  if (inc) {
-    var levels = ['year', 'month', 'day', 'hour', 'minute', 'second'];
-    if (inc === 'all') {
-      viewOpts.group = false;
-      
-    } else if (levels.indexOf(inc)) {
-      viewOpts.group_level = 1 + levels.indexOf(inc);
-    } else {
-      viewOpts.group_level = 1 + 2; // default to day
-    }
-    
-  } else {
-    // TODO handle incorrect options better
-    viewOpts.group_level = 1 + 2; // default to day
-  }
+  if (req.body.descending) viewOpts.descending = true;
+  
+  //parse time increment and time multiple
+  var results        = tools.parseTimeIncrement(req.body.timeIncrement);  
 
+  //set reduce option only if its false
+  if (results.group_level)            viewOpts.group_level = results.group_level + 1;
+  else if (req.body.reduce === false) viewOpts.reduce      = false;
+  
   viewOpts.stale = "ok"; //dont wait for updates
   
   db.view('accountsCreated', 'v1', viewOpts, function(err, couchRes){
@@ -111,37 +108,68 @@ function accountsCreated( req, res ) {
 /* below is a workaround for the fact that we dont have ledger history
    before ledger #32570 */ 
    
-    var genTime = moment("2013/1/2"); //date of genesis ledger
-    var genAccounts = 136;
-    
-//if we are getting a total, add the genesis acounts if
-//the time range includes the genesis ledger  
-    if (inc=='all') { 
-      if (endTime.isBefore(genTime) &&
-        startTime.isAfter(genTime)) {
+    var genTime      = moment("2013-Jan-01 03:21:10+00:00"); //date of genesis ledger
+    var nGenAccounts = 136;
 
+    if (viewOpts.reduce === false) {
+      
+      if (range.start.isBefore(genTime) &&
+        range.end.isAfter(genTime)) {  
         
-        if (couchRes.rows.length) {
-          couchRes.rows[0].value += genAccounts;
-        } else {
-          couchRes.rows.push({key:null,value:genAccounts});
+        var l = require('../../db/32570_full.json').result.ledger;
+        var genAccounts = [];
+        for (var i=0; i<l.accountState.length; i++) {
+          var obj =  l.accountState[i];
+ 
+          if (obj.LedgerEntryType=="AccountRoot") {
+            genAccounts.push({
+              key : genTime.format(),
+              value : obj.Account
+            });
+          }
+        }
+        
+        couchRes.rows = genAccounts.concat(couchRes.rows);      
+      }      
+    } 
+
+//if we are getting intervals, add the genesis accounts to the
+//first interval if it is the same date as the genesis ledger 
+//NOTE this is not a perfect solution because the data will not be
+//correct if the start time is intraday and after the genesis ledger
+//close time
+    else if (viewOpts.group_level) { 
+      
+      if (couchRes.rows.length)  {    
+
+        var index = req.body.descending === false ? 0 : couchRes.rows.length-1;
+        var time  = moment.utc(couchRes.rows[index].key);
+
+        if (time.format("YYY-MM-DD")==genTime.format("YYY-MM-DD")) {
+          couchRes.rows[index].value += nGenAccounts;  
         }
       }
  
-//if we are getting intervals, add the genesis accounts to the
-//first interval if it is the same date as the genesis ledger               
-    } else if (couchRes.rows.length) {
-      var index = req.body.descending === false ? 0 : couchRes.rows.length-1;
-      var time  = moment.utc(couchRes.rows[index].key);
+//if we are getting a total, add the genesis acounts if
+//the time range includes the genesis ledger                
+    } else {
+      
+      if (range.start.isBefore(genTime) &&
+        range.end.isAfter(genTime)) {
 
-      if (time.format("YYY-MM-DD")==genTime.format("YYY-MM-DD")) {
-        couchRes.rows[index].value += genAccounts;  
+        if (couchRes.rows.length) couchRes.rows[0].value += nGenAccounts;
+        else couchRes.rows.push({key:null,value:nGenAccounts});
+
+        couchRes.rows[0].key = range.start.format();  
+              
+      } else if (!couchRes.rows.length) {
+        couchRes.rows.push({key:range.start.format(),value:0});
       }
     }  
     
     couchRes.rows.forEach(function(row){
       resRows.push([
-        (row.key ? moment.utc(row.key).format(DATEFORMAT) : ''),
+        (row.key ? moment.utc(row.key).format() : ''),
         row.value
         ]);
     });
@@ -174,7 +202,7 @@ function accountsCreated( req, res ) {
 
         // reformat rows
         return {
-          openTime: (row.key ? moment.utc(row.key.slice(2)).format(DATEFORMAT) : moment.utc(row.value.openTime).format(DATEFORMAT)),
+          openTime: (row.key ? moment.utc(row.key.slice(2)).format() : moment.utc(row.value.openTime).format()),
           accountsCreated: row.value
         };
 
