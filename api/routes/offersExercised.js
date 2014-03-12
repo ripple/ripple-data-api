@@ -28,12 +28,16 @@ if (process.argv.indexOf('no-cache') !== -1) CACHE = false;
  *    limit: optional, ignored unless reduce is false - limit the number of returned trades
  *    format: (either 'json', 'json_verbose', 'csv') // optional, defaults to 'json'
  *  }
+ *  
  */
 function offersExercised (req, res) {
+  var options  = {};
+  options.view = {};
   
   if (DEBUG) var d,t = Date.now(); //tracking elapsed time
   
-  var options = parseOptions();
+  parseOptions(); //parse request params for query options
+  
   if (options.error) {
     winston.error(options.error);
     res.send(500, { error: options.error });
@@ -358,8 +362,6 @@ function offersExercised (req, res) {
  * 
  */
   function parseOptions () {
-    var options  = {};
-    options.view = {};
     
     if (!req.body.base || !req.body.trade) {
       options.error = 'please specify base and trade currencies';
