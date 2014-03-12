@@ -150,7 +150,6 @@ function valueSent( req, res ) {
   else if (req.body.reduce === false) viewOpts.reduce      = false;
   
   viewOpts.stale = "ok"; //dont wait for updates
-  console.log(viewOpts);
   
   //Query CouchDB with the determined viewOpts
   db.view('valueSent', 'v1', viewOpts, function(err, result) {

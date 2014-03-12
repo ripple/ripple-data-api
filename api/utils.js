@@ -142,11 +142,7 @@ exports.parseTimeRange = function (time1, time2, descending) {
   } else if (endTime) {
     startTime = endTime;
     endTime   = moment.utc();
-    
-  } else {
-    startTime = moment.utc(0);
-    endTime   = moment.utc(99999999999999);    
-  }
+  } 
 
   if (descending) {  //swap times
     tempTime  = startTime;
