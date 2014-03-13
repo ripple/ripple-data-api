@@ -108,7 +108,7 @@ function offersExercised (req, res) {
  */
   function fromCouch() {
     if (DEBUG) d = Date.now();
-    db.view("offersExercised", "v1", options.view, handleCouchResponse);
+    db.view("offersExercised", "v2", options.view, handleCouchResponse);
   }
   
 
@@ -137,7 +137,8 @@ function offersExercised (req, res) {
           row.value[2],//price
           row.value[1],//get amount
           row.value[0],//pay amount
-          row.value[4],
+          row.value[4],//tx_hash
+          row.id       //ledger index
         ]);  
       });
    
@@ -148,7 +149,7 @@ function offersExercised (req, res) {
                 
         couchRes.rows.forEach(function(row){
           //row.key will be null if this is reduced to a single row
-          var startTime = row.key ? row.key.slice(2) : options.startTime;
+          var startTime = row.key ? row.key.slice(1) : options.startTime;
 
           rows.push([
             moment.utc(startTime).format(), //start time
@@ -171,19 +172,13 @@ function offersExercised (req, res) {
         //and/or end time, flag those groups as partial.
         //they will not be saved to the cache.
         if (rows.length && options.increment) {
-          console.log(options);
+
           var firstStart = moment.utc(rows[0][0]);
           var lastEnd    = moment.utc(rows[rows.length-1][0]).add(options.increment, options.multiple);
           
           if (firstStart.diff(options.startTime)<0) rows[0][11] = true;
           if (lastEnd.diff(options.endTime)>0)      rows[rows.length-1][11] = true;
-          
-          console.log(options.startTime.format());
-          console.log(firstStart.diff(options.startTime));
-          console.log(options.endTime.format());
-          console.log(lastEnd.diff(options.endTime));
         }
-            
       }
       
       //prepend header row
@@ -269,11 +264,12 @@ function offersExercised (req, res) {
       if (options.view.reduce === false) {
         apiRes.results = _.map(rows, function(row){
           return {
-            time        : moment.utc(row[0]).format(),
+            time        : row[0],
             price       : row[1],
             baseAmount  : row[2],
             tradeAmount : row[3],
-            tx_hash     : row[4]
+            txHash      : row[4],
+            ledgerIndex : row[5] 
           };
         });
         
@@ -486,19 +482,19 @@ function offersExercised (req, res) {
     } else if (!req.body.base.issuer) {
       
       if (req.body.base.currency.toUpperCase() === 'XRP') {
-        options.base = ['XRP'];
+        options.base = 'XRP';
       } else {
         options.error = 'must specify issuer for all currencies other than XRP';
         return;
       }
       
     } else if (req.body.base.issuer && ripple.UInt160.is_valid(req.body.base.issuer)) {
-      options.base = [req.body.base.currency.toUpperCase(), req.body.base.issuer];
+      options.base = req.body.base.currency.toUpperCase()+"."+req.body.base.issuer;
       
     } else {
       var baseGatewayAddress = gatewayNameToAddress(req.body.base.issuer, req.body.base.currency.toUpperCase());
       if (baseGatewayAddress) {
-        options.base = [req.body.base.currency.toUpperCase(), baseGatewayAddress];
+        options.base = req.body.base.currency.toUpperCase()+"."+baseGatewayAddress;
         
       } else {
         options.error = 'invalid base currency issuer: ' + req.body.base.issuer;
@@ -513,18 +509,18 @@ function offersExercised (req, res) {
       
     } else if (!req.body.trade.issuer) {
       if (req.body.trade.currency.toUpperCase()  === 'XRP') {
-        options.trade = ['XRP'];
+        options.trade = 'XRP';
       } else {
         options.error = 'must specify issuer for all currencies other than XRP';
         return;
       }
     } else if (req.body.trade.issuer && ripple.UInt160.is_valid(req.body.trade.issuer)) {
-      options.trade = [req.body.trade.currency.toUpperCase(), req.body.trade.issuer];
+      options.trade = req.body.trade.currency.toUpperCase()+"."+req.body.trade.issuer;
       
     } else {
       var tradeGatewayAddress = gatewayNameToAddress(req.body.trade.issuer, req.body.trade.currency.toUpperCase());
       if (tradeGatewayAddress) {
-        options.trade = [req.body.trade.currency.toUpperCase(), tradeGatewayAddress];
+        options.trade = req.body.trade.currency.toUpperCase()+"."+tradeGatewayAddress;
         
       } else {
         options.error = 'invalid trade currency issuer: ' + req.body.trade.issuer;
@@ -567,7 +563,7 @@ function offersExercised (req, res) {
     else if (results.group_level===0) options.increment = "years";
       
     //set reduce option only if its false
-    if (results.group_level)            options.view.group_level = results.group_level + 3;
+    if (results.group_level)            options.view.group_level = results.group_level + 2;
     else if (req.body.reduce === false) options.view.reduce      = false;
   
     
@@ -575,10 +571,10 @@ function offersExercised (req, res) {
       options.view.limit = req.body.limit;
     }
 
-  
+
     // set startkey and endkey for couchdb query
-    options.view.startkey = [options.trade, options.base].concat(options.startTime.toArray().slice(0,6));
-    options.view.endkey   = [options.trade, options.base].concat(options.endTime.toArray().slice(0,6));
+    options.view.startkey = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
+    options.view.endkey   = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
     options.view.stale    = "ok"; //dont wait for updates  
     return options;      
   }
