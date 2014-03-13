@@ -131,13 +131,13 @@ function offersExercised (req, res) {
     if (options.view.reduce === false) {
       rows.push(['time','price','baseAmount','tradeAmount','tx_hash']);
       couchRes.rows.forEach(function(row){
-
+        var time = row.key ? row.key.slice(2) : row.value[3];
         rows.push([
-          moment.utc(row.value[3]).format(),
+          moment.utc(time).format(),
           row.value[2],//price
           row.value[1],//get amount
           row.value[0],//pay amount
-          row.value[4],//tx_hash
+          row.value[4],//tx hash
           row.id       //ledger index
         ]);  
       });
@@ -268,8 +268,8 @@ function offersExercised (req, res) {
             price       : row[1],
             baseAmount  : row[2],
             tradeAmount : row[3],
-            txHash      : row[4],
-            ledgerIndex : row[5] 
+            tx_hash     : row[4],
+            ledgerIndex : row[5]
           };
         });
         

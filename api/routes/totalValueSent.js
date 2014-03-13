@@ -206,8 +206,9 @@ function totalValueSent( req, res ) {
       var finalRate = ex.currency == "XRP" ? 1 : null;
       
       rates.forEach(function(pair, index){
+
         currencies[index].rate            = pair.rate; 
-        currencies[index].convertedAmount = currencies[index].amount / pair.rate;
+        currencies[index].convertedAmount = pair.rate ? currencies[index].amount / pair.rate : 0;
       
         //check to see if the pair happens to be the
         //final conversion currency we are looking for
@@ -232,6 +233,7 @@ function totalValueSent( req, res ) {
       function finalize () {
         var total = 0, count = 0;
         currencies.forEach(function(currency, index) {
+
           if (currency.currency == "XRP") {
             currency.rate            = 1; //for XRP
             currency.convertedAmount = currency.amount;
