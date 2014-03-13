@@ -17,7 +17,9 @@ db = require('nano')(DBconfig.protocol+
   '@'   + DBconfig.host + 
   ':'   + DBconfig.port + 
   '/'   + DBconfig.database);
-
+  
+redis = require("redis").createClient();
+  
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
@@ -77,6 +79,10 @@ function requestHandler(req, res) {
   } 
 }
 
+
+redis.on("error", function (err) {
+  console.log("Error " + err);
+});
 
 
 
