@@ -186,3 +186,58 @@ exports.parseTimeIncrement = function (inc) {
   
   return results;
 }
+
+/*
+ * getAlignedTime - uses the interval and multiple
+ * to align the time to a consistent series, such as 9:00, 9:05, 9:10...
+ * rather than 9:03, 9:08, 9:13...
+ * 
+ */ 
+exports.getAlignedTime = function (original, increment, multiple) {
+  var time = moment(original); //clone the original
+
+  if (increment=='seconds') {
+    time.subtract("seconds", time.seconds()%multiple);   
+    
+  } else if (increment=='minutes') {
+    time.subtract({
+      seconds : time.seconds(), 
+      minutes : time.minutes()%multiple
+    });
+          
+  } else if (increment=='hours') {
+    time.subtract({
+      seconds : time.seconds(), 
+      minutes : time.minutes(),
+      hours   : time.hours()%multiple
+    });   
+           
+  } else if (increment=='days') {
+    time.subtract({
+      seconds : time.seconds(), 
+      minutes : time.minutes(),
+      hours   : time.hours(),
+      days    : time.dayOfYear()%multiple
+    }); 
+
+  } else if (increment=='months') {
+    time.subtract({
+      seconds : time.seconds(), 
+      minutes : time.minutes(),
+      hours   : time.hours(),
+      days    : time.date()-1,
+      months  : time.months()%multiple
+    }); 
+  } else if (increment=='years') {
+    time.subtract({
+      seconds : time.seconds(), 
+      minutes : time.minutes(),
+      hours   : time.hours(),
+      days    : time.date()-1,
+      months  : time.months(),
+      years   : time.years()%multiple
+    }); 
+  }
+  
+  return time;    
+}

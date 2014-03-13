@@ -34,14 +34,33 @@ if (process.argv.indexOf('no-cache') !== -1) CACHE = false;
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 11, 2014 5:34 am",
-    "endTime"   : "Mar 11, 2014 12:12 pm",
+    "startTime" : "Mar 11, 2014 4:35 am",
+    "endTime"   : "Mar 11, 2014 5:10:30 am",
     "timeIncrement" : "minute",
-    "timeMultiple"  : 15
+    "timeMultiple"  : 15,
+    "format" : "json"
       
     }' http://localhost:5993/api/offersExercised
  
-  
+ 
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "base"  : {"currency": "XRP"},
+    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "startTime" : "Mar 11, 2014 4:44:00 am",
+    "endTime"   : "Mar 11, 2014 5:09:00 am",
+    "timeIncrement" : "minute"
+      
+    }' http://localhost:5993/api/offersExercised
+ 
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "base"  : {"currency": "XRP"},
+    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "startTime" : "Mar 11, 2014 4:44:00 am",
+    "endTime"   : "Mar 11, 2014 5:09:00 am",
+    "reduce"    : false
+    
+    }' http://localhost:5993/api/offersExercised    
+    
  */
 function offersExercised (req, res) {
   var options  = {};
@@ -89,7 +108,7 @@ function offersExercised (req, res) {
  */
   function fromCouch() {
     if (DEBUG) d = Date.now();
-    db.view("offersExercised", "v2", options.view, handleCouchResponse);
+    db.view("offersExercised", "v1", options.view, handleCouchResponse);
   }
   
 
@@ -112,6 +131,7 @@ function offersExercised (req, res) {
     if (options.view.reduce === false) {
       rows.push(['time','price','baseAmount','tradeAmount','tx_hash']);
       couchRes.rows.forEach(function(row){
+
         rows.push([
           moment.utc(row.value[3]).format(),
           row.value[2],//price
@@ -142,8 +162,28 @@ function offersExercised (req, res) {
             row.value.volumeWeightedAvg,
             moment.utc(row.value.openTime).format(),  //open  time
             moment.utc(row.value.closeTime).format(), //close time
+            false //partial row, default false
           ]);
-        });        
+        });  
+
+        //if the first group could have had trades that are not
+        //represented because of the alignment of the start time,
+        //and/or end time, flag those groups as partial.
+        //they will not be saved to the cache.
+        if (rows.length && options.increment) {
+          console.log(options);
+          var firstStart = moment.utc(rows[0][0]);
+          var lastEnd    = moment.utc(rows[rows.length-1][0]).add(options.increment, options.multiple);
+          
+          if (firstStart.diff(options.startTime)<0) rows[0][11] = true;
+          if (lastEnd.diff(options.endTime)>0)      rows[rows.length-1][11] = true;
+          
+          console.log(options.startTime.format());
+          console.log(firstStart.diff(options.startTime));
+          console.log(options.endTime.format());
+          console.log(lastEnd.diff(options.endTime));
+        }
+            
       }
       
       //prepend header row
@@ -253,7 +293,8 @@ function offersExercised (req, res) {
             closePrice   : row[5],
             highPrice    : row[6],
             lowPrice     : row[7],
-            vwavPrice    : row[8]
+            vwavPrice    : row[8],
+            partial      : row[11],
           };
   
         });        
@@ -279,24 +320,25 @@ function offersExercised (req, res) {
     // data structures for processing rows
     var tabledRowCount = 0, newElementCount = 0;
     var tabledRows     = [];
-    var epochStartTime = moment.utc(options.startTime);
-    var epochEndTime   = moment.utc(options.startTime);
+    var epochStartTime = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
+    var epochEndTime   = moment.utc(epochStartTime);
+
     var results = [];
-    
+
     // define the epoch for grouping of results
     epochEndTime.add(options.increment, options.multiple);
-
+    
     // create initial row of table for assembling grouped results
     tabledRows[tabledRowCount] = [];
 
     rows.forEach(function(element, index, array) {
-
+      
       var elementTime = moment.utc(element.value.openTime);
 
       // until element time is before or equal to epoch close time
       while (elementTime.diff(epochEndTime) > 0) {
         // set element time to be that of beginning of epoch
-        element.value.epochTime = epochStartTime.format(DATEFORMAT);
+        element.value.epochTime = epochStartTime.format();
   
         // increment epoch start & close time
         epochStartTime.add(options.increment, req.body.timeMultiple);
@@ -311,7 +353,7 @@ function offersExercised (req, res) {
       }
 
       // set element time to be that of beginning of epoch
-      element.value.epochTime = epochStartTime.format(DATEFORMAT);
+      element.value.epochTime = epochStartTime.format();
 
       // store row to be grouped
       tabledRows[tabledRowCount][newElementCount] = element;
@@ -328,7 +370,7 @@ function offersExercised (req, res) {
       groupedVwavNumerator,   groupedVwavDenominator;
  
     tabledRows.forEach(function(element, index, array) {
-  
+      
       element.forEach(function(e, i, a) {
 
         // if this is first column
@@ -400,16 +442,28 @@ function offersExercised (req, res) {
           groupedLowPrice, 
           groupedVwavPrice,
           moment.utc(groupedOpenTime).format(),
-          moment.utc(groupedCloseTime).format()
+          moment.utc(groupedCloseTime).format(),
+          false
         ]);
-          
+        
         groupedStartTime = 0;
       }
     });
 
+    //if the first group could have had trades that are not
+    //represented because of the alignment of the start time,
+    //and/or end time, flag those groups as partial.
+    //they will not be saved to the cache.
+    if (results.length) {
+      if (moment.utc(results[0][0]).diff(options.startTime)<0) results[0][11] = true;
+      if (epochEndTime.diff(options.endTime)>0) results[results.length-1][11] = true;
+      console.log(moment.utc(results[0][0]).diff(options.startTime));
+    }
+
     return results;      
   }
-
+  
+  
 /*
  * parseOptions - parse request parameters to determine the view
  * options for the couch query.
