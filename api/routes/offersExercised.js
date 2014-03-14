@@ -5,7 +5,7 @@ var winston = require('winston'),
   tools     = require('../utils');
 
 var DEBUG = true;
-var CACHE = false; //not implemented
+var CACHE = true; //not implemented
 
 if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
 if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
@@ -41,6 +41,18 @@ if (process.argv.indexOf('no-cache') !== -1) CACHE = false;
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
+    
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "base"  : {"currency": "XRP"},
+    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "startTime" : "Mar 10, 2014 4:35 am",
+    "endTime"   : "Mar 11, 2014 5:10:30 am",
+    "timeIncrement" : "minute",
+    "timeMultiple"  : 15,
+    "format" : "json"
+      
+    }' http://localhost:5993/api/offersExercised    
  
  
   curl -H "Content-Type: application/json" -X POST -d '{
@@ -78,16 +90,13 @@ function offersExercised (req, res) {
 
   //console.log(options.view);
   
-  if (CACHE) getCached(options.view, function(err, result){
+  if (CACHE) getCached(function(err, result){
     
     if (err) {
       winston.error('Cache Error: ' + err);
       res.send(500, { error: err });
       return;
     }
-    
-    options.cached = result.cached;
-    options.view   = result.view;
     
     return fromCouch(); 
   });
@@ -108,7 +117,9 @@ function offersExercised (req, res) {
  */
   function fromCouch() {
     if (DEBUG) d = Date.now();
-    db.view("offersExercised", "v2", options.view, handleCouchResponse);
+
+    var view = options.subview ? options.subview : options.view;
+    db.view("offersExercised", "v1", view, handleCouchResponse);
   }
   
 
@@ -172,7 +183,6 @@ function offersExercised (req, res) {
         //and/or end time, flag those groups as partial.
         //they will not be saved to the cache.
         if (rows.length && options.increment) {
-
           var firstStart = moment.utc(rows[0][0]);
           var lastEnd    = moment.utc(rows[rows.length-1][0]).add(options.increment, options.multiple);
           
@@ -194,7 +204,7 @@ function offersExercised (req, res) {
     //cache results
     if (CACHE) {
       if (rows.length>1) cacheResults(rows);
-      if (options.cached) rows = cached.concat(rows);
+      if (options.cached) rows = options.cached.concat(rows);
     }    
     
     handleResponse (rows); 
@@ -207,8 +217,71 @@ function offersExercised (req, res) {
  * view options accordingly.
  * 
  */  
-  function getCached (options, callback) {
-    callback (null, {view:options});
+  function getCached (callback) {
+
+    var key = parseKey(options);  
+    
+    //we dont cache unreduced or completely reduced results
+    if (options.view.reduce===false || !options.view.group_level) {
+      callback (null);
+      return;
+      
+    } else {
+
+      //get the start time of the first complete interval
+      var start = moment.utc(options.alignedStart);
+      if (start.diff(options.start)) start.add(options.increment, options.multiple);
+      
+      var args =[
+        key+":points",
+        start.unix(),
+        options.endTime.unix()
+      ];
+      
+      
+      //redis.del(key+":points");
+      
+      //check if the key exists
+      if (redis.exists(key+":points", function(err, exists){
+        if (err) return callback(err);
+        if (!exists) {
+          return callback(null);
+          
+        } else {
+          
+          //get points within the time range
+          redis.zrangebyscore(args, function (err, res){
+            if (err) return callback(err);
+            
+            var last, rows = [];
+                        
+            res.forEach(function(row){
+              var r = JSON.parse(row);
+              last  = r[0]*1000; 
+              if (r.length==1) return; //empty row
+              
+              rows.push(JSON.parse(row));
+            });
+  
+            if (!last) return callback(null); //no cached rows
+   
+            //adjust range of query to exclude cached results
+            //add the interval to this time so we dont
+            //get the last one again.         
+            last = moment.utc(last);
+            var start = options.view.startkey.slice(0,2);
+            
+            last.add(options.increment, options.multiple);
+            options.cached           = rows;
+            options.subview          = options.view;
+            options.subview.startkey = start.concat(last.toArray().slice(0,6));
+
+            callback(null);
+            return;
+          });
+        }
+      }));
+    }    
   }
   
 
@@ -219,9 +292,83 @@ function offersExercised (req, res) {
  */  
   function cacheResults(rows) {
     
+    var key = parseKey(options);
+      
+    //we dont cache unreduced or completely reduced results
+    if (options.view.reduce===false || !options.view.group_level) {
+      return;
+      
+    } else {
+      
+      rows.shift(); //remove header
+      if (rows.length) {
+        args = prepareRows(rows);
+         
+        args.unshift(key+":points");
+        redis.zadd(args, function(err, res){
+          if (err) return winston.error("redis error: " + err);
+          if (DEBUG) winston.info(res + " points cached");
+        });
+      }
+    }    
+  }
+
+  
+  function parseKey(opts) {
+    
+    var key = "OE:"+opts.view.startkey[0][0];
+    if (opts.view.startkey[0][1]) key += "."+opts.view.startkey[0][1];
+    key += ":"+opts.view.startkey[1][0];
+    if (opts.view.startkey[1][1]) key += "."+opts.view.startkey[1][1];
+    key += ":"+ (opts.increment || "all");
+        
+    if (opts.view.reduce===false) {
+      key += ":unreduced";
+      if (opts.view.limit) key += ":limit:"+opts.view.limit;  
+                
+    } else if (opts.multiple && opts.increment) {
+      key += ":"+ (opts.multiple); 
+    
+    }
+  
+    return key;
+  }  
+
+  function prepareRows(rows) {
+    
+    var time = moment.utc(options.alignedStart);
+    var temp = {}, timestamp, results = [];
+    rows.forEach(function(row){
+      temp[moment.utc(row[0]).unix()] = row;
+    });
+    
+
+    while (options.endTime.diff(time)>0) {
+      timestamp = time.unix();
+      
+
+      if (temp[timestamp]) {
+
+        //if its not a partial, cache it        
+        if (!temp[timestamp][11]) {
+          results.push(timestamp);
+          results.push(JSON.stringify(temp[timestamp]));
+        }
+      
+      //add a null row for everything except the first  
+      } else if (timestamp != options.alignedStart.unix()){
+        results.push(timestamp);
+        results.push(JSON.stringify([timestamp]));
+
+      }
+      
+      //increment to the next candle
+      time.add(options.increment, options.multiple);
+    } 
+        
+    return results;  
   }
   
-
 /*
  * handleResponse - format the data according to the requirements
  * of the request and return it to the caller.
@@ -234,7 +381,7 @@ function offersExercised (req, res) {
       var interval = req.body.timeMultiple  ? req.body.timeMultiple  : "";
       interval    += req.body.timeIncrement ? req.body.timeIncrement : "";
     
-      console.log("offersExercised - interval: "+interval, "database: "+d+"s","total: "+t+"s");
+      winston.info("offersExercised: "+interval, " - database: "+d+"s","total: "+t+"s");
     }    
     
 
@@ -275,8 +422,7 @@ function offersExercised (req, res) {
         
       } else {
         
-        
-              
+                   
         apiRes.results = _.map(rows, function(row, index){
           return {
             startTime    : moment.utc(row[0]).format(),
@@ -292,9 +438,7 @@ function offersExercised (req, res) {
             vwavPrice    : row[8],
             partial      : row[11],
           };
-  
-        });        
-        
+        });          
       }
       
       res.json(apiRes);
@@ -316,7 +460,7 @@ function offersExercised (req, res) {
     // data structures for processing rows
     var tabledRowCount = 0, newElementCount = 0;
     var tabledRows     = [];
-    var epochStartTime = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
+    var epochStartTime = moment.utc(options.alignedStart); //clone it
     var epochEndTime   = moment.utc(epochStartTime);
 
     var results = [];
@@ -575,6 +719,7 @@ function offersExercised (req, res) {
     options.view.startkey = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
     options.view.endkey   = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
     options.view.stale    = "ok"; //dont wait for updates  
+    options.alignedStart  = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
     return options;      
   }
 }
