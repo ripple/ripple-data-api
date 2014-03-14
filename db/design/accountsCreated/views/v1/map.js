@@ -15,7 +15,7 @@ function( doc ) {
 
         if ( affNode.CreatedNode && affNode.CreatedNode.LedgerEntryType === "AccountRoot" ) {
 
-          emit( timestamp, affNode.CreatedNode.NewFields.Account );
+          emit( timestamp, [affNode.CreatedNode.NewFields.Account, tx.hash] );
           
         }
 
