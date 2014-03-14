@@ -12,26 +12,51 @@ var winston = require('winston'),
  *  or an "offerCreate" that exercises another offer, for a curated list of 
  *  currency/issuers and XRP, normalized to a specified currency
  *
- *  request : {
- *   
+ *  request : 
+ *
+ * {
  *    startTime : (any momentjs-readable date), // optional, defaults to 1 day before end time
  *    endTime   : (any momentjs-readable date), // optional, defaults to now
- *    exchange : {
- *   
- *      currency  : (XRP, USD, BTC, etc.),         // optional, defaults to XRP
- *      issuer    : "rAusZ...."                   // optional, required if currency != XRP
- *    }
- *  }
+ *    exchange  : {                             // optional, defaults to XRP
+ *    currency  : (XRP, USD, BTC, etc.),         
+ *    issuer    : "rAusZ...."                 // optional, required if currency != XRP
+ * }
+ *
+ * response : 
+ *
+ * {
+ *    startTime    : "2014-03-13T20:39:26+00:00",       //period start
+ *    endTime      : "2014-03-14T20:39:26+00:00",       //period end
+ *    exchange     : {
+ *      currency : "USD",                               //exchange currency
+ *      issuer   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"  //exchange issuer
+ *    },
+ *    exchangeRate : 0.014301217579817786,              //exchange rate
+ *    total        : 726824.6504823748,                 //total value sent
+ *    count        : 6040,                              //number of transactions
+ *    components   : [                                  //list of component currencies
+ *      {
+ *        currency        : "USD",
+ *        issuer          : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
+ *        amount          : 27606.296227064257,
+ *        count           : 51,
+ *        rate            : 1,
+ *        convertedAmount : 27606.296227064257
+ *      },
+ *      .
+ *      .
+ *      .
+ *      .
+ *    ]
+ * }
  * 
- * 
- *  response : [
- * 
- *   ['startTime','baseCurrVolume','finalCoversionRate','marketValue'], //header row
- *    ... //one row for each of the top 5 markets
- *  ]
- * 
- * 
- * 
+ *
+    curl -H "Content-Type: application/json" -X POST -d '{
+    "exchange"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}
+  
+    }' http://localhost:5993/api/totalValueSent 
+    
+ 
  */
 
 function totalValueSent( req, res ) {
@@ -218,10 +243,10 @@ function totalValueSent( req, res ) {
           count += currency.count;
         });
       
-        response.xrpRate = finalRate;
-        response.total   = total;
-        response.count   = count;
-        response.results = currencies;
+        response.exchangeRate = finalRate;
+        response.total        = total;
+        response.count        = count;
+        response.components   = currencies;
         
         res.send(response);        
       }  
