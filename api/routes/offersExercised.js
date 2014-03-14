@@ -34,11 +34,11 @@ if (process.argv.indexOf('no-cache') !== -1) CACHE = false;
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 11, 2014 4:35 am",
-    "endTime"   : "Mar 11, 2014 5:10:30 am",
+    "startTime" : "Mar 04, 2014 4:00 am",
+    "endTime"   : "Mar 04, 2014 8:00 am",
     "timeIncrement" : "minute",
     "timeMultiple"  : 15,
-    "format" : "json"
+    "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
  
@@ -171,19 +171,12 @@ function offersExercised (req, res) {
         //and/or end time, flag those groups as partial.
         //they will not be saved to the cache.
         if (rows.length && options.increment) {
-          console.log(options);
           var firstStart = moment.utc(rows[0][0]);
           var lastEnd    = moment.utc(rows[rows.length-1][0]).add(options.increment, options.multiple);
           
           if (firstStart.diff(options.startTime)<0) rows[0][11] = true;
           if (lastEnd.diff(options.endTime)>0)      rows[rows.length-1][11] = true;
-          
-          console.log(options.startTime.format());
-          console.log(firstStart.diff(options.startTime));
-          console.log(options.endTime.format());
-          console.log(lastEnd.diff(options.endTime));
-        }
-            
+        }           
       }
       
       //prepend header row
@@ -191,7 +184,7 @@ function offersExercised (req, res) {
         'startTime', 'baseCurrVolume', 'tradeCurrVolume', 
         'numTrades', 'openPrice',      'closePrice', 
         'highPrice', 'lowPrice',       'vwavPrice',
-        'openTime',  'closeTime',
+        'openTime',  'closeTime',      'partial',
       ]);
     }
     
@@ -457,7 +450,6 @@ function offersExercised (req, res) {
     if (results.length) {
       if (moment.utc(results[0][0]).diff(options.startTime)<0) results[0][11] = true;
       if (epochEndTime.diff(options.endTime)>0) results[results.length-1][11] = true;
-      console.log(moment.utc(results[0][0]).diff(options.startTime));
     }
 
     return results;      
