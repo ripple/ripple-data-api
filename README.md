@@ -292,7 +292,11 @@ The amount of value sent from any account for a specific currency over time.
     reduce        : // true/false               - optional, ignored if timeIncrement set
   }
 ```
-  response: {
+
+  response: 
+
+```
+  {
   
     currency : //from request
     issuer   : //from request 
@@ -329,7 +333,9 @@ the changes in balance for a gateway’s issuing wallet over time, with known ho
     startTime : (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago
     endTime   : (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago
     timeIncrement : (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day" 
+  }
 ```  
+  
   response:
   
 ```js
