@@ -4,7 +4,7 @@ var winston = require('winston'),
   _         = require('lodash'),
   tools     = require('../utils');
 
-var DEBUG = true;
+var DEBUG = false;
 var CACHE = false; //not implemented
 
 if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
