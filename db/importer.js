@@ -732,10 +732,11 @@ function ledgerImporter () {
       var ledgerJsonTxHash;
       try {
        ledgerJsonTxHash = Ledger.from_json(ledger).calc_tx_hash().to_hex();
-      } catch(e) {
-        winston.error('Error calculating transaction hash: ', e, e.stack);
+      } catch(err) {
+        winston.error("Error calculating transaction hash: "+ledger.ledger_index +" "+ err);
         ledgerJsonTxHash = '';
       }
+      
       if (ledgerJsonTxHash && ledgerJsonTxHash !== ledger.transaction_hash) {
   
         winston.info('transactions do not hash to the expected value for ' + 
