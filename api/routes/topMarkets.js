@@ -5,6 +5,8 @@ var winston = require('winston'),
   async     = require('async'),
   Q         = require('q');
 
+var CACHE   = true; 
+
 /**
  *  topMarkets: 
  * 
@@ -63,7 +65,7 @@ var winston = require('winston'),
 
 function topMarkets( req, res ) {
  
-  var viewOpts = {};
+  var cacheKey, viewOpts = {};
   var ex = req.body.exchange || {currency:"XRP"};
   
   if (typeof ex != 'object')               return res.send(500, {error: 'invalid exchange currency'});
@@ -152,119 +154,148 @@ function topMarkets( req, res ) {
   }
   
 
-  //prepare results to send back
-  var response = {
-    startTime : startTime.format(),
-    endTime   : endTime.format(),
-    exchange  : ex,  
-  };
+  if (CACHE) {
+    cacheKey = "TM:" + ex.currency;
+    if (ex.issuer) cacheKey += "."+ex.issuer;
+    if (!endTime.diff(moment.utc())) { //live update request
+      cacheKey += ":live:"+endTime.diff(startTime);
+    } else {
+      cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
+    }
  
+    redis.get(cacheKey, function(err, response){
+      if (err) console.log(err);
+      if (response) res.send(JSON.parse(response));  
+      else fromCouch();
+    });
+    
+  } else fromCouch();
   
-  // Mimic calling offersExercised for each market pair
-  async.map(marketPairs, function(assetPair, asyncCallbackPair){
+  
+  function fromCache(callback) {
+    var response = redis.get(cacheKey, callback)  
+  }
+  
+  function fromCouch() {
+    //prepare results to send back
+    var response = {
+      startTime : startTime.format(),
+      endTime   : endTime.format(),
+      exchange  : ex,  
+    };
+   
+    
+    // Mimic calling offersExercised for each market pair
+    async.map(marketPairs, function(assetPair, asyncCallbackPair){
+  
+      require("./offersExercised")({
+        body: {
+          base          : assetPair.base,
+          trade         : assetPair.trade,
+          startTime     : startTime,
+          endTime       : endTime,
+          timeIncrement : 'all'
+        }
+      }, {
+        send: function(data) {
+  
+          if (data.error) {
+            asyncCallbackPair(data.error);
+            return;
+          }
+  
+          if (data && data.length > 1) {
+            assetPair.rate   = data[1][8]; // vwavPrice
+            assetPair.count  = data[1][3]; // num trades
+            assetPair.amount = data[1][1]; // amount
+          } else {
+            assetPair.rate   = 0;
+            assetPair.count  = 0;
+            assetPair.amount = 0;
+          }
+          asyncCallbackPair(null, assetPair);
+        }
+      });
+  
+    }, function(err, pairs) {
+      if (err) return res.send(500, { error: err });
+      
+      var exchangeRate;
+      
+      if (ex.currency == 'XRP') exchangeRate = 1;
+      else {
+        //check to see if the pair happens to be the
+        //final conversion currency we are looking for
+        pairs.forEach(function(pair, index){
+          if (pair.base.currency == ex.currency &&
+              pair.base.issuer   == ex.issuer) exchangeRate = 1 / pair.rate;
+        });      
+      }
+  
+  
+      if (exchangeRate) finalize();
+      else {
+        getConversion({
+          startTime : startTime,
+          endTime   : endTime,
+          currency  : ex.currency,
+          issuer    : ex.issuer
+        }, function(err,rate){
+          if (err) return res.send(500, { error: err });
+          exchangeRate = rate;
+          finalize(); 
+        });
+      }
+           
+      function finalize () {
+        var total = 0, count = 0;
+        pairs.forEach(function(pair, index) {
+          pair.rate            = pair.rate*exchangeRate;
+          pair.convertedAmount = pair.amount*pair.rate;
+          total += pair.convertedAmount;
+          count += pair.count;
+        });
+      
+        response.exchangeRate = exchangeRate;
+        response.total        = total;
+        response.count        = count;
+        response.components   = pairs;
+        
+        res.send(response);  
+        if (CACHE) {
+          redis.set(cacheKey, JSON.stringify(response), function(err, res){
+            if (!err) redis.expire(cacheKey, 60); //expire in 60 seconds  
+          });
+        }     
+      }  
+    });
+  }
 
+
+  /*
+   * get XRP to specified currency conversion
+   * 
+   */
+  function getConversion (params, callback) {
+    
+    // Mimic calling offersExercised 
     require("./offersExercised")({
       body: {
-        base          : assetPair.base,
-        trade         : assetPair.trade,
-        startTime     : startTime,
-        endTime       : endTime,
+        base      : {currency:"XRP"},
+        trade     : {currency:params.currency,issuer:params.issuer},
+        startTime : params.startTime,
+        endTime   : params.endTime,
         timeIncrement : 'all'
       }
     }, {
       send: function(data) {
-
-        if (data.error) {
-          asyncCallbackPair(data.error);
-          return;
-        }
-
-        if (data && data.length > 1) {
-          assetPair.rate   = data[1][8]; // vwavPrice
-          assetPair.count  = data[1][3]; // num trades
-          assetPair.amount = data[1][1]; // amount
-        } else {
-          assetPair.rate   = 0;
-          assetPair.count  = 0;
-          assetPair.amount = 0;
-        }
-        asyncCallbackPair(null, assetPair);
-      }
-    });
-
-  }, function(err, pairs) {
-    if (err) return res.send(500, { error: err });
-    
-    var exchangeRate;
-    
-    if (ex.currency == 'XRP') exchangeRate = 1;
-    else {
-      //check to see if the pair happens to be the
-      //final conversion currency we are looking for
-      pairs.forEach(function(pair, index){
-        if (pair.base.currency == ex.currency &&
-            pair.base.issuer   == ex.issuer) exchangeRate = 1 / pair.rate;
-      });      
-    }
-
-
-    if (exchangeRate) finalize();
-    else {
-      getConversion({
-        startTime : startTime,
-        endTime   : endTime,
-        currency  : ex.currency,
-        issuer    : ex.issuer
-      }, function(err,rate){
-        if (err) return res.send(500, { error: err });
-        exchangeRate = rate;
-        finalize(); 
-      });
-    }
-         
-    function finalize () {
-      var total = 0, count = 0;
-      pairs.forEach(function(pair, index) {
-        pair.rate            = pair.rate*exchangeRate;
-        pair.convertedAmount = pair.amount*pair.rate;
-        total += pair.convertedAmount;
-        count += pair.count;
-      });
-    
-      response.exchangeRate = exchangeRate;
-      response.total        = total;
-      response.count        = count;
-      response.components   = pairs;
-      
-      res.send(response);        
-    }  
-  });
-}
-
-/*
- * get XRP to specified currency conversion
- * 
- */
-function getConversion (params, callback) {
   
-  // Mimic calling offersExercised 
-  require("./offersExercised")({
-    body: {
-      base      : {currency:"XRP"},
-      trade     : {currency:params.currency,issuer:params.issuer},
-      startTime : params.startTime,
-      endTime   : params.endTime,
-      timeIncrement : 'all'
-    }
-  }, {
-    send: function(data) {
-
-      if (data.error) return callback(data.error);
-      if (data && data.length > 1) 
-           callback(null,data[1][8]); // vwavPrice
-      else callback({error:"cannot determine exchange rate"});
-    }
-  });    
+        if (data.error) return callback(data.error);
+        if (data && data.length > 1) 
+             callback(null,data[1][8]); // vwavPrice
+        else callback({error:"cannot determine exchange rate"});
+      }
+    });    
+  }
 }
-
 module.exports = topMarkets;

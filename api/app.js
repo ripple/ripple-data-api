@@ -79,10 +79,11 @@ function requestHandler(req, res) {
   } 
 }
 
-
+redis.flushdb(); //reset cache on restart
 redis.on("error", function (err) {
   console.log("Error " + err);
 });
+
 
 
 
