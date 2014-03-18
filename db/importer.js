@@ -117,7 +117,10 @@ function ledgerImporter () {
                 checkDB       : opts.checkDB
               });
               
-            } else winston.error(err);
+            } else {
+              winston.error(err);
+              winston.error("stopping historical import");
+            }
             
           } else {
             //done importing, run the DB checker to look for
@@ -131,8 +134,7 @@ function ledgerImporter () {
     } else {
       //start importing
       var range = opts.lastLedger ? opts.minLedgerIndex+" to "+opts.lastLedger : opts.minLedgerIndex+" to LCL";
-      winston.info("Starting historical import ("+range+")");
-      
+      winston.info("Starting historical import ("+range+")"); 
 
       startImporting(opts, function(err,res) {
         if (err) {
@@ -146,7 +148,10 @@ function ledgerImporter () {
               checkDB       : opts.checkDB
             });
           
-          } else winston.error(err);
+          } else {
+            winston.error(err);
+            winston.error("stopping historical import");
+          } 
           
         } else {
           if (opts.checkDB) checkDB(opts);
@@ -207,19 +212,18 @@ function ledgerImporter () {
     getLedger({identifier:null}, function(err,ledger){
       
       if (err) {
-        //check error types, make decision
-        //restartLive();
-        
         winston.error('error getting ledger: ' + err);
+        winston.info("restarting live import...");
+        setTimeout(function(){ importLive(); }, 2000); //rest
         return;  
-      }
+      } 
       
       saveBatchToCouchDb([ledger], function(err, saveRes){
         if (err) {
-          //check error types, make decision
-          //restartLive();
-          winston.error('problem saving ledger batch to CouchDB: ' + err);
-          return;
+          winston.error(err);
+          winston.info("restarting live import...");
+          setTimeout (function(){ importLive(); }, 2000); //restart
+          return;  
         }
 
         //start batch with the next ledger as the minimum       
@@ -227,7 +231,10 @@ function ledgerImporter () {
           live           : true, 
           minLedgerIndex : ledger.ledger_index+1 
         }, function(err,res){
-          if (err) winston.error(err);
+          if (err) {
+            winston.error(err);
+            winston.error("stopped live import");
+          }
         });
       });
     });
@@ -245,14 +252,13 @@ function ledgerImporter () {
 
       if (err) {
         if (err.retry) {
-          winston.info(err);
-          winston.info('problem getting ledger batch - Trying again in a few seconds...');
+          winston.error("problem getting ledger batch:", err);
+          winston.info('Trying again in a few seconds...');
 
-          // clear results and start again with the same options
+          //clear results and start again with the same options
           opts.results = [];
-          setTimeout(function(){ startImporting(opts, callback); }, 5000);
-
-          
+          setTimeout(function(){ startImporting(opts, callback); }, 3000);
+  
         } else callback(err);
 
         return;
@@ -273,11 +279,12 @@ function ledgerImporter () {
         saveBatchToCouchDb(res.results, function(err, saveRes) {
           if (err) {
             
-            //should be restarting here, and tracking the number of
-            //times we get here - because this probably means there
-            //is a connection problem or some other issue with couchDB
-            winston.error('problem saving ledger batch to CouchDB: ' + err);
-            callback({error:err,type:"couchDB"});
+            winston.error("problem saving ledger batch:", err);
+            winston.info("trying again in a few seconds...");
+            
+            //clear results and start again with the same options
+            opts.results = [];
+            setTimeout(function(){ startImporting (opts, callback); }, 3000);
             return;
           }
           
@@ -304,9 +311,12 @@ function ledgerImporter () {
         saveBatchToCouchDb(res.results, function(err, saveRes) {
           
           if (err) {
-            //again, this wold probably occur from a connection error.
-            winston.error('problem saving ledger batch to CouchDB: ' + err);
-            callback({error:err,type:"couchDB"});
+            winston.error("problem saving ledger batch:", err);
+            winston.info("trying again in a few seconds...");
+            
+            //clear results and start again with the same options
+            opts.results = [];
+            setTimeout(function(){ startImporting (opts, callback); }, 3000);
             return;
           }
           
@@ -583,9 +593,9 @@ function ledgerImporter () {
       server = serverEntry.server;
   
     if (serverEntry.attempt >= 2) {
-      callback(new Error('ledger ' + 
+      callback('ledger ' + 
         (reqData.params[0].ledger_index || reqData.params[0].ledger_hash) + 
-        ' not available from any of the rippleds'));
+        ' not available from any of the rippleds');
       return;
     }
   
@@ -596,14 +606,14 @@ function ledgerImporter () {
       url     : server,
       method  : 'POST',
       json    : reqData,
-      timeout : 20000
+      timeout : 10000
     }, requestHandler);
   
-  
+    
     function requestHandler (err, res) {
       if (err) {
         var id = reqData.params[0].ledger_index || reqData.params[0].ledger_hash || "\'CLOSED\'"
-        winston.error('error getting ledger: ' + id + 
+        if (DEBUG>2) winston.error('error getting ledger: ' + id + 
           ' from server: ' + server + ' err: ' + JSON.stringify(err) + 
           '\nTrying next server...');
   
@@ -658,8 +668,8 @@ function ledgerImporter () {
         //   ', server responded with: ' + 
         //   JSON.stringify(res.error || res.body || res));
         
-        if (DEBUG && res.body) winston.info('error getting ledger:', res.body);
-        else if (DEBUG && res) winston.info('error getting ledger:', res);
+        if (DEBUG && res.body) winston.error("error getting ledger: "+res.body);
+        else if (DEBUG && res) winston.error('error getting ledger:', res);
       
         _.find(servers, function(serv){ return serv.server === server; }).attempt++;
         
