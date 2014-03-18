@@ -18,6 +18,14 @@ db = require('nano')(DBconfig.protocol+
   ':'   + DBconfig.port + 
   '/'   + DBconfig.database);
 
+DEBUG = false;
+CACHE = false; //not fully implemented
+
+if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
+if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
+  
+if (CACHE) redis = require("redis").createClient();
+  
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
@@ -76,6 +84,15 @@ function requestHandler(req, res) {
       Object.keys(apiRoutes).join(', ') + '\n');
   } 
 }
+
+if (CACHE) {
+  redis.flushdb(); //reset cache on restart
+  redis.on("error", function (err) {
+    console.log("Error " + err);
+    CACHE = false; //turn it off if its not workings
+  });  
+}
+
 
 
 

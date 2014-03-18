@@ -5,3 +5,4 @@
 !*config.*.example
 *.DS_Store
 deployment.environments.json
+dump.rdb

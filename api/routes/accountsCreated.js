@@ -15,10 +15,9 @@ var winston = require('winston'),
  *    format: 'json', 'csv', or 'json_verbose'
  *  }
  * 
-  curl -H "Content-Type: application/json" -X POST -d '{
-      "startTime" : "Dec 30, 2012 10:00 am",
-      "endTime"   : "Jan 30, 2014 10:00 am"
-
+    curl -H "Content-Type: application/json" -X POST -d '{
+      "reduce" : false
+      
     }' http://localhost:5993/api/accountsCreated
 
   curl -H "Content-Type: application/json" -X POST -d '{
@@ -28,15 +27,14 @@ var winston = require('winston'),
 
     }' http://localhost:5993/api/accountsCreated 
 
-  curl -H "Content-Type: application/json" -X POST -d '{
-      "startTime" : "Mar 9, 2012 10:00 am",
-      "endTime"   : "Mar 10, 2014 10:00 am",
-      "reduce"    : false
+  curl -o accounts.csv -H "Content-Type: application/json" -X POST -d '{
+      "reduce"    : false,
+      "format"    : "csv"
 
     }' http://localhost:5993/api/accountsCreated
 
   curl -H "Content-Type: application/json" -X POST -d '{
-      "startTime" : "Mar 9, 2012 10:00 am",
+      "startTime" : "Mar 9, 2014 10:00 am",
       "endTime"   : "Mar 10, 2014 10:00 am",
       "reduce" : false
 
@@ -51,7 +49,9 @@ function accountsCreated( req, res ) {
   var range = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
   
   if (range.error) return res.send(500, { error: range.error });  
-
+  if (!range.start) range.start = moment.utc(0);
+  if (!range.end)   range.end   = moment.utc();
+  
   // set startkey and endkey for couchdb query
   viewOpts.startkey = range.start.toArray().slice(0,6);
   viewOpts.endkey   = range.end.toArray().slice(0,6);

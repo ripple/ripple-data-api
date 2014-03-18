@@ -4,13 +4,6 @@ var winston = require('winston'),
   _         = require('lodash'),
   tools     = require('../utils');
 
-var DEBUG = true;
-var CACHE = false; //not implemented
-
-if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
-if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
-
- 
 /**
  *  offersExercised returns reduced or individual 
  *  trade-level data about trades that were executed
@@ -41,6 +34,18 @@ if (process.argv.indexOf('no-cache') !== -1) CACHE = false;
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
+    
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "base"  : {"currency": "XRP"},
+    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "startTime" : "Mar 10, 2014 4:35 am",
+    "endTime"   : "Mar 11, 2014 5:10:30 am",
+    "timeIncrement" : "minute",
+    "timeMultiple"  : 15,
+    "format" : "json"
+      
+    }' http://localhost:5993/api/offersExercised    
  
  
   curl -H "Content-Type: application/json" -X POST -d '{
@@ -78,16 +83,13 @@ function offersExercised (req, res) {
 
   //console.log(options.view);
   
-  if (CACHE) getCached(options.view, function(err, result){
+  if (CACHE) getCached(function(err, result){
     
     if (err) {
       winston.error('Cache Error: ' + err);
       res.send(500, { error: err });
       return;
     }
-    
-    options.cached = result.cached;
-    options.view   = result.view;
     
     return fromCouch(); 
   });
@@ -108,7 +110,17 @@ function offersExercised (req, res) {
  */
   function fromCouch() {
     if (DEBUG) d = Date.now();
-    db.view("offersExercised", "v2", options.view, handleCouchResponse);
+  
+    var view = options.subview ? options.subview : options.view;
+    
+    //if the start key and end key are the same, we wont get
+    //any results, so just pass along an empty result
+    if (view.startkey==view.endkey) {
+      return handleCouchResponse(null, {rows:[]}); 
+    } else {
+
+      db.view("offersExercised", "v2", view, handleCouchResponse);
+    }
   }
   
 
@@ -117,6 +129,7 @@ function offersExercised (req, res) {
  *  
  */
   function handleCouchResponse (err, couchRes) {
+    
     if (DEBUG) d = (Date.now()-d)/1000;
 
     if (err) {
@@ -131,13 +144,13 @@ function offersExercised (req, res) {
     if (options.view.reduce === false) {
       rows.push(['time','price','baseAmount','tradeAmount','tx_hash']);
       couchRes.rows.forEach(function(row){
-
+        var time = row.key ? row.key.slice(1) : row.value[3];
         rows.push([
-          moment.utc(row.value[3]).format(),
+          moment.utc(time).format(),
           row.value[2],//price
           row.value[1],//get amount
           row.value[0],//pay amount
-          row.value[4],//tx_hash
+          row.value[4],//tx hash
           row.id       //ledger index
         ]);  
       });
@@ -146,7 +159,7 @@ function offersExercised (req, res) {
       // data structure for grouping results 
       if (options.multiple > 1) rows = applyGroupMultiple(couchRes.rows); 
       else {
-                
+          
         couchRes.rows.forEach(function(row){
           //row.key will be null if this is reduced to a single row
           var startTime = row.key ? row.key.slice(1) : options.startTime;
@@ -167,17 +180,18 @@ function offersExercised (req, res) {
           ]);
         });  
 
-        //if the first group could have had trades that are not
-        //represented because of the alignment of the start time,
+        //if a group could have had trades that are not
+        //represented because of the alignment of the start time
         //and/or end time, flag those groups as partial.
         //they will not be saved to the cache.
         if (rows.length && options.increment) {
-
           var firstStart = moment.utc(rows[0][0]);
           var lastEnd    = moment.utc(rows[rows.length-1][0]).add(options.increment, options.multiple);
+          var now        = moment.utc();
           
           if (firstStart.diff(options.startTime)<0) rows[0][11] = true;
           if (lastEnd.diff(options.endTime)>0)      rows[rows.length-1][11] = true;
+          else if (lastEnd.diff(now)>0)             rows[rows.length-1][11] = true;
         }
       }
       
@@ -193,8 +207,14 @@ function offersExercised (req, res) {
 
     //cache results
     if (CACHE) {
-      if (rows.length>1) cacheResults(rows);
-      if (options.cached) rows = cached.concat(rows);
+      var header = rows.shift();
+      
+      if (rows.length) cacheResults(rows);
+      if (options.cached) {
+        rows = options.cached.concat(rows);
+      }
+      
+      rows.unshift(header); //put back the header row;
     }    
     
     handleResponse (rows); 
@@ -207,8 +227,61 @@ function offersExercised (req, res) {
  * view options accordingly.
  * 
  */  
-  function getCached (options, callback) {
-    callback (null, {view:options});
+  function getCached (callback) {
+
+    var keyBase = parseKey(options)+":points";  
+        
+    //we dont cache unreduced or completely reduced results
+    if (options.view.reduce===false || !options.view.group_level) {
+      callback (null);
+      return;
+      
+    } else {
+
+      //get the start time of the first complete interval
+      var time = moment.utc(options.alignedFirst);
+      var end  = moment.utc(options.alignedLast);
+      var keys = [], cached = [], row, last;
+      
+      //if its not aligned, skip it because it wont be in the cache
+      if (time.diff(options.startTime)) time.add(options.increment, options.multiple);
+      
+      //set up key list      
+      while(end.diff(time)>0) {
+        keys.push(keyBase+":"+time.unix());
+        time.add(options.increment, options.multiple);
+      }
+      
+      //get cached points for the range
+      redis.mget(keys, function(err, res){
+        if (err)         return callback(err);
+        if (!res.length) return callback();
+
+        for (var i=0; i<res.length; i++) {
+          if (!res[i]) break; //missing data from this point
+          row  = JSON.parse(res[i]);
+          last = row[0];
+
+          if (row.length==1) continue;  //empty row
+          cached.push(row);             //add to the list of cached results;
+        }
+        
+        if (!last) return callback();   //no cached rows 
+        last = moment.utc(last);
+         
+        //adjust range of query to exclude cached results
+        //add the interval to this time so we dont
+        //get the last one again.         
+        var key = options.view.startkey.slice(0,1);
+        
+        last.add(options.increment, options.multiple);
+        options.cached           = cached;
+        options.subview          = JSON.parse(JSON.stringify(options.view)); //shallow copy
+        options.subview.startkey = key.concat(last.toArray().slice(0,6));
+
+        callback(); //continue from the last cached point       
+      });
+    }    
   }
   
 
@@ -219,9 +292,99 @@ function offersExercised (req, res) {
  */  
   function cacheResults(rows) {
     
+    var key   = parseKey(options)+":points";
+    var start = options.subview ? options.subview.startkey.slice(1) : options.alignedFirst;
+    
+    //we dont cache unreduced or completely reduced results
+    if (options.view.reduce===false || !options.view.group_level) {
+      return;
+      
+    } else {
+      
+      points = prepareRows(key, rows, start);
+      
+      if (points.length) {
+
+        //args.unshift(key+":points");
+        redis.mset(points, function(err, res){
+          if (err) return winston.error("redis error: " + err);
+          if (DEBUG) winston.info(points.length/2 + " points cached");
+        });
+      }
+    }    
+  }
+
+  
+  function parseKey(opts) {
+  /*  
+    var key = "OE:"+opts.view.startkey[0][0];
+    if (opts.view.startkey[0][1]) key += "."+opts.view.startkey[0][1];
+    key += ":"+opts.view.startkey[1][0];
+    if (opts.view.startkey[1][1]) key += "."+opts.view.startkey[1][1];
+  */
+    var key = "OE:"+opts.view.startkey[0];    
+    key += ":"+ (opts.increment || "all");
+       
+    if (opts.view.reduce===false) {
+      key += ":unreduced";
+      if (opts.view.limit) key += ":limit:"+opts.view.limit;  
+                
+    } else if (opts.multiple && opts.increment) {
+      key += ":"+ (opts.multiple); 
+    
+    }
+  
+    return key;
+  }  
+
+  function prepareRows(keyBase, rows, start) {
+    
+    var time = moment.utc(start);
+    var max  = moment.utc(); //now
+    var temp = {}, timestamp, key, results = [];
+    
+    //use the lesser of current time or endTime    
+    if (max.diff(options.endTime)>0) max = moment.utc(options.endTime);
+    max.subtract(options.increment, options.multiple);
+    
+    rows.forEach(function(row){
+      temp[moment.utc(row[0]).unix()] = row;
+    });
+    
+    while (options.endTime.diff(time)>0) {
+      timestamp = time.unix();
+      key       = keyBase+":"+timestamp;
+     
+      if (temp[timestamp]) {
+
+        //if its not a partial, cache it        
+        if (!temp[timestamp][11]) {
+          
+          results.push(key);
+          results.push(JSON.stringify(temp[timestamp]));
+        }
+      
+      //add a null row for everything except the first 
+      //(unless the start time is properly aligned) 
+      } else if (timestamp == options.alignedFirst.unix()) {
+        if (options.alignedFirst.isSame(options.startTime)) {
+          results.push(key);
+          results.push(JSON.stringify([time.format()])) 
+        }
+      
+      } else if (time.diff(max)<=0) { 
+        results.push(key);
+        results.push(JSON.stringify([time.format()]));        
+      
+      } else break;
+      
+      //increment to the next candle
+      time.add(options.increment, options.multiple);
+    } 
+    
+    return results;  
   }
   
-
 /*
  * handleResponse - format the data according to the requirements
  * of the request and return it to the caller.
@@ -234,7 +397,7 @@ function offersExercised (req, res) {
       var interval = req.body.timeMultiple  ? req.body.timeMultiple  : "";
       interval    += req.body.timeIncrement ? req.body.timeIncrement : "";
     
-      console.log("offersExercised - interval: "+interval, "database: "+d+"s","total: "+t+"s");
+      winston.info("offersExercised: "+interval, " - database: "+d+"s","total: "+t+"s");
     }    
     
 
@@ -268,15 +431,14 @@ function offersExercised (req, res) {
             price       : row[1],
             baseAmount  : row[2],
             tradeAmount : row[3],
-            txHash      : row[4],
-            ledgerIndex : row[5] 
+            tx_hash     : row[4],
+            ledgerIndex : row[5]
           };
         });
         
       } else {
         
-        
-              
+                   
         apiRes.results = _.map(rows, function(row, index){
           return {
             startTime    : moment.utc(row[0]).format(),
@@ -292,9 +454,7 @@ function offersExercised (req, res) {
             vwavPrice    : row[8],
             partial      : row[11],
           };
-  
-        });        
-        
+        });          
       }
       
       res.json(apiRes);
@@ -316,7 +476,7 @@ function offersExercised (req, res) {
     // data structures for processing rows
     var tabledRowCount = 0, newElementCount = 0;
     var tabledRows     = [];
-    var epochStartTime = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
+    var epochStartTime = moment.utc(options.alignedFirst); //clone it
     var epochEndTime   = moment.utc(epochStartTime);
 
     var results = [];
@@ -447,12 +607,14 @@ function offersExercised (req, res) {
     });
 
     //if the first group could have had trades that are not
-    //represented because of the alignment of the start time,
+    //represented because of the alignment of the start time
     //and/or end time, flag those groups as partial.
     //they will not be saved to the cache.
     if (results.length) {
+      var now = moment.utc();
       if (moment.utc(results[0][0]).diff(options.startTime)<0) results[0][11] = true;
       if (epochEndTime.diff(options.endTime)>0) results[results.length-1][11] = true;
+      else if (epochEndTime.diff(now)>0)        results[results.length-1][11] = true;
     }
 
     return results;      
@@ -572,9 +734,12 @@ function offersExercised (req, res) {
 
 
     // set startkey and endkey for couchdb query
-    options.view.startkey = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
-    options.view.endkey   = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
-    options.view.stale    = "ok"; //dont wait for updates  
+    options.view.startkey   = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
+    options.view.endkey     = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
+    options.view.descending = req.body.descending || false; 
+    options.view.stale      = "ok"; //dont wait for updates  
+    options.alignedFirst    = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
+    options.alignedLast     = tools.getAlignedTime(options.endTime, options.increment, options.multiple);
     return options;      
   }
 }

@@ -39,7 +39,7 @@ Exchange offers exercised over time - returns volume in terms of base and counte
     endTime       : (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
     timeIncrement : (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
     timeMultiple  : 5, 15, etc.. //optional, defaults to 1 (for 5 minutes, 15 mintues, etc.)
-    descending : true/false, // optional, defaults to true
+    descending : true/false, // optional, defaults to false
     reduce     : true/false, // optional, defaults to true
     limit      : 1000 //optional, ignored unless reduce is false - limit the number of returned trades
     format     : ('json', 'csv') // optional
