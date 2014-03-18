@@ -126,7 +126,7 @@ function ledgerImporter () {
             //done importing, run the DB checker to look for
             //problems in the data
             winston.info("finished historical import");
-            if (opts.checkDB) checkDB(opts);
+            if (opts.checkDB) checkDB({checkDB:true});
           }
         });   
       });
@@ -154,7 +154,7 @@ function ledgerImporter () {
           } 
           
         } else {
-          if (opts.checkDB) checkDB(opts);
+          if (opts.checkDB) checkDB({checkDB:true});
           winston.info("finished historical import");
         }
       });       
@@ -173,7 +173,19 @@ function ledgerImporter () {
   */
   function checkDB (opts) {
     winston.info("checking DB....");
-    dbChecker.checkDB(db, function(res){
+    dbChecker.checkDB(db, opts.lastLedger, function(res){
+      
+      //if we don't have a ledger index, there
+      //was some error. restart checking the DB
+      if (!res.ledgerIndex || res.restartIndex) {
+        if (DEBUG) winston.error(res);
+        winston.info("restarting in a few seconds...");
+        setTimeout(function(){
+          opts.lastLedger = res.restartIndex;
+          checkDB(opts);
+        }, 5000);
+        return;
+      }
       
       if (DEBUG) winston.info(res);
       var index = res.ledgerIndex;
@@ -294,12 +306,17 @@ function ledgerImporter () {
           //past the data already handled.
           if (!opts.live && opts.checkDB && 
             saveRes.numLedgersSaved<config.batchSize) {
-            checkDB(opts);  
+              
+            checkDB({
+              checkDB    : true,
+              lastLedger : saveRes.earliestLedgerIndex + saveRes.numLedgersSaved
+            });
+             
           } else {
             setImmediate(function(){
               startImporting(opts, callback);
             });  
-          }               
+          }              
         });
         
       } else {
@@ -328,7 +345,7 @@ function ledgerImporter () {
                 minLedgerIndex : opts.startLedger+1,
                 live           : true
               }, callback);
-            }, 2000);  
+            }, 3000);  
             return;          
           }
           
@@ -374,7 +391,7 @@ function ledgerImporter () {
                 });
                 
               } else {
-                return callback({error:info,type:'parentHash',index:(saveRes.earliestLedgerIndex-10)});
+                return callback({error:info,type:'parentHash',index:(saveRes.earliestLedgerIndex + saveRes.numLedgersSaved + 1)});
                 /*
                 opts = {
                   startLedger    : opts.startLedger,
@@ -404,7 +421,7 @@ function ledgerImporter () {
                 });             
               }
               
-              return callback({error:info});
+              return callback({error:info,type:'parentHash',index:(saveRes.earliestLedgerIndex-10)});
               /*
               getLatestLedgerSaved(function(err, latestLedger){
                 if (err) return console.log('problem gettting latest ledger in CouchDB: ' + err);
@@ -430,12 +447,12 @@ function ledgerImporter () {
             if (opts.live) { 
 
               //if we are live, we want to start the process again.
-              setImmediate(function(){
+              setTimeout(function(){
                 startImporting({
                   minLedgerIndex : opts.startLedger,
                   live           : true
                 }, callback);
-              }); 
+              }, 2000); 
                           
             } else {
               //this probably will only be true if the live importer isnt running
@@ -505,10 +522,12 @@ function ledgerImporter () {
       opts.results.push(ledger);
       //console.log(opts.results.length, ledger.ledger_index);
   
+      //NOTE: using the hash here causes problems when the ledger hash is not found
       // Use parent_hash or ledger_index as lastLedger
-      if (/[0-9A-F]{64}/.test(ledger.parent_hash)) {
-        opts.lastLedger = ledger.parent_hash;      
-      } else if (typeof ledger.ledger_index === 'number'){
+      //if (/[0-9A-F]{64}/.test(ledger.parent_hash)) {
+      //  opts.lastLedger = ledger.parent_hash;      
+      //} else if (typeof ledger.ledger_index === 'number'){
+      if (typeof ledger.ledger_index === 'number'){
         opts.lastLedger = ledger.ledger_index - 1;
       } else {
         callback({error:'Malformed ledger: ' + JSON.stringify(ledger), retry:true});
@@ -571,12 +590,12 @@ function ledgerImporter () {
     // set reqData params based on identifier, default to 'closed' if none is specified
     if (typeof identifier === 'number') {
       reqData.params[0].ledger_index = identifier;
-    } else if (typeof identifier === 'string') {
-      reqData.params[0].ledger_hash = identifier;
+    //} else if (typeof identifier === 'string') {
+    //  reqData.params[0].ledger_hash = identifier;
     } else {
       reqData.params[0].ledger_index = 'closed';
     }
-  
+    
     // TODO check that this servers object is being updated correctly
   
     // store server statuses (reset for each ledger identifier)
@@ -668,7 +687,7 @@ function ledgerImporter () {
         //   ', server responded with: ' + 
         //   JSON.stringify(res.error || res.body || res));
         
-        if (DEBUG && res.body) winston.error("error getting ledger: "+res.body);
+        if (DEBUG && res.body) winston.error("error getting ledger: "+JSON.stringify(res.body));
         else if (DEBUG && res) winston.error('error getting ledger:', res);
       
         _.find(servers, function(serv){ return serv.server === server; }).attempt++;

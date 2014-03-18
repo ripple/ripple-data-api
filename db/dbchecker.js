@@ -39,22 +39,28 @@ function checker (config) {
   
   }
 */  
-  this.checkDB = function (database, callback) {
+  this.checkDB = function (database, index, callback) {
     db = database;
     
-    //get last saved index
-    db.list({descending:true, startkey:'_c', limit: 1}, function(err, res){
-      if (err) return callback(err);
-      if (!res.rows.length) return callback({
-        message     : 'no ledgers saved to couchDB',
-        ledgerIndex : 1
-      });
-      
-      var index = parseInt(res.rows[0].id, 10);
-      if (config.debug) winston.info("Last saved ledger: " + index);
-      
+    if (index) {
+      if (config.debug) winston.info("last index: " + index);  
       verifyFromLedgerIndex(index, null, callback);
-    });
+    
+    } else { 
+      //get last saved index
+      db.list({descending:true, startkey:'_c', limit: 1}, function(err, res){
+        if (err) return callback(err);
+        if (!res.rows.length) return callback({
+          message     : 'no ledgers saved to couchDB',
+          ledgerIndex : 1
+        });
+        
+        var index = parseInt(res.rows[0].id, 10);
+        if (config.debug) winston.info("Last saved ledger: " + index);
+        
+        verifyFromLedgerIndex(index, null, callback);
+      });
+    }
   }
   
   
@@ -69,24 +75,24 @@ function checker (config) {
       
     db.fetch({keys: docsNames}, function(err, body){
 
-      if (err) return callback({message:err,ledgerIndex:ledgerIndex});
+      if (err) return callback({message:err, restartIndex:ledgerIndex});
 
       // winston.info(JSON.stringify(body));
 
-      //don't know what situation would
+      //this can occur when the connection to the dB is cut.
       if (!body || !body.rows) {
-        winston.error("ledger: "+ledgerIndex+" - invalid response from couchDB:" + JSON.stringify(body));
-        return callback("db check error at ledger: " + ledgerIndex);
+        winston.error("ledger: "+ledgerIndex+" - invalid response from couchDB");
+        return callback({message:"db check error at ledger: " + ledgerIndex, restartIndex:ledgerIndex});
         
       } else if (!body.rows.length) {
         if (ledgerIndex<config.startIndex) return callback({
             message     : "Reached start index",
-            ledgerIndex : config.startIndex
+            ledgerIndex : config.startIndex //this will inform our caller that we are done
           });  
-            
+              
         else return callback ({
             message     : "Ledger " + (ledgerIndex) + " not found",
-            ledgerIndex : ledgerIndex
+            ledgerIndex : ledgerIndex //start importing from here
           });  
       }
       
