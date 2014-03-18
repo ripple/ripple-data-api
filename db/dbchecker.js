@@ -57,108 +57,105 @@ function checker (config) {
     });
   }
   
+  
   function verifyFromLedgerIndex (ledgerIndex, parentHash, callback) {
-      var batchSize = config.batchSize*5;
-  
-      var minIndex = ledgerIndex>batchSize ? ledgerIndex-batchSize : 1;
-      var indexes  = _.range(minIndex, ledgerIndex),
-        docsNames  = _.map(indexes, function(index){
-          return addLeadingZeros(index, 10);
-        });
-  
-      //winston.info('Getting docs: ' + JSON.stringify(docsNames));
-      //console.log(docNames);
-      
-      db.fetch({keys: docsNames}, function(err, body){
-  
-          if (err) return callback({message:err,ledgerIndex:ledgerIndex});
-  
-          // winston.info(JSON.stringify(body));
-  
-          //don't know what situation would
-          if (!body || !body.rows) {
-            winston.error("ledger: "+ledgerIndex+" - invalid response from couchDB:" + JSON.stringify(body));
-            return callback("db check error at ledger: " + ledgerIndex);
-            
-          } else if (!body.rows.length) {
-            if (ledgerIndex<config.startIndex) return callback({
-                message     : "Reached start index",
-                ledgerIndex : config.startIndex
-              });  
-                
-            else return callback ({
-                message     : "Ledger " + (ledgerIndex) + " not found",
-                ledgerIndex : ledgerIndex
-              });  
-          }
-          
-          //for (var r = 0, len = body.rows.length; r < len; r++) {
-          for (var r=body.rows.length-1; r>=0; r--) {
-
-            var row  = body.rows[r],
-              ledger = row.doc;
-            
-            
-            if (!ledger) {
-              if ((minIndex + r)<config.startIndex)
-                return callback({
-                  message     : "Reached start index",
-                  ledgerIndex : config.startIndex
-                });  
-                
-              else return callback ({
-                  message     : "Ledger " + (minIndex + r) + " not found",
-                  ledgerIndex : minIndex + r
-                });
-              
-              //winston.info('ledger ' + (ledgerIndex + r) + ' not in database, trying again in a few seconds');
-              //timedVerify(ledgerIndex + r, prevLedgerHash);  //recursive call
-              //return;
-            }
-  
-            // check index number is correct
-            if (parseInt(row.id, 10) !== parseInt(ledger.ledger_index, 10)) {
-              return callback({
-                message : 'db has wrong ledger at ledgerIndex: ' + parseInt(row.id, 10) + 
-                ' ledger.ledger_index is: ' + ledger.ledger_index,
-                ledgerIndex : ledger.ledger_index
-              });
-            }
-  
-            // check ledger chain is intact
-            if (parentHash) {
-  
-              if (parentHash !== ledger.ledger_hash) {
-                return callback({
-                  message: 'problem in ledger chain. ledger ' + ledger.ledger_index +
-                  ' has ledger_hash: ' + ledger.ledger_hash + ' but the next ledger\'s parent hash is: ' + parentHash,
-                  ledgerIndex : ledger.ledger_index+10, //set the start point ahead a few ledgers
-                });
-              }  
-            } 
-  
-            // check transactions has correctly
-            if (!verifyLedgerTransactions(ledger)) {
-              return callback({
-                message     :'transactions do not hash correctly for ledger ' + ledger.ledger_index,
-                ledgerIndex : ledger.ledger_index
-              });
-            }
-  
-            parentHash = ledger.parent_hash;
-          }
-  
-          if (config.debug>1) 
-            winston.info('Verified ledgers: ' + minIndex + 
-              " to " + ledgerIndex + 
-              " (" + (new Date().toString()) + ")");
-  
-          setImmediate(function(){
-            verifyFromLedgerIndex(minIndex, parentHash, callback);
-          });
+    var batchSize = config.batchSize*5;
+    var minIndex  = ledgerIndex>batchSize ? ledgerIndex-batchSize : 1;
+    var indexes   = _.range(minIndex, ledgerIndex),
+      docsNames   = _.map(indexes, function(index){
+        return addLeadingZeros(index, 10);
       });
   
-  }
+      
+    db.fetch({keys: docsNames}, function(err, body){
+
+      if (err) return callback({message:err,ledgerIndex:ledgerIndex});
+
+      // winston.info(JSON.stringify(body));
+
+      //don't know what situation would
+      if (!body || !body.rows) {
+        winston.error("ledger: "+ledgerIndex+" - invalid response from couchDB:" + JSON.stringify(body));
+        return callback("db check error at ledger: " + ledgerIndex);
+        
+      } else if (!body.rows.length) {
+        if (ledgerIndex<config.startIndex) return callback({
+            message     : "Reached start index",
+            ledgerIndex : config.startIndex
+          });  
+            
+        else return callback ({
+            message     : "Ledger " + (ledgerIndex) + " not found",
+            ledgerIndex : ledgerIndex
+          });  
+      }
+      
+      //for (var r = 0, len = body.rows.length; r < len; r++) {
+      for (var r=body.rows.length-1; r>=0; r--) {
+
+        var row  = body.rows[r],
+          ledger = row.doc;
+        
+        
+        if (!ledger) {
+          if ((minIndex + r)<config.startIndex)
+            return callback({
+              message     : "Reached start index",
+              ledgerIndex : config.startIndex
+            });  
+            
+          else return callback ({
+              message     : "Ledger " + (minIndex + r) + " not found",
+              ledgerIndex : minIndex + r
+            });
+          
+          //winston.info('ledger ' + (ledgerIndex + r) + ' not in database, trying again in a few seconds');
+          //timedVerify(ledgerIndex + r, prevLedgerHash);  //recursive call
+          //return;
+        }
+
+        // check index number is correct
+        if (parseInt(row.id, 10) !== parseInt(ledger.ledger_index, 10)) {
+          return callback({
+            message : 'db has wrong ledger at ledgerIndex: ' + parseInt(row.id, 10) + 
+            ' ledger.ledger_index is: ' + ledger.ledger_index,
+            ledgerIndex : ledger.ledger_index
+          });
+        }
+
+        // check ledger chain is intact
+        if (parentHash) {
+
+          if (parentHash !== ledger.ledger_hash) {
+            return callback({
+              message: 'problem in ledger chain. ledger ' + ledger.ledger_index +
+              ' has ledger_hash: ' + ledger.ledger_hash + ' but the next ledger\'s parent hash is: ' + parentHash,
+              ledgerIndex : ledger.ledger_index+1 //restart importing here - offset must be less than batch size
+            });
+          }  
+        } 
+
+        // check transactions has correctly
+        if (!verifyLedgerTransactions(ledger)) {
+          return callback({
+            message     :'transactions do not hash correctly for ledger ' + ledger.ledger_index,
+            ledgerIndex : ledger.ledger_index
+          });
+        }
+
+        parentHash = ledger.parent_hash;
+      }
+
+      if (config.debug>1) 
+        winston.info('Verified ledgers: ' + minIndex + 
+          " to " + ledgerIndex + 
+          " (" + (new Date().toString()) + ")");
+
+      setImmediate(function(){
+        verifyFromLedgerIndex(minIndex, parentHash, callback);
+      });
+    });
+  }  
   
   
   /**
@@ -169,9 +166,16 @@ function checker (config) {
   
   function verifyLedgerTransactions( ledger ) {
   
-    var ledgerJsonTxHash = Ledger.from_json( ledger )
-      .calc_tx_hash( ).to_hex( );
+    try {
+      var ledgerJsonTxHash = Ledger.from_json( ledger )
+        .calc_tx_hash( ).to_hex( );
+        
+    } catch (err) {
+      winston.error("Error calculating transaction hash: "+ledger.ledger_index +" "+ err);
+      ledgerJsonTxHash = '';
+    }
   
+    if (ledgerJsonTxHash === '') return true; //this could cause problems
     return ledgerJsonTxHash === ledger.transaction_hash;
   }
   
