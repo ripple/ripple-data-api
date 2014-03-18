@@ -4,13 +4,6 @@ var winston = require('winston'),
   _         = require('lodash'),
   tools     = require('../utils');
 
-var DEBUG = true;
-var CACHE = true; 
-
-if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
-if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
-
- 
 /**
  *  offersExercised returns reduced or individual 
  *  trade-level data about trades that were executed
@@ -218,7 +211,6 @@ function offersExercised (req, res) {
       
       if (rows.length) cacheResults(rows);
       if (options.cached) {
-        console.log(rows);
         rows = options.cached.concat(rows);
       }
       
@@ -284,7 +276,7 @@ function offersExercised (req, res) {
         
         last.add(options.increment, options.multiple);
         options.cached           = cached;
-        options.subview          = options.view;
+        options.subview          = JSON.parse(JSON.stringify(options.view)); //shallow copy
         options.subview.startkey = key.concat(last.toArray().slice(0,6));
 
         callback(); //continue from the last cached point       
@@ -348,15 +340,17 @@ function offersExercised (req, res) {
   function prepareRows(keyBase, rows, start) {
     
     var time = moment.utc(start);
-    var now  = moment.utc();
+    var max  = moment.utc(); //now
     var temp = {}, timestamp, key, results = [];
     
-
+    //use the lesser of current time or endTime    
+    if (max.diff(options.endTime)>0) max = moment.utc(options.endTime);
+    max.subtract(options.increment, options.multiple);
+    
     rows.forEach(function(row){
       temp[moment.utc(row[0]).unix()] = row;
     });
     
-
     while (options.endTime.diff(time)>0) {
       timestamp = time.unix();
       key       = keyBase+":"+timestamp;
@@ -377,17 +371,12 @@ function offersExercised (req, res) {
           results.push(key);
           results.push(JSON.stringify([time.format()])) 
         }
-               
-      } else if (timestamp == options.alignedLast.unix()){
-        if (options.alignedLast.isSame(options.lastTime)) {
-          results.push(key);
-          results.push(JSON.stringify([time.format()]));        
-        }
-
-      } else {
+      
+      } else if (time.diff(max)<=0) { 
         results.push(key);
         results.push(JSON.stringify([time.format()]));        
-      }
+      
+      } else break;
       
       //increment to the next candle
       time.add(options.increment, options.multiple);
@@ -745,11 +734,12 @@ function offersExercised (req, res) {
 
 
     // set startkey and endkey for couchdb query
-    options.view.startkey = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
-    options.view.endkey   = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
-    options.view.stale    = "ok"; //dont wait for updates  
-    options.alignedFirst  = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
-    options.alignedLast   = tools.getAlignedTime(options.endTime, options.increment, options.multiple);
+    options.view.startkey   = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
+    options.view.endkey     = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
+    options.view.descending = req.body.descending || false; 
+    options.view.stale      = "ok"; //dont wait for updates  
+    options.alignedFirst    = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
+    options.alignedLast     = tools.getAlignedTime(options.endTime, options.increment, options.multiple);
     return options;      
   }
 }

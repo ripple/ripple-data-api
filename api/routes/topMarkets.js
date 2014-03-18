@@ -5,7 +5,6 @@ var winston = require('winston'),
   async     = require('async'),
   Q         = require('q');
 
-var CACHE   = true; 
 
 /**
  *  topMarkets: 
@@ -164,7 +163,7 @@ function topMarkets( req, res ) {
     }
  
     redis.get(cacheKey, function(err, response){
-      if (err) console.log(err);
+      if (err) winston.error("cache error:", err);
       if (response) res.send(JSON.parse(response));  
       else fromCouch();
     });
@@ -264,7 +263,8 @@ function topMarkets( req, res ) {
         res.send(response);  
         if (CACHE) {
           redis.set(cacheKey, JSON.stringify(response), function(err, res){
-            if (!err) redis.expire(cacheKey, 60); //expire in 60 seconds  
+            if (err) winston.error("cache error:", err);
+            else redis.expire(cacheKey, 60); //expire in 60 seconds  
           });
         }     
       }  
