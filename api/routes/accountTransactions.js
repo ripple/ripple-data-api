@@ -149,7 +149,7 @@ function accountTransactions( req, res ) {
       //value[3] = amount
       //value[4] = counterparty
       
-      counterparties[value[4]] = "";
+      //counterparties[value[4]] = "";
       
       if (value[0]=='XRP') {
         if (!stats[value[0]])           stats[value[0]] = {};
@@ -183,7 +183,7 @@ function accountTransactions( req, res ) {
       startTime      : range.start.format(),
       endTime        : range.end.format(),
       summary        : stats,
-      counterparties : _.keys(counterparties),
+      //counterparties : _.keys(counterparties),
       transactions   : transactions
     }
     
