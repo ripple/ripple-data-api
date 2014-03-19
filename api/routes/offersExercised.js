@@ -147,11 +147,11 @@ function offersExercised (req, res) {
         var time = row.key ? row.key.slice(1) : row.value[3];
         rows.push([
           moment.utc(time).format(),
-          row.value[2],//price
-          row.value[1],//get amount
-          row.value[0],//pay amount
-          row.value[4],//tx hash
-          row.id       //ledger index
+          row.value[2],         //price
+          row.value[1],         //get amount
+          row.value[0],         //pay amount
+          row.value[4],         //tx hash
+          parseInt(row.id, 10)  //ledger index
         ]);  
       });
    

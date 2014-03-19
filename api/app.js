@@ -43,6 +43,7 @@ var apiRoutes = {
   'exchangerates'         : require("./routes/exchangeRates"),
   'valuesent'             : require("./routes/valueSent"),
   'totalvaluesent'        : require("./routes/totalValueSent"),
+  'accounttransactions'   : require("./routes/accountTransactions"),
   'gettransaction'        : require("./routes/getTransaction"), //is this useable?
 };
 
