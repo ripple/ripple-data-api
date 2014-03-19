@@ -78,8 +78,7 @@ function exchangeRates ( req, res) {
     }
   });
   
-  console.log(list);
-  
+
 //call offersExercised for each asset pair
   async.mapLimit(list, 10, function(pair, asyncCallbackPair){
 
