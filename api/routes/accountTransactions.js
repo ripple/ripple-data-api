@@ -128,8 +128,6 @@ function accountTransactions( req, res ) {
   
   viewOpts.stale = "ok"; //dont wait for updates
   
-  console.log(viewOpts);
-  
   db.view('accountTransactions', 'v1', viewOpts, function(err, couchRes){
 
     if (err) {

@@ -21,20 +21,23 @@ function(doc) {
       return;
     }
 
-    var src_balance_changes = parseBalanceChanges(tx);
-
-    if (src_balance_changes.length > 0) {
-      src_balance_changes.forEach(function(bal_change){
-        emit([bal_change.currency, bal_change.issuer].concat(timestamp), [0 - parseFloat(bal_change.value), tx.hash]);
+    var changes = parseBalanceChanges(tx);
+    
+    if (changes.length > 0) {
+      changes.forEach(function(change){
+        emit([change.currency, change.issuer].concat(timestamp), [0 - parseFloat(change.value), tx.hash]);
+        //log(change);
       });
+      
+      //log(tx.hash);
     }
-
+    
   });
 
   function parseBalanceChanges (tx) {
 
-    var addressBalanceChanges = [];
-    var address     = tx.Account;
+    var accountBalanceChanges = [];
+    var account     = tx.Account;
     var destination = tx.Destination || null;
     
     tx.metaData.AffectedNodes.forEach(function(affNode){
@@ -44,7 +47,7 @@ function(doc) {
       // Look for XRP balance change in AccountRoot node
       if (node.LedgerEntryType === 'AccountRoot') {
 
-        var xrpBalChange = parseAccountRootBalanceChange(node, address);
+        var xrpBalChange = parseAccountRootBalanceChange(node, account);
         
         if (xrpBalChange) {
           xrpBalChange.value += parseFloat(tx.Fee); //remove the fee from the balance change
@@ -54,7 +57,7 @@ function(doc) {
           //and not really sending XRP
           if (xrpBalChange.value<0) {
             xrpBalChange.value = dropsToXrp(xrpBalChange.value); //convert to XRP
-            addressBalanceChanges.push(xrpBalChange);
+            accountBalanceChanges.push(xrpBalChange);
           }
         }
       }
@@ -62,26 +65,25 @@ function(doc) {
       // Look for trustline balance change in RippleState node
       if (node.LedgerEntryType === 'RippleState') {
 
-        var currBalChange = parseTrustlineBalanceChange(node, address, destination);
+        var currBalChange = parseTrustlineBalanceChange(node, account, destination);
         if (currBalChange) {
-          addressBalanceChanges.push(currBalChange);
+          accountBalanceChanges.push(currBalChange);
         }
 
       }
 
     });
 
-    return addressBalanceChanges;
-
+    return accountBalanceChanges;
   }
 
 
-  function parseAccountRootBalanceChange (node, address) {
+  function parseAccountRootBalanceChange (node, account) {
 
 /*
     if (node.NewFields) {
 
-      if (node.NewFields.Account === address) {
+      if (node.NewFields.Account === account) {
         return {
           value: dropsToXrp(node.NewFields.Balance),
           currency: 'XRP',
@@ -92,7 +94,7 @@ function(doc) {
     } else if (node.FinalFields) {
 */
       
-    if (node.FinalFields && node.FinalFields.Account === address) {
+    if (node.FinalFields && node.FinalFields.Account === account) {
 
       var finalBal = node.FinalFields.Balance,
         prevBal    = node.PreviousFields.Balance,
@@ -100,9 +102,9 @@ function(doc) {
       
       //if the final balance is greater than the previous, xrp was sent
       if (balChange<0) return {
-        value: balChange,
-        currency: 'XRP',
-        issuer: ''
+        value    : balChange,
+        currency : 'XRP',
+        issuer   : ''
       };
     }
 
@@ -110,12 +112,12 @@ function(doc) {
     return null;
   }
 
-  function parseTrustlineBalanceChange (node, address, destination) {
+  function parseTrustlineBalanceChange (node, account, destination) {
 
     var balChange = {
-        value: 0,
-        currency: '',
-        issuer: ''
+        value    : 0,
+        currency : '',
+        issuer   : ''
       }, 
       trustHigh,
       trustLow,
@@ -123,12 +125,12 @@ function(doc) {
       trustBalPrev;
 
     if (node.NewFields) {
-      trustHigh = node.NewFields.HighLimit;
-      trustLow = node.NewFields.LowLimit;
+      trustHigh     = node.NewFields.HighLimit;
+      trustLow      = node.NewFields.LowLimit;
       trustBalFinal = parseFloat(node.NewFields.Balance.value);
     } else {
-      trustHigh = node.FinalFields.HighLimit;
-      trustLow = node.FinalFields.LowLimit;
+      trustHigh     = node.FinalFields.HighLimit;
+      trustLow      = node.FinalFields.LowLimit;
       trustBalFinal = parseFloat(node.FinalFields.Balance.value); 
     }
 
@@ -138,61 +140,42 @@ function(doc) {
       trustBalPrev = 0;
     }
 
-    //high = account
-    //in this case, the account is not an issuer
-    //for amounts sent, final - previous should be negative here
-    //if not, its an amount received...i believe
-    
-    //low == account
-    //in this case, the account is an issuer
-    //for amounts sent, final - previous should be negative again
-    //if not, its an amount received...i believe
-    
-    if (trustHigh.issuer === address ||
-        trustLow.issuer  === address) {
-      balChange.value = parseFloat(trustBalFinal) - parseFloat(trustBalPrev);  
-    } else {
-      return null; 
+    //ignore any balance changes that do not affect the sending account
+    if (account != trustHigh.issuer && account != trustLow.issuer) {
+      return null;  
     }
     
-    //value should be negative unless sending to the issuer
-    if (balChange.value > 0 && destination &&
-      trustLow.issuer === destination) 
-        balChange.value = 0 - balChange.value; 
-        
-    else if (balChange.value > 0) return null;
-/*
-    // Set value
-    if (trustLow.issuer === address) {
-      balChange.value = parseFloat(trustBalFinal) - parseFloat(trustBalPrev);
-    } else if (trustHigh.issuer === address) {
-      balChange.value = 0 - (parseFloat(trustBalFinal) - parseFloat(trustBalPrev));
-    } else {
-      return null;
-    }
-*/
-
     // Set currency
     balChange.currency = (node.NewFields || node.FinalFields).Balance.currency;
 
     // Set issuer
-    if ((parseFloat(trustHigh.value) === 0 && parseFloat(trustLow.value) === 0) ||
-      (parseFloat(trustHigh.value) > 0 && parseFloat(trustLow.value) > 0)) {
+    // rules:  
+    //    if the balance is negative, the low party is the issuer
+    //    if the balance is 0, and the balance was previously negative, the low party is the issuer
+    //    if the balance is 0, and the balance was previously positive, the high party is the issuer
+    //    if the balance is positive, the high party is the issuer
+    if (trustBalFinal < 0)                         balChange.issuer = trustLow.issuer;
+    else if (trustBalFinal==0 && trustBalPrev < 0) balChange.issuer = trustLow.issuer; 
+    else                                           balChange.issuer = trustHigh.issuer;
+    
+    balChange.value = parseFloat(trustBalFinal) - parseFloat(trustBalPrev);  
 
-      if (parseFloat(trustBalFinal) > 0 || parseFloat(trustBalPrev) > 0) {
-        balChange.issuer = trustLow.issuer;
-      } else {
-        balChange.issuer = trustHigh.issuer;
-      }
+    //if the issuer is sending, invert it because its always positive
+    if (balChange.issuer==account) 
+      balChange.value = 0 - balChange.value; 
+    
+    //if its being sent to the issuer and the issuer
+    //is the low party, invert it 
+    if (balChange.issuer==destination && trustLow.issuer==balChange.issuer)
+      balChange.value = 0 - balChange.value;
 
-    } else if (parseFloat(trustHigh.value) > 0) {
-      balChange.issuer = trustLow.issuer;
-    } else if (parseFloat(trustLow.value) > 0) {
-      balChange.issuer = trustHigh.issuer;
-    }
-
+    //because we are including "OfferCreate", the account's balance
+    //could have increased.  therefore, we only want to include 
+    //negative balance changes - i.e. balances where money left the
+    //sender/initiator's account
+    if (balChange.value > 0) return null;
+    
     return balChange;
-
   }
 
   function dropsToXrp (drops) {
