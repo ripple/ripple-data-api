@@ -6,7 +6,15 @@
     "rippleds"   :  [
       "http://s_east.ripple.com:51234",
       "http://s_west.ripple.com:51234"
-    ]
+    ],
+    "redis" : {
+      "enabled" : true,
+      "port"    : 6379,
+      "host"    : "127.0.0.1",
+      "options" : {
+        "auth_pass" : null
+      }
+    }
   },
   
   "staging": {
@@ -16,7 +24,15 @@
     "rippleds"   :  [
       "http://s_east.ripple.com:51234",
       "http://s_west.ripple.com:51234"
-    ]
+    ],
+    "redis" : {
+      "enabled" : true,
+      "port"    : 6379,
+      "host"    : "127.0.0.1",
+      "options" : {
+        "auth_pass" : null
+      }
+    }
   },
   
   "production": {
@@ -26,6 +42,14 @@
     "rippleds"   :  [
       "http://s_east.ripple.com:51234",
       "http://s_west.ripple.com:51234"
-    ]
+    ],
+    "redis" : {
+      "enabled" : true,
+      "port"    : 6379,
+      "host"    : "127.0.0.1",
+      "options" : {
+        "auth_pass" : null
+      }
+    }
   }
 }

@@ -61,7 +61,8 @@ module.exports = function(grunt) {
     },
     develop : {
       server : {
-        file : 'api/app.js'
+        file : 'api/app.js',
+        args : ['debug'] 
       }
     }
   };

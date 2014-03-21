@@ -63,7 +63,7 @@ var winston = require('winston'),
  */
 
 function topMarkets( req, res ) {
- 
+
   var cacheKey, viewOpts = {};
   var ex = req.body.exchange || {currency:"XRP"};
   
@@ -156,8 +156,8 @@ function topMarkets( req, res ) {
   if (CACHE) {
     cacheKey = "TM:" + ex.currency;
     if (ex.issuer) cacheKey += "."+ex.issuer;
-    if (!endTime.diff(moment.utc())) { //live update request
-      cacheKey += ":live:"+endTime.diff(startTime);
+    if (endTime.unix()==moment.utc().unix()) { //live update request
+      cacheKey += ":live:"+endTime.diff(startTime, "seconds");
     } else {
       cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
     }
@@ -264,7 +264,10 @@ function topMarkets( req, res ) {
         if (CACHE) {
           redis.set(cacheKey, JSON.stringify(response), function(err, res){
             if (err) winston.error("cache error:", err);
-            else redis.expire(cacheKey, 60); //expire in 60 seconds  
+            else {
+              redis.expire(cacheKey, 60); //expire in 60 seconds 
+              if (DEBUG) winston.info("TM cached");
+            } 
           });
         }     
       }  

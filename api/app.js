@@ -18,14 +18,21 @@ db = require('nano')(DBconfig.protocol+
   ':'   + DBconfig.port + 
   '/'   + DBconfig.database);
 
-DEBUG = false;
-CACHE = false; //not fully implemented
+DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
+CACHE = config.redis && config.redis.enabled ? true : false;
 
 if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
 if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
   
-if (CACHE) redis = require("redis").createClient();
-  
+if (CACHE) {
+  if (!config.redis || !config.redis.port || !config.redis.host) {
+    CACHE = false;
+    winston.error("Redis port and host are required");
+    
+  } else {
+    redis = require("redis").createClient(config.redis.port, config.redis.host, config.redis.options);
+  }
+}
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?

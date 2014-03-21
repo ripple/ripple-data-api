@@ -163,8 +163,8 @@ function totalValueSent( req, res ) {
   if (CACHE) {
     cacheKey = "TVS:" + ex.currency;
     if (ex.issuer) cacheKey += "."+ex.issuer;
-    if (!endTime.diff(moment.utc())) { //live update request
-      cacheKey += ":live:"+endTime.diff(startTime);
+    if (endTime.unix()==moment.utc().unix()) { //live update request
+      cacheKey += ":live:"+endTime.diff(startTime, "seconds");
     } else {
       cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
     }
@@ -271,8 +271,10 @@ function totalValueSent( req, res ) {
           if (CACHE) {
             redis.set(cacheKey, JSON.stringify(response), function(err, res){
               if (err) winston.error("cache error:", err);
-              else redis.expire(cacheKey, 60); //expire in 60 seconds  
-              if (DEBUG) winston.info("TVS cached");
+              else {
+                redis.expire(cacheKey, 60); //expire in 60 seconds  
+                if (DEBUG) winston.info("TVS cached");
+              }
             });
           }      
         }  

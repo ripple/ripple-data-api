@@ -1,0 +1,18 @@
+
+dbfilename dump.rdb
+
+
+# some keys have a short term expiry, most have none
+# therefore the memory policy needs to automatically remove
+# the least used resources when approaching the memory limt
+#
+# the cache system also expects the historical data to be
+# complete, thus it will need to be reset whenever the importer
+# stops working 
+#
+# the cached data is flushed whenever the API script is restarted
+#
+#
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+
