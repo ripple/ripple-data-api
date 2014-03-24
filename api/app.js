@@ -47,6 +47,7 @@ var apiRoutes = {
   'topmarkets'            : require("./routes/topMarkets"),
   'accountscreated'       : require("./routes/accountsCreated"),
   'issuercapitalization'  : require("./routes/issuerCapitalization"),
+  'totalnetworkvalue'     : require("./routes/totalNetworkValue"),
   'exchangerates'         : require("./routes/exchangeRates"),
   'valuesent'             : require("./routes/valueSent"),
   'totalvaluesent'        : require("./routes/totalValueSent"),

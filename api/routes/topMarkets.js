@@ -1,9 +1,7 @@
 var winston = require('winston'),
   moment    = require('moment'),
   ripple    = require('ripple-lib'),
-  _         = require('lodash'),
-  async     = require('async'),
-  Q         = require('q');
+  async     = require('async');
 
 
 /**

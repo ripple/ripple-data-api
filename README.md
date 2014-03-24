@@ -276,6 +276,7 @@ response :
     ]
   }
 ```
+
 ####valueSent
 The amount of value sent from any account for a specific currency over time. 
 
@@ -314,7 +315,48 @@ The amount of value sent from any account for a specific currency over time.
     ]
   }
 ```  
+####totalNetworkValue: 
+total value of currencies for the top gateways on the ripple network, normalized to a specific currrency.
 
+  request : 
+
+```js
+  {
+    time      : "2014-03-13T20:39:26+00:00" //time of desired snapshot
+    exchange  : {                           // optional, defaults to XRP
+      currency  : (XRP, USD, BTC, etc.),         
+      issuer    : "rAusZ...."               // optional, required if currency != XRP
+    }
+  }
+```
+ 
+  response : 
+
+```js 
+  {
+    time     : "2014-03-13T20:39:26+00:00",           //time of desired snapshot
+    exchange     : {
+      currency : "USD",                               //exchange currency
+      issuer   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"  //exchange issuer
+  },
+  exchangeRate : 0.014301217579817786,                //exchange rate
+  total        : 726824.6504823748,                   //total network value in exchange currency
+  components   : [                                    //list of component currencies
+      {
+        currency        : "USD",
+        issuer          : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
+        amount          : 27606.296227064257,
+        rate            : 1,
+        convertedAmount : 27606.296227064257
+      },
+      .
+      .
+      .
+      .
+    ]
+  }
+```
+  
 ####issuerCapitalization
 the changes in balance for a gateway’s issuing wallet over time, with known hot wallets factored in.
 

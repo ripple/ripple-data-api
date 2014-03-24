@@ -35,10 +35,11 @@ var winston = require('winston'),
  */
 function issuerCapitalization( req, res ) {
 
-  var pairs = [];
+  var error, pairs = [];
 
 //validate incoming pairs
   if (Array.isArray(req.body.pairs)) {
+    
     req.body.pairs.forEach(function(pair){
 
       if (pair.issuer) {
@@ -47,15 +48,17 @@ function issuerCapitalization( req, res ) {
         pairs.push(pair);
 
       } else {
-        res.send(500, { error: 'issuer is required: '+JSON.stringify(pair)});
+        error = 'issuer is required: '+JSON.stringify(pair);
+        return;
       } 
     });
+    
+    if (error) return res.send(500, {error:error});
     
   } else {
     res.send(500, { error: 'please specify at least one issuer-currency pair'});
     return;
   }
-  
   
 //Parse start and end times
   var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
@@ -125,7 +128,16 @@ function issuerCapitalization( req, res ) {
           startCapitalization = 0 - initValRes.rows[0].value;
         }
         
-
+        if (!viewOpts.group_level) {
+          if (pair.results.length) {
+            pair.amount = pair.results[0].value + startCapitalization;
+            delete pair.results;
+          }
+          
+          asyncCallbackPair(null, pair);
+          return;  
+        }
+        
         // Format and add startCapitalization data to each row
         if (pair.results) {       
           var lastPeriodClose = startCapitalization;

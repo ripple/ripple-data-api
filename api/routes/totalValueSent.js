@@ -1,9 +1,7 @@
 var winston = require('winston'),
   moment    = require('moment'),
   ripple    = require('ripple-lib'),
-  _         = require('lodash'),
-  async     = require('async'),
-  Q         = require('q');
+  async     = require('async');
 
 /**
  *  totalValueSent: 
@@ -18,8 +16,9 @@ var winston = require('winston'),
  *    startTime : (any momentjs-readable date), // optional, defaults to 1 day before end time
  *    endTime   : (any momentjs-readable date), // optional, defaults to now
  *    exchange  : {                             // optional, defaults to XRP
- *    currency  : (XRP, USD, BTC, etc.),         
- *    issuer    : "rAusZ...."                 // optional, required if currency != XRP
+ *      currency  : (XRP, USD, BTC, etc.),         
+ *      issuer    : "rAusZ...."                 // optional, required if currency != XRP
+ *    }
  * }
  *
  * response : 
@@ -198,7 +197,7 @@ function totalValueSent( req, res ) {
         }
       }, {
         send: function(data) {
-  
+
           if (data.error) return asyncCallbackPair(data.error);
   
           if (data && data.results && data.results.length > 1) {
@@ -214,7 +213,7 @@ function totalValueSent( req, res ) {
       });
   
     }, function(err, currencies) {
-      
+
       if (err) return res.send(500, { error: err });
   
       getExchangeRates(startTime, endTime, conversionPairs, function(err, rates){
@@ -231,7 +230,7 @@ function totalValueSent( req, res ) {
           //final conversion currency we are looking for
           if (pair.trade.currency == ex.currency &&
               pair.trade.issuer   == ex.issuer) finalRate = pair.rate;
-        })
+        });
         
         if (finalRate) finalize();
         else {
