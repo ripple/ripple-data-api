@@ -130,7 +130,7 @@ function issuerCapitalization( req, res ) {
         
         if (!viewOpts.group_level) {
           if (pair.results.length) {
-            pair.amount = pair.results[0].value + startCapitalization;
+            pair.amount = startCapitalization - pair.results[0].value; //add inverted value
             delete pair.results;
           }
           
