@@ -60,7 +60,7 @@ var winston = require('winston'),
  
 function totalNetworkValue( req, res ) {
 
-  var cachKey, live, viewOpts = {};
+  var cacheKey, live, viewOpts = {};
   var ex = req.body.exchange || {currency:"XRP"};
   
   if (typeof ex != 'object')               return res.send(500, {error: 'invalid exchange currency'});

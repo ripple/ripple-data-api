@@ -264,7 +264,7 @@ function topMarkets( req, res ) {
             if (err) winston.error("cache error:", err);
             else {
               redis.expire(cacheKey, 60); //expire in 60 seconds 
-              if (DEBUG) winston.info("TM cached");
+              if (DEBUG) winston.info(cacheKey + " cached");
             } 
           });
         }     

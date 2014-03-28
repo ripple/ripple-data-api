@@ -272,7 +272,7 @@ function totalValueSent( req, res ) {
               if (err) winston.error("cache error:", err);
               else {
                 redis.expire(cacheKey, 60); //expire in 60 seconds  
-                if (DEBUG) winston.info("TVS cached");
+                if (DEBUG) winston.info(cacheKey + " cached");
               }
             });
           }      
