@@ -432,3 +432,49 @@ the number of ripple accounts that have been created over time.
     ...
 ]
 ```
+
+####transactionStats
+breakdown of valid transactions by type on the ripple network over time.
+
+  request:
+  
+```js
+
+  {
+    startTime     : (any momentjs-readable date), // optional
+    endTime       : (any momentjs-readable date), // optional, defaults to now
+    timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
+    descending    : true/false, // optional, defaults to true
+    reduce        : true/false  // optional, ignored if timeIncrement is set. false returns individual transactions
+    format        : 'json', 'csv', or 'json_verbose'    
+  }
+  
+```
+
+  response:
+  
+```js
+  {
+    ["time", "Payment", "OfferCreate", "OfferCancel", "TrustSet", "AccountSet", "SetFee", "SetRegularKey"]
+    [ "2014-02-28T18:00:00+0000", 502, 244, 102, 83, 12, 2, 5 ],
+    [ "2014-02-28T17:00:00+0000", 1800, 500, 232, 103, 55, 12, 4 ],
+    [ "2014-02-28T16:00:00+0000", 6102, 1293, 503, 230, 100, 14, 5 ],
+      ...
+      ...
+      ...
+  }
+```  
+
+ response (reduce = false):
+
+```js
+  {
+    ["time", "type", "account", "txHash", "ledgerIndex"],
+    ["2014-02-28T18:00:00+0000", "Payment",     "rXaaFst....", "4ABA3B0777E97BDEA924A732A943B169D...."],
+    ["2014-02-28T17:00:00+0000", "OfferCreate", "rXaaFst....", "4ABA3B0777E97BDEA924A732A943B169D...."],
+      ...
+      ...
+      ...
+  }
+``` 
+
