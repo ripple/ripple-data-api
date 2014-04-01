@@ -33,6 +33,7 @@ if (CACHE) {
     redis = require("redis").createClient(config.redis.port, config.redis.host, config.redis.options);
   }
 }
+
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
@@ -43,17 +44,18 @@ DATEFORMAT = DATEARRAY.join('');
 
 
 var apiRoutes = {
-  'offersexercised'       : require("./routes/offersExercised"),
-  'topmarkets'            : require("./routes/topMarkets"),
-  'accountscreated'       : require("./routes/accountsCreated"),
-  'issuercapitalization'  : require("./routes/issuerCapitalization"),
-  'totalnetworkvalue'     : require("./routes/totalNetworkValue"),
-  'exchangerates'         : require("./routes/exchangeRates"),
-  'valuesent'             : require("./routes/valueSent"),
-  'totalvaluesent'        : require("./routes/totalValueSent"),
-  'accounttransactions'   : require("./routes/accountTransactions"),
-  'transactionstats'      : require("./routes/transactionStats"),
-  'gettransaction'        : require("./routes/getTransaction"), //is this useable?
+  'offersexercised'         : require("./routes/offersExercised"),
+  'topmarkets'              : require("./routes/topMarkets"),
+  'accountscreated'         : require("./routes/accountsCreated"),
+  'issuercapitalization'    : require("./routes/issuerCapitalization"),
+  'totalnetworkvalue'       : require("./routes/totalNetworkValue"),
+  'exchangerates'           : require("./routes/exchangeRates"),
+  'valuesent'               : require("./routes/valueSent"),
+  'totalvaluesent'          : require("./routes/totalValueSent"),
+  'accounttransactions'     : require("./routes/accountTransactions"),
+  'accounttransactionstats' : require("./routes/accountTransactionStats"),
+  'transactionstats'        : require("./routes/transactionStats"),
+  'gettransaction'          : require("./routes/getTransaction"), //is this useable?
 };
 
 
