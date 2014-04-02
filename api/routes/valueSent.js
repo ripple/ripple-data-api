@@ -40,8 +40,9 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
       "currency"  : "USD",
       "issuer"    : "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q",
-      "startTime" : "Mar 5, 2014 10:00 am",
-      "endTime"   : "Mar 6, 2014 10:00 am"
+      "startTime" : "Mar 15, 2014 10:00 am",
+      "endTime"   : "Mar 16, 2014 10:00 am",
+      "reduce"    : false
       
     }' http://localhost:5993/api/valueSent
      
@@ -73,8 +74,8 @@ var winston = require('winston'),
 
  curl -H "Content-Type: application/json" -X POST -d '{
       "currency"  : "XRP",
-      "startTime" : "Mar 4, 2014 5:00 pm",
-      "endTime"   : "Mar 7, 2014 5:00 pm",
+      "startTime" : "Mar 14, 2014 5:00 pm",
+      "endTime"   : "Mar 17, 2014 5:00 pm",
       "timeIncrement" : "hour"
       
     }' http://localhost:5993/api/valueSent
@@ -89,8 +90,8 @@ var winston = require('winston'),
     
   curl -H "Content-Type: application/json" -X POST -d '{
       "currency"  : "XRP",
-      "startTime" : "Mar 5, 2014 10:00 am",
-      "endTime"   : "Mar 6, 2014 10:00 am"
+      "startTime" : "Mar 15, 2014 10:00 am",
+      "endTime"   : "Mar 16, 2014 10:00 am"
       
     }' http://localhost:5993/api/valueSent       
  */
@@ -152,12 +153,12 @@ function valueSent( req, res ) {
   viewOpts.stale = "ok"; //dont wait for updates
   
   //Query CouchDB with the determined viewOpts
-  db.view('valueSent', 'v1', viewOpts, function(err, result) {
+  db.view('valueSentV2', 'v1', viewOpts, function(err, result) {
     if (err) return res.send(500, err);
     
     var rows   = []
     var header = ["time","amount"];
-    if (viewOpts.reduce === false) header.push("tx_hash");
+    if (viewOpts.reduce === false) header.concat(["account","destination","txHash","ledgerIndex"]);
     else                           header.push("count");
     
     rows.push(header);
