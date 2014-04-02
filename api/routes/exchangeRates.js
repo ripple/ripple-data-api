@@ -41,6 +41,14 @@ var moment = require('moment'),
  *    ] 
  *  }
  * 
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "pairs" : [{
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "trade":{"currency":"XRP"}
+    }] 
+  }' http://localhost:5993/api/exchangerates
+
+
  */
 
 function exchangeRates ( req, res) {

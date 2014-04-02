@@ -27,8 +27,8 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 04, 2014 4:00 am",
-    "endTime"   : "Mar 04, 2014 8:00 am",
+    "startTime" : "Mar 04, 2013 4:00 am",
+    "endTime"   : "Mar 04, 2015 8:00 am",
     "timeIncrement" : "minute",
     "timeMultiple"  : 15,
     "format"        : "csv"
@@ -60,9 +60,10 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 11, 2014 4:44:00 am",
-    "endTime"   : "Mar 11, 2014 5:09:00 am",
-    "reduce"    : false
+    "startTime" : "Mar 11, 2013 4:44:00 am",
+    "endTime"   : "Mar 11, 2015 5:09:00 am",
+    "reduce"    : false,
+    "format"    : "json"
     
     }' http://localhost:5993/api/offersExercised    
     
@@ -119,7 +120,7 @@ function offersExercised (req, res) {
       return handleCouchResponse(null, {rows:[]}); 
     } else {
 
-      db.view("offersExercised", "v2", view, handleCouchResponse);
+      db.view("offersExercisedV2", "v2", view, handleCouchResponse);
     }
   }
   
@@ -142,15 +143,17 @@ function offersExercised (req, res) {
     
     // prepare results to send back
     if (options.view.reduce === false) {
-      rows.push(['time','price','baseAmount','tradeAmount','tx_hash']);
+      rows.push(['time','price','baseAmount','tradeAmount','account','counterparty','tx_hash']);
       couchRes.rows.forEach(function(row){
-        var time = row.key ? row.key.slice(1) : row.value[3];
+        var time = row.key ? row.key.slice(1) : row.value[5];
         rows.push([
           moment.utc(time).format(),
           row.value[2],         //price
           row.value[1],         //get amount
           row.value[0],         //pay amount
-          row.value[4],         //tx hash
+          row.value[3],         //account
+          row.value[4],         //counterparty
+          row.value[6],         //tx hash
           parseInt(row.id, 10)  //ledger index
         ]);  
       });
@@ -427,12 +430,14 @@ function offersExercised (req, res) {
       if (options.view.reduce === false) {
         apiRes.results = _.map(rows, function(row){
           return {
-            time        : row[0],
-            price       : row[1],
-            baseAmount  : row[2],
-            tradeAmount : row[3],
-            tx_hash     : row[4],
-            ledgerIndex : row[5]
+            time         : row[0],
+            price        : row[1],
+            baseAmount   : row[2],
+            tradeAmount  : row[3],
+            account      : row[4],
+            counterparty : row[5],
+            tx_hash      : row[6],
+            ledgerIndex  : row[7]
           };
         });
         
