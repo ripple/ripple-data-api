@@ -1,4 +1,4 @@
-var env    = process.env.NODE_ENV || "development";
+var env      = process.env.NODE_ENV || "development";
 var DBconfig = require('../db.config.json')[env];
 var config   = require('../deployment.environments.json')[env];
 
@@ -44,6 +44,7 @@ DATEFORMAT = DATEARRAY.join('');
 
 
 var apiRoutes = {
+  'offers'                  : require("./routes/offers"),
   'offersexercised'         : require("./routes/offersExercised"),
   'topmarkets'              : require("./routes/topMarkets"),
   'accountscreated'         : require("./routes/accountsCreated"),
