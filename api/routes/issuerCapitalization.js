@@ -86,8 +86,8 @@ function issuerCapitalization( req, res ) {
 
     // Setup CouchDB view options
     var viewOpts = {
-      startkey : [pair.issuer, pair.currency].concat(startTime.toArray().slice(0,6)),
-      endkey   : [pair.issuer, pair.currency].concat(endTime.toArray().slice(0,6)),
+      startkey : [pair.currency+"."+pair.issuer].concat(startTime.toArray().slice(0,6)),
+      endkey   : [pair.currency+"."+pair.issuer].concat(endTime.toArray().slice(0,6)),
       reduce   : true
     };
     
@@ -95,13 +95,13 @@ function issuerCapitalization( req, res ) {
     if (group_level) {
       // +3 to account for 1-based indexing in CouchDB and 
       // startkey having the [pair.issuer, pair.currency] first
-      viewOpts.group_level = group_level + 3; 
+      viewOpts.group_level = group_level + 2; 
     }
 
       viewOpts.stale = "ok"; //dont wait for updates
       
     // Query CouchDB for changes in trustline balances
-    db.view('balanceChangesByAccount', 'v1', viewOpts, function(err, trustlineRes){
+    db.view('currencyBalances', 'v1', viewOpts, function(err, trustlineRes){
       if (err) {
         asyncCallbackPair(err);
         return;
@@ -110,14 +110,14 @@ function issuerCapitalization( req, res ) {
       pair.results = trustlineRes.rows;
       
       var initialValueViewOpts = {
-        startkey : [pair.issuer, pair.currency],
+        startkey : [pair.currency+"."+pair.issuer],
         endkey   : viewOpts.startkey,
         group    : false,
         stale    : "ok"
       };
 
-
-      db.view('balanceChangesByAccount', 'v1', initialValueViewOpts, function(err, initValRes){
+      
+      db.view('currencyBalances', 'v1', initialValueViewOpts, function(err, initValRes){
         if (err) {
           asyncCallbackPair(err);
           return;
@@ -141,11 +141,11 @@ function issuerCapitalization( req, res ) {
         // Format and add startCapitalization data to each row
         if (pair.results) {       
           var lastPeriodClose = startCapitalization;
-          var firstTime = pair.results.length ? moment.utc(pair.results[0].key.slice(2)) : null;
+          var firstTime = pair.results.length ? moment.utc(pair.results[0].key.slice(1)) : null;
            
           for (var i=0; i<pair.results.length; i++) {
             lastPeriodClose -= pair.results[i].value; //add inverted negative value
-            var time = pair.results[i+1] ? moment.utc(pair.results[i+1].key.slice(2)) : endTime;
+            var time = pair.results[i+1] ? moment.utc(pair.results[i+1].key.slice(1)) : endTime;
             pair.results[i] = [time.valueOf(), lastPeriodClose];
           }
 
