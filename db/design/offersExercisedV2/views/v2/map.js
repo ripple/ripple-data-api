@@ -1,30 +1,30 @@
-function( doc ) {
+function(doc) {
 
-  var time    = new Date( doc.close_time_timestamp ),
+  var time    = new Date(doc.close_time_timestamp),
     unix      = Math.round(time.getTime()),
-    timestamp = [ time.getUTCFullYear( ), time.getUTCMonth( ), time.getUTCDate( ),
-      time.getUTCHours( ), time.getUTCMinutes( ), time.getUTCSeconds( )
+    timestamp = [ time.getUTCFullYear(), time.getUTCMonth(), time.getUTCDate(),
+      time.getUTCHours(), time.getUTCMinutes(), time.getUTCSeconds()
     ];
 
-  doc.transactions.forEach( function( tx ) {
+  doc.transactions.forEach(function(tx) {
 
-    if ( tx.metaData.TransactionResult !== 'tesSUCCESS' ) {
+    if (tx.metaData.TransactionResult !== 'tesSUCCESS') {
       return;
     }
 
-    if ( tx.TransactionType !== 'Payment' && tx.TransactionType !== 'OfferCreate' ) {
+    if (tx.TransactionType !== 'Payment' && tx.TransactionType !== 'OfferCreate') {
       return;
     }
 
-    tx.metaData.AffectedNodes.forEach( function( affNode ) {
+    tx.metaData.AffectedNodes.forEach(function(affNode) {
 
       var node = affNode.ModifiedNode || affNode.DeletedNode;
 
-      if ( !node || node.LedgerEntryType !== 'Offer' ) {
+      if (!node || node.LedgerEntryType !== 'Offer') {
         return;
       }
 
-      if ( !node.PreviousFields || !node.PreviousFields.TakerPays || !node.PreviousFields.TakerGets ) {
+      if (!node.PreviousFields || !node.PreviousFields.TakerPays || !node.PreviousFields.TakerGets) {
         return;
       }
   
@@ -40,7 +40,7 @@ function( doc ) {
         payAmnt = node.PreviousFields.TakerPays.value - node.FinalFields.TakerPays.value;
       } else {
         payCurr = "XRP";
-        payAmnt = ( node.PreviousFields.TakerPays - node.FinalFields.TakerPays ) / 1000000.0; // convert from drops
+        payAmnt = (node.PreviousFields.TakerPays - node.FinalFields.TakerPays) / 1000000.0; // convert from drops
         exchangeRate = exchangeRate / 1000000.0;
       }
 
@@ -49,13 +49,12 @@ function( doc ) {
         getAmnt = node.PreviousFields.TakerGets.value - node.FinalFields.TakerGets.value;
       } else {
         getCurr = "XRP";
-        getAmnt = ( node.PreviousFields.TakerGets - node.FinalFields.TakerGets ) / 1000000.0;
+        getAmnt = (node.PreviousFields.TakerGets - node.FinalFields.TakerGets) / 1000000.0;
         exchangeRate = exchangeRate * 1000000.0;
       }
       
-      emit( [ payCurr+":"+getCurr ].concat( timestamp ), [ payAmnt, getAmnt, exchangeRate, tx.Account, counterparty, unix, tx.hash] );
-      emit( [ getCurr+":"+payCurr ].concat( timestamp ), [ getAmnt, payAmnt, 1 / exchangeRate, counterparty, tx.Account, unix, tx.hash] );
-
+      emit([payCurr+":"+getCurr].concat(timestamp), [payAmnt, getAmnt, exchangeRate, counterparty, tx.Account, unix, tx.hash]);
+      emit([getCurr+":"+payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate, tx.Account, counterparty, unix, tx.hash]);
     } );
   } );
 }
