@@ -75,7 +75,7 @@ function(doc) {
         exchangeRate,
         counterparty,
         unix,
-        tx.Hash
+        tx.hash
       ]);
         
       emit([counterparty].concat(timestamp), [
@@ -89,7 +89,7 @@ function(doc) {
         (1 / exchangeRate),
         tx.Account,
         unix,
-        tx.Hash
+        tx.hash
       ]); 
          
     });
