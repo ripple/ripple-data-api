@@ -18,7 +18,7 @@ var winston = require('winston'),
  *  timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *  descending    : true/false, // optional, defaults to true
  *  reduce        : true/false  // optional, ignored if timeIncrement is set. false returns individual transactions
- *  format        : 'json', 'csv', or 'json_verbose'    
+ *  format        : 'json', 'csv'   
  * }
  * 
  * 

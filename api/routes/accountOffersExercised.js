@@ -20,7 +20,7 @@ var winston = require('winston'),
  *  reduce        : true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
  *  limit         : limit the number of responses, ignored if time increment is set or reduce is true
  *  offset        : offset by n transactions for pagination
- *  format        : 'json', 'csv', or 'json_verbose'    
+ *  format        : 'json', 'csv'  // optional
  * }
  * 
  * response (default): 

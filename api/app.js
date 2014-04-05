@@ -58,6 +58,7 @@ var apiRoutes = {
   'accounttransactionstats' : require("./routes/accountTransactionStats"),
   'accountoffersexercised'  : require("./routes/accountOffersExercised"),
   'transactionstats'        : require("./routes/transactionStats"),
+  'ledgersclosed'           : require("./routes/ledgersClosed"),
   'gettransaction'          : require("./routes/getTransaction"), //is this useable?
 };
 

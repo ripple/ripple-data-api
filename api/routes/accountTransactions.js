@@ -14,7 +14,7 @@ var winston = require('winston'),
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
  *    descending: true/false, // optional, defaults to false
- *    format: 'json', 'csv'
+ *    format: 'json', 'csv'   // optional
  *  }
  * 
 
@@ -24,78 +24,7 @@ var winston = require('winston'),
       "account"   : "r2hrqyjdLCBSkB6ADLpWkWtYFK96w1xMn"
       
     }' http://localhost:5993/api/accountTransactions
-
- 
- 
- 
- function(keys, values, rereduce) {
-  if (rereduce) {
     
-    var stats = ;
-    
-    values.forEach( function( value, index ) {
-      for (currency in value) {
-        
-        if (!stats[currency]) stats[currency] = {};
-        
-        if (currency == "XRP") {  
-          for (type in value.XRP) {
-            if (!stats.XRP[type]) stats.XRP[type] = {amount:0, count:0};
-            stats.XRP[type]['amount'] += value.XRP[type]['amount'];
-            stats.XRP[type]['count']  += value.XRP[type]['count'];
-          }
-        } else {
-          for (issuer in value[currency]) {
-            if (!stats[currency][issuer]) stats[currency][issuer] = {};
-            
-            for (type in value[currency][issuer]) {
-              if (!stats[currency][issuer][type]) stats[currency][issuer][type] = {amount:0, count:0};
-              stats[currency][issuer][type]['amount'] += value[currency][issuer][type]['amount'];
-              stats[currency][issuer][type]['count']  += value[currency][issuer][type]['count'];
-            }          
-          }
-        }
-      }
-    });
-    
-    return stats;
-    
-  } else {
-    var stats = {};
-
-
-    values.forEach( function( value, index ) {
-
-      //value[0] = currency
-      //value[1] = issuer
-      //value[2] = sent or recieved
-      //value[3] = amount
-      
-      if (value[0]=='XRP') {
-        if (!stats[value[0]])           stats[value[0]] = {};
-        if (!stats[value[0]][value[2]]) stats[value[0]][value[2]] = {amount:0, count:0};
-        stats[value[0]][value[2]]['amount'] += value[3];
-        stats[value[0]][value[2]]['count']++;
-        
-        
-      } else {
-        if (!stats[value[0]])                     stats[value[0]] = {};
-        if (!stats[value[0]][value[1]])           stats[value[0]][value[1]] = {};
-        if (!stats[value[0]][value[1]][value[2]]) stats[value[0]][value[1]][value[2]] = {amount:0, count:0};
-        stats[value[0]][value[1]][value[2]]['amount'] += value[3];
-        stats[value[0]][value[1]][value[2]]['count']++;
-      }
-      
-    });
-    
-    return stats;   
-    
-  }
-}
- 
- 
- 
- 
  * 
  */
 
