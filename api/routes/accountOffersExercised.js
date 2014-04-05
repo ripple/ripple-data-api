@@ -1,5 +1,6 @@
 var winston = require('winston'),
   moment    = require('moment'),
+  _         = require('lodash'),
   tools     = require('../utils');
 
 /*
