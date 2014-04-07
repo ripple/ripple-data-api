@@ -175,7 +175,6 @@ function accountOffersExercised ( req, res ) {
   if (viewOpts.reduce===false) {
     if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
     if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
-    console.log(viewOpts);
   }
   
   viewOpts.stale = "ok"; //dont wait for updates

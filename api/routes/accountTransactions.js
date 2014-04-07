@@ -10,11 +10,14 @@ var winston = require('winston'),
  *  expects req.body to have:
  *  {
  *    account: //ripple address of the account to query
- *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
- *    descending: true/false, // optional, defaults to false
- *    format: 'json', 'csv'   // optional
+ *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
+ *    reduce : true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
+ *    descending: true/false, // optional, defaults to true
+ *    limit  : limit the number of responses, ignored if time increment is set or reduce is true
+ *    offset : offset by n transactions for pagination
+ *    format : 'json', 'csv'   // optional
  *  }
  * 
 
@@ -51,9 +54,13 @@ function accountTransactions( req, res ) {
   //parse time increment and time multiple
   var results = tools.parseTimeIncrement(req.body.timeIncrement);  
 
-  //set reduce option only if its false
-  if (results.group_level)            viewOpts.group_level = results.group_level + 1;
-  else if (req.body.reduce === false) viewOpts.reduce      = false;
+  if (results.group_level)   viewOpts.group_level = results.group_level + 1;
+  else if (!req.body.reduce) viewOpts.reduce      = false;
+  
+  if (viewOpts.reduce===false) {
+    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
+    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+  }
   
   viewOpts.stale = "ok"; //dont wait for updates
   
