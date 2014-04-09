@@ -1,5 +1,6 @@
 var winston = require('winston'),
   moment    = require('moment'),
+  _         = require('lodash'),
   tools     = require('../utils');
   
   
@@ -16,6 +17,9 @@ var winston = require('winston'),
  *  timeIncrement : // second, minute, etc.     - optional, defaluts to "all"
  *  descending    : // true/false               - optional, defaults to false
  *  reduce        : // true/false               - optional, ignored if timeIncrement set
+ *  limit         : // optional, ignored unless reduce is false - limit the number of returned transactions
+ *  offset        : // optional, offset results by n transactions
+ *  format        : "json" or "csv" //optional, defaults to CSV-like array
  * }
  *
  * response: {
@@ -42,7 +46,10 @@ var winston = require('winston'),
       "issuer"    : "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q",
       "startTime" : "Mar 15, 2014 10:00 am",
       "endTime"   : "Mar 16, 2014 10:00 am",
-      "reduce"    : false
+      "reduce"    : false,
+      "limit"     : 10,
+      "offset"    : 10,
+      "format"    : "csv"
       
     }' http://localhost:5993/api/valueSent
      
@@ -67,7 +74,8 @@ var winston = require('winston'),
       "currency"  : "BTC",
       "issuer"    : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
       "startTime" : "Mar 5, 2014 10:00 am",
-      "endTime"   : "Mar 6, 2014 10:00 am"
+      "endTime"   : "Mar 6, 2014 10:00 am",
+      "format"    : "json"
       
     }' http://localhost:5993/api/valueSent 
 
@@ -76,7 +84,7 @@ var winston = require('winston'),
       "currency"  : "XRP",
       "startTime" : "Mar 14, 2014 5:00 pm",
       "endTime"   : "Mar 17, 2014 5:00 pm",
-      "timeIncrement" : "hour"
+      "format"    : "csv"
       
     }' http://localhost:5993/api/valueSent
     
@@ -113,11 +121,13 @@ function valueSent( req, res ) {
   var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
 
   if (time.error) return res.send(500, { error: time.error });
-  
+
+  if (!time.start || !time.end) {
+   return res.send(500, {error:"startTime and endTime are required."});
+  }
+      
   var startTime = time.start;
   var endTime   = time.end;
-
-
 
   //parse time increment and time multiple
   var results        = tools.parseTimeIncrement(req.body.timeIncrement);  
@@ -128,15 +138,6 @@ function valueSent( req, res ) {
   } else {
     group_multiple = 1;
   }  
-
-
-
-
-  //var length   = results.group_level ? results.group_level + 1 : 6; 
-  //console.log(length);
-  //console.log(results.group_level);
-  //console.log(req.body.timeIncrement);
-  //console.log(startTime.toArray().slice(0,length));
   
   //set view options    
   var viewOpts = {
@@ -150,36 +151,93 @@ function valueSent( req, res ) {
   if (results.group_level)            viewOpts.group_level = results.group_level + 3;
   else if (req.body.reduce === false) viewOpts.reduce      = false;
   
+  if (viewOpts.reduce===false) {
+    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
+    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+  }
+  
   viewOpts.stale = "ok"; //dont wait for updates
   
   //Query CouchDB with the determined viewOpts
-  db.view('valueSentV2', 'v1', viewOpts, function(err, result) {
+  db.view('valueSentV2', 'v1', viewOpts, function(err, couchRes) {
     if (err) return res.send(500, err);
     
-    var rows   = []
-    var header = ["time","amount"];
-    if (viewOpts.reduce === false) header.concat(["account","destination","txHash","ledgerIndex"]);
-    else                           header.push("count");
-    
-    rows.push(header);
-    result.rows.forEach(function(row){
-      var value = row.value;
-      var time  = row.key ? moment.utc(row.key.slice(2)) : startTime;
-      value.unshift(time.format());
-      rows.push(value);
-    });   
-    
-    var response = {
-      currency  : currency,
-      issuer    : issuer,
-      startTime : startTime.format(),
-      endTime   : endTime.format(),  
-      results   : rows,
-    };
-    
-    if (req.body.timeIncrement) response.timeIncrement = req.body.timeIncrement;
-    res.send(response);
+    handleResponse(couchRes.rows);
   });
+  
+  
+/*
+ * handleResponse - format the data according to the requirements
+ * of the request and return it to the caller.
+ * 
+ */  
+  function handleResponse (rows) {   
+    
+    if (req.body.format === 'json') { 
+      var response = {
+        currency      : currency,
+        issuer        : issuer,
+        startTime     : startTime.format(),
+        endTime       : endTime.format(),  
+        timeIncrement : req.body.timeIncrement,
+        results       : []
+      };
+      
+      rows.forEach(function(row){
+        if (viewOpts.reduce === false) {
+          response.results.push({
+            time        : moment.utc(row.key.slice(2)).format(),
+            amount      : row.value[0],
+            account     : row.value[1],
+            destination : row.value[2],
+            txHash      : row.value[3],
+            ledgerIndex : parseInt(row.id, 10) 
+          });
+      
+        } else {
+          response.results.push({
+            time   : row.key ? moment.utc(row.key.slice(2)).format() : undefined,
+            amount : row.value[0],
+            count  : row.value[1]
+          });         
+        } 
+      });
+      
+      res.send(response);
+         
+    } else {
+      
+    
+      var header = ["time","amount"];
+      if (viewOpts.reduce === false) header = header.concat(["account","destination","txHash","ledgerIndex"]);
+      else                           header.push("count");
+      
+      rows.forEach(function(row, index) {
+        var value = row.value;
+        var time  = row.key ? moment.utc(row.key.slice(2)) : startTime;
+        value.unshift(time.format());
+        if (row.id) value.push(parseInt(row.id, 10));
+        rows[index] = value;
+      }); 
+      
+      rows.unshift(header);  
+
+      
+      if (req.body.format === 'csv') {
+
+        var csvStr = _.map(rows, function(row){
+          return row.join(', ');
+        }).join('\n');
+  
+        // provide output as CSV
+        res.end(csvStr);
+
+      } else {
+        //no format or incorrect format specified
+        res.send(rows); 
+      }
+    }
+  }
 }
 
 module.exports = valueSent;

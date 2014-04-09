@@ -18,6 +18,8 @@ var winston = require('winston'),
  *  timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *  descending    : true/false, // optional, defaults to true
  *  reduce        : true/false  // optional, ignored if timeIncrement is set. false returns individual transactions
+ *  limit         : limit the number of responses, ignored if time increment is set or reduce is true
+ *  offset        : offset by n transactions for pagination
  *  format        : 'json', 'csv'   
  * }
  * 
@@ -54,9 +56,10 @@ var winston = require('winston'),
   }' http://localhost:5993/api/accountTransactionStats
     
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "rrpNnNLKrartuEqfJGpqyDwPj1AFPg9vn1",
-    "format" : "json",
-    "reduce" : false
+    "startTime"  : "Mar 9, 2014 10:00 am",
+    "endTime"    : "Apr 10, 2014 10:00 am",
+    "account" : "rNgRuUdPLsnesHUiMHT5mgZLRuSB5UFuMQ",
+    "timeIncrement" : "hour"
     
   }' http://localhost:5993/api/accountTransactionStats
   
@@ -102,7 +105,12 @@ function transactionStats( req, res ) {
   //set reduce option only if its false
   if (results.group_level)            viewOpts.group_level = results.group_level + 2;
   else if (req.body.reduce === false) viewOpts.reduce      = false;
-  
+
+  if (viewOpts.reduce===false) {
+    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
+    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+  }
+    
   viewOpts.stale = "ok"; //dont wait for updates
   
   db.view('accountTransactionStats', 'v1', viewOpts, function(err, couchRes){
@@ -129,7 +137,6 @@ function transactionStats( req, res ) {
       // send as an array of json objects
       var apiRes = {};
       apiRes.account       = account;
-      apiRes.timeRetrieved = moment.utc().format(); 
       apiRes.startTime     = range.start.format();
       apiRes.endTime       = range.end.format();
       apiRes.timeIncrement = req.body.timeIncrement;
@@ -146,12 +153,14 @@ function transactionStats( req, res ) {
           });
         });
       
-      } else {
-
+      } else if (req.body.timeIncrement) {
         rows.forEach(function(d){
           d.value.time = moment.utc(d.key.slice(1)).format();
           apiRes.results.push(d.value);  
         });  
+        
+      } else {
+        apiRes.results = rows[0] ? rows[0].value : {};
       }
             
       res.json(apiRes);
@@ -172,22 +181,26 @@ function transactionStats( req, res ) {
         }
         
       } else {
-
+        
         rows.forEach(function(row){
-          var r = [];
-         
+
           for (var key in row.value) {
             if (typeof keys[key] === 'undefined') keys[key] = nKeys++;
           }
-          
-          for (var i in keys) {
-            r[keys[i]] = row.value[i];
+        });
+        
+        rows.forEach(function(row) {
+          var r = [];
+         
+          for (var j in keys) {
+            r[keys[j]] = row.value[j] || 0;
           }
           
+          r.unshift(row.key ? moment.utc(row.key.slice(1)).format() : range.start.format());
           data.push(r);
         });
         
-        data.unshift(_.keys(keys));
+        data.unshift(["time"].concat(_.keys(keys)));
       }
       
   

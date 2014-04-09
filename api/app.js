@@ -89,7 +89,7 @@ function requestHandler(req, res) {
   
   if (path.indexOf('/') !== -1)  
         apiRoute = path.slice(0, path.indexOf('/')).toLowerCase();
-  else  apiRoute = path.toLowerCase();
+  else  apiRoute = path.toLowerCase().replace(/_/g, "");
   
   
   if (apiRoutes[apiRoute]) apiRoutes[apiRoute](req, res);

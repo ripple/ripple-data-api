@@ -12,29 +12,29 @@ var moment = require('moment'),
  *  {
  *    pairs    : [
  *      {
- *        base  : {currency:"USD","issuer":"bitstamp"},
- *        trade : {currency:"BTC","issuer":"bitstamp"}
+ *        base    : {currency:"USD","issuer":"bitstamp"},
+ *        counter : {currency:"BTC","issuer":"bitstamp"}
  *      },
  *      {
- *        base  : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
- *        trade : {currency:"XRP"}
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
+ *        counter : {currency:"XRP"}
  *      }
  *    ]
  *  
- *    base  : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
- *    trade : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
- *    range : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
+ *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
+ *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
+ *    range   : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
  *  }
  * 
  *  response :
  *  {
  *    pairs : [
  *      {
- *        base  : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK","name":"rippleCN"},
- *        trade : {currency:"XRP"},
- *        rate  : //volume weighted average price
- *        last  : //last trade price
- *        range : "hour", "day", "month", year" - from request
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK","name":"rippleCN"},
+ *        counter : {currency:"XRP"},
+ *        rate    : //volume weighted average price
+ *        last    : //last trade price
+ *        range   : "hour", "day", "month", year" - from request
  *      },
  * 
  *      ....
@@ -44,7 +44,7 @@ var moment = require('moment'),
   curl -H "Content-Type: application/json" -X POST -d '{
     "pairs" : [{
       "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      "trade":{"currency":"XRP"}
+      "counter":{"currency":"XRP"}
     }] 
   }' http://localhost:5993/api/exchangerates
 
@@ -69,11 +69,11 @@ function exchangeRates ( req, res) {
   
   if (req.body.pairs && Array.isArray(req.body.pairs)) 
     pairs = req.body.pairs;
-  else if (req.body.base && req.body.trade) 
-    pairs = [{base:req.body.base,trade:req.body.trade}];
+  else if (req.body.base && req.body.counter) 
+    pairs = [{base:req.body.base,counter:req.body.counter}];
   else {
-    //pairs or base and trade required
-    res.send(500, { error: 'please specify a list of currency pairs or a base and trade currency'});
+    //pairs or base and counter required
+    res.send(500, { error: 'please specify a list of currency pairs or a base and counter currency'});
   }
   
   pairs.forEach(function(pair){
@@ -93,7 +93,7 @@ function exchangeRates ( req, res) {
     require("./offersExercised")({
       body: {
         base      : pair.base,
-        trade     : pair.trade,
+        counter     : pair.counter,
         startTime : startTime,
         endTime   : endTime,
         timeIncrement : 'all'
@@ -108,7 +108,7 @@ function exchangeRates ( req, res) {
 
         if (data && data.length > 1) {
           pair.rate = data[1][8]; // volume weighted average price
-          pair.last = data[1][5]; // close price
+          pair.last = data[1][7]; // close price
         } else {
           pair.rate = 0;
         }
@@ -131,15 +131,15 @@ function exchangeRates ( req, res) {
 
 //format valid currency pairs, reject invalid
 function parseCurrencyPair (pair) {
-  var base, trade;
+  var base, counter;
   
-  if (!pair.base|| !pair.trade) return;
+  if (!pair.base|| !pair.counter) return;
   
   base  = parseCurrency(pair.base);
-  trade = parseCurrency(pair.trade); 
+  counter = parseCurrency(pair.counter); 
   
-  if (!base || !trade) return;
-  return {base:base,trade:trade};
+  if (!base || !counter) return;
+  return {base:base,counter:counter};
 }
 
 //format valid currency-issuer combinations, reject invalid
@@ -298,12 +298,12 @@ function exchangeRatesHandler( req, res ) {
   var assetPairs = [];
 
   for (var t = 0; t < gatewayCurrencyPairs.length; t++) {
-    var trade = gatewayCurrencyPairs[t];
+    var counter = gatewayCurrencyPairs[t];
 
     if (includeXRP) {
       assetPairs.push({
         base: {currency: 'XRP'},
-        trade: {currency: trade.currency, issuer: trade.address}
+        counter: {currency: counter.currency, issuer: counter.address}
       });
     }
 
@@ -313,7 +313,7 @@ function exchangeRatesHandler( req, res ) {
       if (base) {
         assetPairs.push({
           base: {currency: base.currency, issuer: base.address},
-          trade: {currency: trade.currency, issuer: trade.address}
+          counter: {currency: counter.currency, issuer: counter.address}
         });
       }
     }
@@ -325,7 +325,7 @@ function exchangeRatesHandler( req, res ) {
     require("./routes/offersExercised")({
       body: {
         base: assetPair.base,
-        trade: assetPair.trade,
+        counter: assetPair.counter,
         startTime: startTime,
         endTime: endTime,
         timeIncrement: 'all'

@@ -17,7 +17,9 @@ var winston = require('winston'),
  *  timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *  descending    : true/false, // optional, defaults to true
  *  reduce        : true/false  // optional, ignored if timeIncrement is set. false returns individual transactions
- *  format        : 'json', 'csv', or 'json_verbose'    
+ *  limit         : // optional, ignored unless reduce is false - limit the number of returned transactions
+ *  offset        : // optional, offset results by n transactions
+ *  format        : "json" or "csv" //optional, defaults to CSV-like array  
  * }
  * 
  * 
@@ -46,26 +48,28 @@ var winston = require('winston'),
  * }
  * 
   curl -H "Content-Type: application/json" -X POST -d '{
-    "format" : "json",
-    "timeIncrement" : "hour"
+    "startTime" : "Mar 10, 2014 4:35 am",
+    "endTime"   : "Mar 11, 2014 5:10:30 am",
+    "reduce" : false,
+    "limit"  : 10,
+    "format" : "csv",
+    "descending" : true
       
   }' http://localhost:5993/api/transactionStats
     
   curl -H "Content-Type: application/json" -X POST -d '{
-    "format" : "json",
-    "reduce" : false
+    "format" : "csv",
+    "reduce" : false,
+    "limit"  : 10,
+    "descending" : true
     
   }' http://localhost:5993/api/transactionStats
   
   curl -H "Content-Type: application/json" -X POST -d '{
-    "timeIncrement" : "hour"
-      
+    "timeIncrement" : "month",
+    "format" : "csv" 
   }' http://localhost:5993/api/transactionStats
       
-  curl -H "Content-Type: application/json" -X POST -d '{
-    "reduce" : false
-    
-  }' http://localhost:5993/api/transactionStats
          
  * 
  */
@@ -93,7 +97,12 @@ function transactionStats( req, res ) {
   //set reduce option only if its false
   if (results.group_level)            viewOpts.group_level = results.group_level + 1;
   else if (req.body.reduce === false) viewOpts.reduce      = false;
-  
+
+  if (viewOpts.reduce===false) {
+    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
+    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+  }
+    
   viewOpts.stale = "ok"; //dont wait for updates
   
   db.view('transactionStats', 'v1', viewOpts, function(err, couchRes){
@@ -119,7 +128,6 @@ function transactionStats( req, res ) {
       
       // send as an array of json objects
       var apiRes = {};
-      apiRes.timeRetrieved = moment.utc().format(); 
       apiRes.startTime     = range.start.format();
       apiRes.endTime       = range.end.format();
       apiRes.timeIncrement = req.body.timeIncrement;
@@ -139,7 +147,7 @@ function transactionStats( req, res ) {
       
       } else {
         rows.forEach(function(d){
-          d.value.time = moment.utc(d.key).format();
+          d.value.time = d.key ? moment.utc(d.key).format() : range.start.format();
           apiRes.results.push(d.value);  
         });  
       }
@@ -163,22 +171,25 @@ function transactionStats( req, res ) {
         }
         
       } else {
-
+        
         rows.forEach(function(row){
-          var r = [];
-         
           for (var key in row.value) {
             if (typeof keys[key] === 'undefined') keys[key] = nKeys++;
           }
-          
+        });
+        
+        rows.forEach(function(row){
+          var r = [];
+         
           for (var i in keys) {
-            r[keys[i]] = row.value[i];
+            r[keys[i]] = row.value[i] || 0;
           }
           
+          r.unshift(row.key ? moment.utc(row.key).format() : range.start.format());
           data.push(r);
         });
         
-        data.unshift(_.keys(keys));
+        data.unshift(["time"].concat(_.keys(keys)));
       }
       
   

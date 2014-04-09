@@ -10,10 +10,8 @@ var winston = require('winston'),
  *  expects req.body to have:
  *  {
  *    account: //ripple address of the account to query
- *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
- *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
- *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
- *    reduce : true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
+ *    startTime: (any momentjs-readable date), // optional
+ *    endTime: (any momentjs-readable date), // optional
  *    descending: true/false, // optional, defaults to true
  *    limit  : limit the number of responses, ignored if time increment is set or reduce is true
  *    offset : offset by n transactions for pagination
@@ -24,7 +22,26 @@ var winston = require('winston'),
  curl -H "Content-Type: application/json" -X POST -d '{
       "startTime" : "jan 1, 2014 10:00 am",
       "endTime"   : "jan 10, 2015 10:00 am",
-      "account"   : "r2hrqyjdLCBSkB6ADLpWkWtYFK96w1xMn"
+      "account"   : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
+      "format"    : "json"
+      
+    }' http://localhost:5993/api/accountTransactions
+    
+ curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "jan 1, 2014 10:00 am",
+      "endTime"   : "jan 10, 2015 10:00 am",
+      "account"   : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
+      "format"    : "csv"
+      
+    }' http://localhost:5993/api/accountTransactions
+    
+ curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime"  : "jan 1, 2014 10:00 am",
+      "endTime"    : "jan 10, 2015 10:00 am",
+      "account"    : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
+      "limit"      :  10,
+      "descending" : true,
+      "format"     : "csv"
       
     }' http://localhost:5993/api/accountTransactions
     
@@ -51,11 +68,7 @@ function accountTransactions( req, res ) {
   
   if (req.body.descending) viewOpts.descending = true;
   
-  //parse time increment and time multiple
-  var results = tools.parseTimeIncrement(req.body.timeIncrement);  
-
-  if (results.group_level)   viewOpts.group_level = results.group_level + 1;
-  else if (!req.body.reduce) viewOpts.reduce      = false;
+  viewOpts.reduce = false; //view has no reduce function
   
   if (viewOpts.reduce===false) {
     if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
@@ -71,58 +84,96 @@ function accountTransactions( req, res ) {
       res.send(500, { error: err });
       return;
     }
-    
-    var stats = {}, counterparties = {}, transactions = [];
+  
+    handleResponse(couchRes.rows);
+  });
+/*
+ * handleResponse - format the data according to the requirements
+ * of the request and return it to the caller.
+ * 
+ */  
+  function handleResponse (rows) {
+        
+    var response, stats = {}, transactions = [];
 
-    couchRes.rows.forEach( function( row, index ) {
-      var value = row.value;
+    if (req.body.format === 'json') {
       
-      //value[0] = currency
-      //value[1] = issuer
-      //value[2] = sent or recieved
-      //value[3] = amount
-      //value[4] = counterparty
-      
-      //counterparties[value[4]] = "";
-      
-      if (value[0]=='XRP') {
-        if (!stats[value[0]])           stats[value[0]] = {};
-        if (!stats[value[0]][value[2]]) stats[value[0]][value[2]] = {amount:0, count:0};
-        stats[value[0]][value[2]]['amount'] += value[3];
-        stats[value[0]][value[2]]['count']++;
+      rows.forEach( function( row, index ) {
+        var value = row.value;
         
+        //value[0] = currency
+        //value[1] = issuer
+        //value[2] = sent or recieved
+        //value[3] = amount
+        //value[4] = counterparty
         
-      } else {
-        if (!stats[value[0]])                     stats[value[0]] = {};
-        if (!stats[value[0]][value[1]])           stats[value[0]][value[1]] = {};
-        if (!stats[value[0]][value[1]][value[2]]) stats[value[0]][value[1]][value[2]] = {amount:0, count:0};
-        stats[value[0]][value[1]][value[2]]['amount'] += value[3];
-        stats[value[0]][value[1]][value[2]]['count']++;
+        if (value[0]=='XRP') {
+          if (!stats[value[0]])           stats[value[0]] = {};
+          if (!stats[value[0]][value[2]]) stats[value[0]][value[2]] = {amount:0, count:0};
+          stats[value[0]][value[2]]['amount'] += value[3];
+          stats[value[0]][value[2]]['count']++;
+          
+          
+        } else {
+          if (!stats[value[0]])                     stats[value[0]] = {};
+          if (!stats[value[0]][value[1]])           stats[value[0]][value[1]] = {};
+          if (!stats[value[0]][value[1]][value[2]]) stats[value[0]][value[1]][value[2]] = {amount:0, count:0};
+          stats[value[0]][value[1]][value[2]]['amount'] += value[3];
+          stats[value[0]][value[1]][value[2]]['count']++;
+        }
+        
+        transactions.push({
+          currency     : value[0],
+          issuer       : value[1],
+          type         : value[2],
+          amount       : value[3],
+          counterparty : value[4],
+          time         : moment.utc(value[5]).format(),
+          txHash       : value[6],
+          ledgerIndex  : parseInt(row.id, 10),
+        });
+      });
+      
+      response = {
+        account        : account,
+        startTime      : range.start.format(),
+        endTime        : range.end.format(),
+        summary        : stats,
+        transactions   : transactions
       }
       
-      transactions.push({
-        currency     : value[0],
-        issuer       : value[1],
-        type         : value[2],
-        amount       : value[3],
-        counterparty : value[4],
-        time         : moment.utc(value[5]).format(),
-        tx_hash      : value[6],
-        ledgerIndex  : parseInt(row.id, 10),
-      });
-    });
-    
-    var response = {
-      account        : account,
-      startTime      : range.start.format(),
-      endTime        : range.end.format(),
-      summary        : stats,
-      //counterparties : _.keys(counterparties),
-      transactions   : transactions
+      res.send(response);
+      
+    } else {
+        response = [["currency","issuer","type","amount","counterparty","time","txHash","ledgerIndex"]];
+        rows.forEach( function( row, index ) {
+          response.push([
+            row.value[0],
+            row.value[1],
+            row.value[2],
+            row.value[3],
+            row.value[4],
+            moment.utc(row.value[5]).format(),
+            row.value[6],
+            parseInt(row.id, 10),
+          ]);
+        });
+              
+      if (req.body.format == 'csv') {
+        var csvStr = _.map(response, function(row){
+          return row.join(', ');
+        }).join('\n');
+
+        // provide output as CSV
+        res.end(csvStr);   
+           
+      } else {
+        
+        //default response
+        res.send(response);
+      }
     }
-    
-    res.send(response);
-  });
+  }
 }
 
 

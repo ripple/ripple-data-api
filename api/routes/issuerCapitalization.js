@@ -11,7 +11,7 @@ var winston = require('winston'),
  *  
  *  Available options are:
  *  {
- *    pairs: [
+ *    currencies: [
  *      {
  *        issuer: ('Bitstamp' or 'rvY...'),
  *        currency: ('USD', 'BTC', etc)
@@ -30,25 +30,43 @@ var winston = require('winston'),
  *    startTime     : (any momentjs-readable date),
  *    endTime       : (any momentjs-readable date),
  *    timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // defaults to 'all'
- *    timeMultiple  : positive integer, defaults to 1
  *  }
+ * 
+ * 
+ 
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Mar 5, 2014 10:00 am",
+      "endTime"   : "Mar 6, 2014 10:00 am",
+      "currencies" : [{"currency"  : "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}],
+      "timeIncrement" : "month"
+      
+    }' http://localhost:5993/api/issuer_capitalization
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Mar 5, 2011 10:00 am",
+      "endTime"   : "Mar 6, 2015 10:00 am",
+      "currencies" : [{"currency"  : "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}],
+      "timeIncrement" : "month"
+      
+    }' http://localhost:5993/api/issuer_capitalization 
+ 
  */
 function issuerCapitalization( req, res ) {
 
-  var error, pairs = [];
+  var error, currencies = [];
 
-//validate incoming pairs
-  if (Array.isArray(req.body.pairs)) {
+//validate incoming currencies
+  if (Array.isArray(req.body.currencies)) {
     
-    req.body.pairs.forEach(function(pair){
+    req.body.currencies.forEach(function(c){
 
-      if (pair.issuer) {
-        pair.name       = tools.getGatewayName(pair.issuer);
-        pair.hotwallets = tools.getHotWalletsForGateway(pair.name);
-        pairs.push(pair);
+      if (c.issuer) {
+        c.name       = tools.getGatewayName(c.issuer);
+        c.hotwallets = tools.getHotWalletsForGateway(c.name);
+        currencies.push(c);
 
       } else {
-        error = 'issuer is required: '+JSON.stringify(pair);
+        error = 'issuer is required: '+JSON.stringify(c);
         return;
       } 
     });
@@ -64,7 +82,11 @@ function issuerCapitalization( req, res ) {
   var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
   
   if (time.error) return res.send(500, { error: time.error });
-  
+
+  if (!time.start || !time.end) {
+   return res.send(500, {error:"startTime and endTime are required."});
+  }
+      
   var startTime = time.start;
   var endTime   = time.end;
 
@@ -81,20 +103,20 @@ function issuerCapitalization( req, res ) {
   }
 
 
-//get capitalization data for each pair
-  async.mapLimit(pairs, 10, function(pair, asyncCallbackPair){
+//get capitalization data for each currency
+  async.mapLimit(currencies, 10, function(c, asyncCallbackPair){
 
     // Setup CouchDB view options
     var viewOpts = {
-      startkey : [pair.currency+"."+pair.issuer].concat(startTime.toArray().slice(0,6)),
-      endkey   : [pair.currency+"."+pair.issuer].concat(endTime.toArray().slice(0,6)),
+      startkey : [c.currency+"."+c.issuer].concat(startTime.toArray().slice(0,6)),
+      endkey   : [c.currency+"."+c.issuer].concat(endTime.toArray().slice(0,6)),
       reduce   : true
     };
     
     if (group) viewOpts.group = group;
     if (group_level) {
       // +3 to account for 1-based indexing in CouchDB and 
-      // startkey having the [pair.issuer, pair.currency] first
+      // startkey having the [c.issuer, c.currency] first
       viewOpts.group_level = group_level + 2; 
     }
 
@@ -107,10 +129,10 @@ function issuerCapitalization( req, res ) {
         return;
       }
 
-      pair.results = trustlineRes.rows;
+      c.results = trustlineRes.rows;
       
       var initialValueViewOpts = {
-        startkey : [pair.currency+"."+pair.issuer],
+        startkey : [c.currency+"."+c.issuer],
         endkey   : viewOpts.startkey,
         group    : false,
         stale    : "ok"
@@ -129,50 +151,50 @@ function issuerCapitalization( req, res ) {
         }
         
         if (!viewOpts.group_level) {
-          if (pair.results.length) {
-            pair.amount = startCapitalization - pair.results[0].value; //add inverted value
-            delete pair.results;
+          if (c.results.length) {
+            c.amount = startCapitalization - c.results[0].value; //add inverted value
+            delete c.results;
           }
           
-          asyncCallbackPair(null, pair);
+          asyncCallbackPair(null, c);
           return;  
         }
         
         // Format and add startCapitalization data to each row
-        if (pair.results) {       
+        if (c.results) {       
           var lastPeriodClose = startCapitalization;
-          var firstTime = pair.results.length ? moment.utc(pair.results[0].key.slice(1)) : null;
+          var firstTime = c.results.length ? moment.utc(c.results[0].key.slice(1)) : null;
            
-          for (var i=0; i<pair.results.length; i++) {
-            lastPeriodClose -= pair.results[i].value; //add inverted negative value
-            var time = pair.results[i+1] ? moment.utc(pair.results[i+1].key.slice(1)) : endTime;
-            pair.results[i] = [time.valueOf(), lastPeriodClose];
+          for (var i=0; i<c.results.length; i++) {
+            lastPeriodClose -= c.results[i].value; //add inverted negative value
+            var time = c.results[i+1] ? moment.utc(c.results[i+1].key.slice(1)) : endTime;
+            c.results[i] = [time.format(), lastPeriodClose];
           }
 
-        if (firstTime) pair.results.unshift([firstTime.valueOf(), startCapitalization]);
+        if (firstTime) c.results.unshift([firstTime.format(), startCapitalization]);
           
 /*       
-          pair.results.forEach(function(row, index){
+          c.results.forEach(function(row, index){
             lastPeriodClose -= row.value; //add inverted negative value
             
             if (row.key) {
               //console.log(moment.utc(row.key.slice(2)).format(), lastPeriodClose, row.value);
-              pair.results[index] = [moment.utc(row.key.slice(2)).valueOf(), lastPeriodClose];
+              c.results[index] = [moment.utc(row.key.slice(2)).valueOf(), lastPeriodClose];
             } 
             
           });
 */          
          
-        } else winston.info("No results for pair:", util.inspect(pair));
+        } else winston.info("No results for currency:", util.inspect(c));
         
-        if (pair.results.length) console.log(pair.name, pair.issuer, pair.results[pair.results.length-1]);
-        asyncCallbackPair(null, pair);
+        if (c.results.length) console.log(c.name, c.issuer, c.results[c.results.length-1]);
+        asyncCallbackPair(null, c);
 /*        
-        async.map(pair.hotwallets, function(hotwallet, asyncCallbackHotwallet){
+        async.map(c.hotwallets, function(hotwallet, asyncCallbackHotwallet){
 
           var hotwalletViewOpts = {
-            startkey: [pair.issuer, pair.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
-            endkey: [pair.issuer, pair.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
+            startkey: [c.issuer, c.currency, hotwallet].concat(startTime.toArray().slice(0,6)),
+            endkey: [c.issuer, c.currency, hotwallet].concat(endTime.toArray().slice(0,6)),
             reduce: true
           };
           if (group) {
@@ -196,23 +218,23 @@ function issuerCapitalization( req, res ) {
             hotwalletResults.forEach(function(hotwallet){
 
               //winston.info(util.inspect(hotwallet));
-              //winston.info(util.inspect(pair));
+              //winston.info(util.inspect(c));
 
               hotwallet.rows.forEach(function(hotwalletRow){
                 winston.info("hotwalletrow: " + JSON.stringify(hotwalletRow));
 
                 var hotwalletBalance = hotwalletRow.value.latestBalance + hotwalletRow.value.balanceChange;
-                var pairRowIndex = _.findIndex(pair.results, function(pairRow) {
-                  return pairRow.key === hotwalletRow.key;
+                var rowIndex = _.findIndex(c.results, function(row) {
+                  return row.key === hotwalletRow.key;
                 });
 
-                if (pairRowIndex !== -1) {
-                  var accountBalance = pair.results[pairRowIndex].value;
+                if (rowIndex !== -1) {
+                  var accountBalance = c.results[rowIndex].value;
 
-                  pair.results[pairRowIndex].value = pair.results[pairRowIndex].value - hotwalletBalance;
-                  console.log('subtracted ' + pair.name + '\'s hotwallet balance of ' 
+                  c.results[rowIndex].value = c.results[rowIndex].value - hotwalletBalance;
+                  console.log('subtracted ' + c.name + '\'s hotwallet balance of ' 
                     + hotwalletBalance + ' from account balance of ' 
-                    + accountBalance + ' for final balance of ' + pair.results[pairRowIndex].value);
+                    + accountBalance + ' for final balance of ' + c.results[rowIndex].value);
                 }
               });
             });
@@ -222,7 +244,7 @@ function issuerCapitalization( req, res ) {
           if (group_multiple && group_multiple > 1) {
             var newResults = [],
               tempRow;
-            pair.results.forEach(function(row, index){
+            c.results.forEach(function(row, index){
               if (index % group_multiple === 0) {
                 if (tempRow) {
                   newResults.push(tempRow);
@@ -233,23 +255,23 @@ function issuerCapitalization( req, res ) {
               tempRow.value += row.value;
             });
 
-            pair.results = newResults;
+            c.results = newResults;
           }
 
           // Format and add startCapitalization data to each row
           var lastPeriodClose = startCapitalization;
 
-          if (pair.results) {          
-            pair.results.forEach(function(row, index){
+          if (c.results) {          
+            c.results.forEach(function(row, index){
               if (row.key) {
-                pair.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
+                c.results[index] = [moment(row.key.slice(2)).valueOf(), lastPeriodClose];
               }
               lastPeriodClose = lastPeriodClose - row.value;
             });
           } else {
-            winston.error("Pair results does not exist");
+            winston.error("currency results does not exist");
           }
-          asyncCallbackPair(null, pair);
+          asyncCallbackPair(null, c);
         });
        */
 
@@ -261,11 +283,8 @@ function issuerCapitalization( req, res ) {
       return;
     }
 
-    // TODO support different result formats
-
     res.send(results);
   });
-
 }
 
 module.exports = issuerCapitalization;

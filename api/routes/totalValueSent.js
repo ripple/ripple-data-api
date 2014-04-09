@@ -53,7 +53,7 @@ var winston = require('winston'),
     curl -H "Content-Type: application/json" -X POST -d '{
     "exchange"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}
   
-    }' http://localhost:5993/api/totalValueSent 
+    }' http://localhost:5993/api/total_value_sent 
     
  
  */

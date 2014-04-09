@@ -34,7 +34,7 @@ var winston = require('winston'),
  *    components   : [                              //list of component markets
  *      { 
  *        base            : {"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
- *        trade           : {"currency":"XRP"},
+ *        counter         : {"currency":"XRP"},
  *        rate            : 69.9309953931345,
  *        count           : 99,
  *        amount          : 3107.9273091242917,
@@ -78,27 +78,27 @@ function topMarkets( req, res ) {
     {
       // Bitstamp USD market
       base: {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      trade: {currency: 'XRP'}
+      counter: {currency: 'XRP'}
     },
     {
       // Bitstamp BTC market
       base: {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      trade: {currency: 'XRP'}
+      counter: {currency: 'XRP'}
     },
     {
       // RippleCN CNY market
       base: {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'},
-      trade: {currency: 'XRP'}
+      counter: {currency: 'XRP'}
     },
     {
       // RippleChina CNY market
       base: {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'},
-      trade: {currency: 'XRP'}
+      counter: {currency: 'XRP'}
     },
     {
       // SnapSwap USD market
       base: {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-      trade: {currency: 'XRP'}
+      counter: {currency: 'XRP'}
     }
   ];
 
@@ -188,7 +188,7 @@ function topMarkets( req, res ) {
       require("./offersExercised")({
         body: {
           base          : assetPair.base,
-          trade         : assetPair.trade,
+          counter       : assetPair.counter,
           startTime     : startTime,
           endTime       : endTime,
           timeIncrement : 'all'
@@ -283,7 +283,7 @@ function topMarkets( req, res ) {
     require("./offersExercised")({
       body: {
         base      : {currency:"XRP"},
-        trade     : {currency:params.currency,issuer:params.issuer},
+        counter     : {currency:params.currency,issuer:params.issuer},
         startTime : params.startTime,
         endTime   : params.endTime,
         timeIncrement : 'all'

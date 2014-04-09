@@ -4,10 +4,8 @@ var winston = require('winston'),
   tools     = require('../utils');
 
 /*
- * accountOffersExercised:
+ * ledgersClosed:
  * 
- * list of offers excercised for a given account. providing a time increment or reduce option
- * results in a count of transactions for the given interval or time period
  *
  * request:
  *
@@ -17,6 +15,8 @@ var winston = require('winston'),
  *  timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *  descending    : true/false, // optional, defaults to true
  *  reduce        : true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
+ *  limit         : limit the number of responses, ignored if time increment is set or reduce is true
+ *  offset        : offset by n ledgers for pagination 
  *  format        : 'json', 'csv'  // optional
  * }
  * 
@@ -86,9 +86,13 @@ var winston = require('winston'),
   }' http://localhost:5993/api/ledgersClosed 
 
   curl -H "Content-Type: application/json" -X POST -d '{
-    "timeIncrement" : "day",
-    "format" : "json"
-      
+      "startTime"     : "Apr 1, 2014 10:00 am",
+      "endTime"       : "Apr 1, 2014 11:00 am",
+      "reduce"        : false,
+      "limit"         : 10,
+      "descending"    : true,
+      "offset"        : 10
+
   }' http://localhost:5993/api/ledgersClosed  
   
   curl -H "Content-Type: application/json" -X POST -d '{
@@ -122,6 +126,11 @@ function ledgersClosed( req, res ) {
   //set reduce option only if its false
   if (results.group_level)   viewOpts.group_level = results.group_level + 1;
    else if (req.body.reduce === false) viewOpts.reduce = false;
+ 
+  if (viewOpts.reduce===false) {
+    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
+    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+  } 
   
   viewOpts.stale = "ok"; //dont wait for updates 
   

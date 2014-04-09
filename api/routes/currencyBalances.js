@@ -63,7 +63,7 @@ var winston = require('winston'),
     
  curl -H "Content-Type: application/json" -X POST -d '{
     "currency": "USD", 
-    "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
+    "issuer": "rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK",
     "format" : "json",
     "total"  : true
     
@@ -76,7 +76,13 @@ var winston = require('winston'),
     "total"  : true
     
   }' http://localhost:5993/api/currencyBalances   
-      
+
+ curl -H "Content-Type: application/json" -X POST -d '{
+    "time"   : "2013 jan 2",
+    "total"  : true
+    
+  }' http://localhost:5993/api/currencyBalances   
+        
  * 
  */
 
@@ -84,7 +90,7 @@ function currencyBalances ( req, res ) {
   var viewOpts  = {};
   var currency  = req.body.currency || "XRP";
   var issuer    = req.body.issuer;
-  var time      = req.body.time ? moment.utc(time) : moment.utc();
+  var time      = req.body.time ? moment.utc(req.body.time) : moment.utc();
   var totalOnly = req.body.total ? true : false;
   
   if (currency.toUpperCase() != "XRP" && !issuer)
@@ -99,6 +105,7 @@ function currencyBalances ( req, res ) {
   viewOpts.reduce   = false; //get indivdual balances
   viewOpts.stale    = "ok";  //dont wait for updates
   
+  console.log(viewOpts);
   db.view_with_list('currencyBalances', 'v1', 'balancesByAccount', viewOpts, function(err, balances) {
     if (err) return res.send(500, err);  
     

@@ -1,27 +1,45 @@
 var winston = require('winston'),
   moment    = require('moment'),
   ripple    = require('ripple-lib'),
+  _         = require('lodash'),
   tools     = require('../utils');
 
 /*
+ * offers:
+ * 
+ * Returns all offer creates and cancels over time for a given trading pair.
  * 
  * 
    curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
-    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "startTime" : "Feb 10, 2014 4:44:00 am",
-    "endTime"   : "Apr 16, 2014 5:09:00 am",
-    "timeIncrement" : "hour"
-      
+    "endTime"   : "Feb 11, 2014 5:09:00 am",
+    "timeIncrement" : "hour",
+    "format" : "csv"
+    
+    }' http://localhost:5993/api/offers
+    
+
+   curl -H "Content-Type: application/json" -X POST -d '{
+    "base"  : {"currency": "XRP"},
+    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "startTime" : "Feb 10, 2014 4:44:00 am",
+    "endTime"   : "Feb 11, 2014 5:09:00 am",
+    "timeIncrement" : "hour",
+    "format" : "json"
+    
     }' http://localhost:5993/api/offers
 
    curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
-    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "startTime" : "Feb 10, 2014 4:44:00 am",
     "endTime"   : "Apr 16, 2014 5:09:00 am",
-    "reduce"    : false
-      
+    "reduce"    : false,
+    "limit"     : 10,
+    "offset"    : 10
+     
     }' http://localhost:5993/api/offers 
  * 
  */
@@ -43,46 +61,99 @@ function offers ( req, res ) {
       return;
     }
     
-    var header, rows = [];
-    if (options.view.reduce !== false) header = ["time", "OfferCreate", "OfferCancel"];
-    else header = ["type", "account",'baseAmount','tradeAmount','price','time','txHash','ledgerIndex'];
-   
-    
-    rows.push(header);
-    couchRes.rows.forEach(function(row){
-      var value = row.value;
-      
-      if (options.view.reduce === false) {
-        value[5] = moment.utc(value[5]).format();
-        value.push(row.id);
-      } else {
-        var time  = row.key ? moment.utc(row.key.slice(1)) : options.startTime;
-        value.unshift(time.format());        
-      }
-
-      rows.push(value);
-    });   
-    
-    var response = {
-      base      : options.base,
-      trade     : options.trade,
-      startTime : options.startTime.format(),
-      endTime   : options.endTime.format(),  
-      results   : rows,
-    };
-    
-    if (req.body.timeIncrement) response.timeIncrement = req.body.timeIncrement;
-    res.send(response);
+    handleResponse(couchRes.rows);
   });
+
+  
+/*
+ * handleResponse - format the data according to the requirements
+ * of the request and return it to the caller.
+ * 
+ */  
+  function handleResponse (rows) {  
+    
+    if (req.body.format === 'json') {
+      var response = {
+        base          : req.body.base,
+        counter       : req.body.counter,
+        startTime     : options.startTime.format(),
+        endTime       : options.endTime.format(),
+        timeIncrement : req.body.timeIncrement,
+        results       : []
+      };
+      
+      if (req.body.timeIncrement) response.timeIncrement = req.body.timeIncrement;
+
+      rows.forEach(function(row){
+      
+        if (options.view.reduce === false) {
+          response.results.push({
+            type          : row.value[0],
+            account       : row.value[1],
+            baseAmount    : row.value[2],
+            counterAmount : row.value[3],
+            price         : row.value[4],
+            time          : moment.utc(row.value[5]).format(),
+            txHash        : row.value[6],
+            ledgerIndex   : parseInt(row.id, 10)
+          });
+          
+        } else {
+          response.results.push({
+            time : row.key ? moment.utc(row.key.slice(1)) : options.startTime,
+            OfferCreate : row.value[0],
+            OfferCancel : row.value[1],
+          });    
+        }
+      });     
+      
+      res.send(response);
+      
+    } else {
+      
+    
+      var header, results = [];
+      if (options.view.reduce !== false) header = ["time", "OfferCreate", "OfferCancel"];
+      else header = ["type", "account",'baseAmount','counterAmount','price','time','txHash','ledgerIndex'];
+   
+      console.log(rows);
+      results.push(header);
+      rows.forEach(function(row){
+        var value = row.value;
+      
+        if (options.view.reduce === false) {
+          value[5] = moment.utc(value[5]).format();
+          value.push(parseInt(row.id, 10));
+          
+        } else {
+          var time  = row.key ? moment.utc(row.key.slice(1)) : options.startTime;
+          value.unshift(time.format());        
+        }
+  
+        results.push(value);
+      }); 
+      
+      if (req.body.format === 'csv') {
+
+        var csvStr = _.map(results, function(row){
+          return row.join(', ');
+        }).join('\n');
+  
+        // provide output as CSV
+        res.end(csvStr);
+      
+      } else res.send(results);
+    }
+  }
   
   function parseOptions() {
-     if (!req.body.base || !req.body.trade) {
-      options.error = 'please specify base and trade currencies';
+     if (!req.body.base || !req.body.counter) {
+      options.error = 'please specify base and counter currencies';
       return;
     }
   
     // parse base currency details
-    var base, trade;
+    var base, counter;
     
     if (!req.body.base.currency) {
         options.error = 'please specify a base currency';
@@ -111,28 +182,28 @@ function offers ( req, res ) {
       }
     }
   
-    // parse trade currency details
+    // parse counter currency details
     if (!req.body.base.currency) {
       options.error = 'please specify a base currency';
       return;
       
-    } else if (!req.body.trade.issuer) {
-      if (req.body.trade.currency.toUpperCase()  === 'XRP') {
-        options.trade = 'XRP';
+    } else if (!req.body.counter.issuer) {
+      if (req.body.counter.currency.toUpperCase()  === 'XRP') {
+        options.counter = 'XRP';
       } else {
         options.error = 'must specify issuer for all currencies other than XRP';
         return;
       }
-    } else if (req.body.trade.issuer && ripple.UInt160.is_valid(req.body.trade.issuer)) {
-      options.trade = req.body.trade.currency.toUpperCase()+"."+req.body.trade.issuer;
+    } else if (req.body.counter.issuer && ripple.UInt160.is_valid(req.body.counter.issuer)) {
+      options.counter = req.body.counter.currency.toUpperCase()+"."+req.body.counter.issuer;
       
     } else {
-      var tradeGatewayAddress = gatewayNameToAddress(req.body.trade.issuer, req.body.trade.currency.toUpperCase());
-      if (tradeGatewayAddress) {
-        options.trade = req.body.trade.currency.toUpperCase()+"."+tradeGatewayAddress;
+      var counterGatewayAddress = gatewayNameToAddress(req.body.counter.issuer, req.body.counter.currency.toUpperCase());
+      if (counterGatewayAddress) {
+        options.counter = req.body.counter.currency.toUpperCase()+"."+counterGatewayAddress;
         
       } else {
-        options.error = 'invalid trade currency issuer: ' + req.body.trade.issuer;
+        options.error = 'invalid counter currency issuer: ' + req.body.counter.issuer;
         return;
       }
     }
@@ -162,14 +233,18 @@ function offers ( req, res ) {
     if (results.group_level)            options.view.group_level = results.group_level + 2;
     else if (req.body.reduce === false) options.view.reduce      = false;
   
-    
+    if (options.view.reduce===false) {
+      if (req.body.limit  && !isNaN(req.body.limit))  options.view.limit = parseInt(req.body.limit, 10);
+      if (req.body.offset && !isNaN(req.body.offset)) options.view.skip  = parseInt(req.body.offset, 10);
+    } 
+        
     if (req.body.limit && typeof req.body.limit == "number") {
       options.view.limit = req.body.limit;
     }
 
     // set startkey and endkey for couchdb query
-    options.view.startkey   = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
-    options.view.endkey     = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
+    options.view.startkey   = [options.counter+":"+options.base].concat(options.startTime.toArray().slice(0,6));
+    options.view.endkey     = [options.counter+":"+options.base].concat(options.endTime.toArray().slice(0,6));
     options.view.descending = req.body.descending || false; 
   }
 } 

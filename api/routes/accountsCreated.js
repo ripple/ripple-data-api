@@ -8,11 +8,14 @@ var winston = require('winston'),
  *  accountsCreated returns the number of accounts created per time increment
  *  expects req.body to have:
  *  {
- *    timeIncrement: (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
+ *    timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    descending: true/false, // optional, defaults to true
- *    format: 'json', 'csv', or 'json_verbose'
+ *    reduce: true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
+ *    limit: limit the number of responses, ignored if time increment is set or reduce is true
+ *    offset: offset by n transactions for pagination
+ *    format: 'json', 'csv'
  *  }
  * 
     curl -H "Content-Type: application/json" -X POST -d '{
@@ -36,11 +39,32 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
       "startTime" : "Mar 9, 2014 10:00 am",
       "endTime"   : "Mar 10, 2014 10:00 am",
-      "reduce" : false
-
+      "reduce" : false,
+      "format"    : "json"
+      
     }' http://localhost:5993/api/accountsCreated
-         
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Mar 9, 2014 10:00 am",
+      "endTime"   : "Mar 10, 2014 10:00 am",
+      "descending" : true,
+      "reduce" : false,
+      "limit"  : 20,
+      "offset" : 20,
+      "format" : "csv"
+      
+      
+    }' http://localhost:5993/api/accountsCreated
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+      "startTime" : "Mar 9, 2014 10:00 am",
+      "endTime"   : "Mar 10, 2014 10:00 am",
+      "format"    : "json"
+      
+    }' http://localhost:5993/api/accountsCreated             
  */
+
+
 function accountsCreated( req, res ) {
 
   var viewOpts = {};
@@ -59,13 +83,20 @@ function accountsCreated( req, res ) {
   if (req.body.descending) viewOpts.descending = true;
   
   //parse time increment and time multiple
-  var results        = tools.parseTimeIncrement(req.body.timeIncrement);  
+  var results = tools.parseTimeIncrement(req.body.timeIncrement);  
 
   //set reduce option only if its false
   if (results.group_level)            viewOpts.group_level = results.group_level + 1;
   else if (req.body.reduce === false) viewOpts.reduce      = false;
-  
+
+  if (viewOpts.reduce===false) {
+    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
+    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+  }
+    
   viewOpts.stale = "ok"; //dont wait for updates
+  
+  console.log(viewOpts);
   
   db.view('accountsCreated', 'v1', viewOpts, function(err, couchRes){
 
@@ -74,18 +105,8 @@ function accountsCreated( req, res ) {
       res.send(500, { error: err });
       return;
     }
-
-    //winston.info('Got ' + couchRes.rows.length + ' rows');
-    //winston.info(JSON.stringify(couchRes.rows));
-
-    // prepare results to send back
-    var resRows = [],
-      headerRow = [
-        'time', 
-        'accountsCreated'
-      ];
-      
-   resRows.push(headerRow);   
+    
+    console.log(couchRes.rows);
 
 /*
   
@@ -167,57 +188,97 @@ function accountsCreated( req, res ) {
       }
     }  
     
-    couchRes.rows.forEach(function(row){
-      resRows.push([
-        (row.key ? moment.utc(row.key).format() : ''),
-        row.value
-        ]);
-    });
-
-    // handle format option
-    if (!req.body.format || req.body.format === 'json') {
-
-      // TODO include time sent?
-      res.send(resRows);
-
-    } else if (req.body.format === 'csv') {
-
-      var csvStr = _.map(resRows, function(row){
-        return row.join(', ');
-      }).join('\n');
-
-      // TODO make this download instead of display
-      res.setHeader('Content-disposition', 'attachment; filename=offersExercised.csv');
-      res.setHeader('Content-type', 'text/csv');
-      res.charset = 'UTF-8';
-      res.end(csvStr);
-
-    } else if (req.body.format === 'json_verbose') {
-
-      // send as an array of json objects
-      var apiRes = {};
-      apiRes.timeRetrieved = moment.utc().valueOf();
-
-      apiRes.rows = _.map(couchRes.rows, function(row){
-
-        // reformat rows
-        return {
-          openTime: (row.key ? moment.utc(row.key.slice(2)).format() : moment.utc(row.value.openTime).format()),
-          accountsCreated: row.value
-        };
-
-      });
-
-      res.json(apiRes);
-
-    } else {
-
-      winston.error('incorrect format: ' + req.body.format);
-      res.send(500, 'Invalid format: '+ req.body.format);
-    }
-
+    
+    handleResponse(couchRes.rows);
   });
+    
+/*
+ * handleResponse - format the data according to the requirements
+ * of the request and return it to the caller.
+ * 
+ */  
+  function handleResponse (rows) {
+    
+    if (req.body.format === 'json') { 
+      var response = {
+        startTime      : range.start.format(),
+        endTime        : range.end.format(),
+        timeIncrement  : req.body.timeIncrement,
+        total          : 0
+      }
+        
+      if (viewOpts.reduce === false) {
+        response.total   = rows ? rows.length : 0;
+        response.results = [];
+        rows.forEach(function(row){
+          response.results.push({
+            time        : moment.utc(row.key).format(),
+            account     : row.value[0],
+            txHash      : row.value[1],
+            ledgerIndex : parseInt(row.id, 10)
+          });
+        });
+              
+      } else if (req.body.timeIncrement) {
 
+        response.results = [];
+        rows.forEach(function(row){
+          response.total += row.value;
+          response.results.push({
+            time  : moment.utc(row.key).format(),
+            count : row.value
+          });
+        });          
+      
+      } else {
+        response.total = rows[0] ? rows[0].value : 0;
+      }
+      
+      
+      res.send(response);
+      return;
+      
+    } else {
+      var data = [];
+      
+      if (viewOpts.reduce === false) {
+        data.push(["time","account","txHash","ledgerIndex"]);
+        rows.forEach(function(row){
+          data.push([
+            moment.utc(row.key).format(),
+            row.value[0],
+            row.value[1],
+            parseInt(row.id, 10)         
+          ]); 
+        });       
+        
+      } else if (req.body.timeIncrement) {
+        data.push(["time","count"]);
+        rows.forEach(function(row){
+          data.push([
+            moment.utc(row.key).format(),
+            row.value
+          ]);
+        });
+        
+      } else res.send(rows[0] ? rows[0].value.toString() : 0);
+      
+      if (req.body.format === 'csv') {
+
+        var csvStr = _.map(data, function(row){
+          return row.join(', ');
+        }).join('\n');
+  
+        // provide output as CSV
+        res.end(csvStr);
+
+
+      } else {
+        //no format or incorrect format specified
+        res.send(data);      
+      } 
+    }
+  }
 }
 
 module.exports = accountsCreated;

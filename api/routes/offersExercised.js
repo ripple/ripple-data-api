@@ -11,7 +11,7 @@ var winston = require('winston'),
  *  expects req.body to have:
  *  {
  *    base: {currency: "XRP"},
- *    trade: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+ *    counter: {currency: "USD", issuer: "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
  *    
  *    descending: true/false, // optional, defaults to true
  *    startTime: (any momentjs-readable date), // required
@@ -19,6 +19,7 @@ var winston = require('winston'),
  *    timeIncrement: (any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    reduce: true/false, // optional, defaults to true, ignored if timeIncrement is set
  *    limit: optional, ignored unless reduce is false - limit the number of returned trades
+ *    offset: optional, offset results by n transactions
  *    format: (either 'json', 'csv', or none) // optional - none returns an array of arrays
  *  }
  * 
@@ -26,7 +27,7 @@ var winston = require('winston'),
   
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
-    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "startTime" : "Mar 04, 2013 4:00 am",
     "endTime"   : "Mar 04, 2015 8:00 am",
     "timeIncrement" : "minute",
@@ -38,7 +39,7 @@ var winston = require('winston'),
 
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
-    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "startTime" : "Mar 10, 2014 4:35 am",
     "endTime"   : "Mar 11, 2014 5:10:30 am",
     "timeIncrement" : "minute",
@@ -50,20 +51,24 @@ var winston = require('winston'),
  
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
-    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "startTime" : "Mar 11, 2014 4:44:00 am",
-    "endTime"   : "Mar 11, 2014 5:09:00 am",
-    "timeIncrement" : "minute"
+    "endTime"   : "Mar 12, 2014 5:09:00 am",
+    "timeIncrement" : "hour",
+    "timeMultiple"  : 4,
+    "format"  : "csv"
       
     }' http://localhost:5993/api/offersExercised
  
   curl -H "Content-Type: application/json" -X POST -d '{
-    "base"  : {"currency": "XRP"},
-    "trade" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 11, 2013 4:44:00 am",
-    "endTime"   : "Mar 11, 2015 5:09:00 am",
+    "base"  : {"currency": "BTC", "issuer" : "rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9"},
+    "counter" : {"currency": "XRP"},
+    "startTime" : "Apr 7, 2014 4:44:00 am",
+    "endTime"   : "Apr 11, 2014 5:09:00 am",
     "reduce"    : false,
-    "format"    : "json"
+    "limit"     : 10,
+    "format"    : "csv",
+    "descending": true
     
     }' http://localhost:5993/api/offersExercised    
     
@@ -143,7 +148,7 @@ function offersExercised (req, res) {
     
     // prepare results to send back
     if (options.view.reduce === false) {
-      rows.push(['time','price','baseAmount','tradeAmount','account','counterparty','tx_hash']);
+      rows.push(['time','price','baseAmount','counterAmount','account','counterparty','tx_hash']);
       couchRes.rows.forEach(function(row){
         var time = row.key ? row.key.slice(1) : row.value[5];
         rows.push([
@@ -173,9 +178,9 @@ function offersExercised (req, res) {
             row.value.curr1Volume,
             row.value.numTrades,
             row.value.open,
-            row.value.close,
             row.value.high,
             row.value.low,
+            row.value.close,
             row.value.volumeWeightedAvg,
             moment.utc(row.value.openTime).format(),  //open  time
             moment.utc(row.value.closeTime).format(), //close time
@@ -200,10 +205,9 @@ function offersExercised (req, res) {
       
       //prepend header row
       rows.unshift([
-        'startTime', 'baseCurrVolume', 'tradeCurrVolume', 
-        'numTrades', 'openPrice',      'closePrice', 
-        'highPrice', 'lowPrice',       'vwavPrice',
-        'openTime',  'closeTime',      'partial',
+        'startTime', 'baseVolume', 'counterVolume', 'count', 
+        'open',      'high',       'low',           'close', 
+        'vwap',      'openTime',   'closeTime',     'partial',
       ]);
     }
     
@@ -417,27 +421,26 @@ function offersExercised (req, res) {
 
       // send as an array of json objects
       var apiRes = {};
-      apiRes.timeRetrieved = moment.utc().format(); 
       apiRes.startTime     = moment.utc(options.startTime).format();
       apiRes.endTime       = moment.utc(options.endTime).format();
       apiRes.base          = req.body.base;
-      apiRes.trade         = req.body.trade;
-      apiRes.interval      = options.increment || "all";
-      if (options.multiple && options.multiple>1) apiRes.multiple = options.multiple;
+      apiRes.counter       = req.body.counter;
+      apiRes.timeIncrement = options.increment || "all";
+      if (options.multiple && options.multiple>1) apiRes.timeMultiple = options.multiple;
       
       rows.shift();//get rid of header
       
       if (options.view.reduce === false) {
         apiRes.results = _.map(rows, function(row){
           return {
-            time         : row[0],
-            price        : row[1],
-            baseAmount   : row[2],
-            tradeAmount  : row[3],
-            account      : row[4],
-            counterparty : row[5],
-            tx_hash      : row[6],
-            ledgerIndex  : row[7]
+            time          : row[0],
+            price         : row[1],
+            baseAmount    : row[2],
+            counterAmount : row[3],
+            account       : row[4],
+            counterparty  : row[5],
+            tx_hash       : row[6],
+            ledgerIndex   : row[7]
           };
         });
         
@@ -446,18 +449,18 @@ function offersExercised (req, res) {
                    
         apiRes.results = _.map(rows, function(row, index){
           return {
-            startTime    : moment.utc(row[0]).format(),
-            openTime     : moment.utc(row[10]).format(),
-            closeTime    : moment.utc(row[9]).format(),
-            baseCurrVol  : row[1],
-            tradeCurrVol : row[2],
-            numTrades    : row[3],
-            openPrice    : row[4],
-            closePrice   : row[5],
-            highPrice    : row[6],
-            lowPrice     : row[7],
-            vwavPrice    : row[8],
-            partial      : row[11],
+            startTime     : moment.utc(row[0]).format(),
+            openTime      : moment.utc(row[10]).format(),
+            closeTime     : moment.utc(row[9]).format(),
+            baseVolume    : row[1],
+            counterVolume : row[2],
+            count         : row[3],
+            open          : row[4],
+            high          : row[6],
+            low           : row[7],
+            close         : row[5],
+            vwap          : row[8],
+            partial       : row[11],
           };
         });          
       }
@@ -525,7 +528,7 @@ function offersExercised (req, res) {
 
     // data structures for grouping results 
     var groupedStartTime = 0, groupedOpenTime,        groupedCloseTime,
-      groupedBaseCurrVolume,  groupedTradeCurrVolume, groupedNumTrades,       
+      groupedBaseVolume,      groupedCounterVolume,   groupedNumTrades,       
       groupedOpenPrice,       groupedClosePrice,      groupedHighPrice,       
       groupedLowPrice,        groupedVwavPrice,        
       groupedVwavNumerator,   groupedVwavDenominator;
@@ -542,8 +545,8 @@ function offersExercised (req, res) {
           groupedOpenTime        = e.value.openTime;
           groupedClosePrice      = e.value.close;
           groupedCloseTime       = e.value.closeTime;
-          groupedBaseCurrVolume  = 0;
-          groupedTradeCurrVolume = 0;
+          groupedBaseVolume      = 0;
+          groupedCounterVolume   = 0;
           groupedNumTrades       = 0;
           groupedHighPrice       = 0;
           groupedLowPrice        = Number.MAX_VALUE;
@@ -553,10 +556,10 @@ function offersExercised (req, res) {
         }
         
         // SUM: base currency volume
-        groupedBaseCurrVolume = parseFloat(groupedBaseCurrVolume) + parseFloat(e.value.curr2Volume);
+        groupedBaseVolume = parseFloat(groupedBaseVolume) + parseFloat(e.value.curr2Volume);
 
         // SUM: trade currency volume
-        groupedTradeCurrVolume = parseFloat(groupedTradeCurrVolume) + parseFloat(e.value.curr1Volume);
+        groupedCounterVolume = parseFloat(groupedCounterVolume) + parseFloat(e.value.curr1Volume);
 
         // SUM: number trades
         groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
@@ -594,13 +597,13 @@ function offersExercised (req, res) {
         // create grouped result based on processed group of rows
         results.push([
           groupedStartTime, 
-          groupedBaseCurrVolume, 
-          groupedTradeCurrVolume, 
+          groupedBaseVolume, 
+          groupedCounterVolume, 
           groupedNumTrades, 
-          groupedOpenPrice, 
-          groupedClosePrice, 
+          groupedOpenPrice,
           groupedHighPrice, 
-          groupedLowPrice, 
+          groupedLowPrice,  
+          groupedClosePrice, 
           groupedVwavPrice,
           moment.utc(groupedOpenTime).format(),
           moment.utc(groupedCloseTime).format(),
@@ -633,13 +636,13 @@ function offersExercised (req, res) {
  */
   function parseOptions () {
     
-    if (!req.body.base || !req.body.trade) {
-      options.error = 'please specify base and trade currencies';
+    if (!req.body.base || !req.body.counter) {
+      options.error = 'please specify base and counter currencies';
       return;
     }
   
     // parse base currency details
-    var base, trade;
+    var base, counter;
     
     if (!req.body.base.currency) {
         options.error = 'please specify a base currency';
@@ -668,28 +671,28 @@ function offersExercised (req, res) {
       }
     }
   
-    // parse trade currency details
+    // parse counter currency details
     if (!req.body.base.currency) {
       options.error = 'please specify a base currency';
       return;
       
-    } else if (!req.body.trade.issuer) {
-      if (req.body.trade.currency.toUpperCase()  === 'XRP') {
-        options.trade = 'XRP';
+    } else if (!req.body.counter.issuer) {
+      if (req.body.counter.currency.toUpperCase()  === 'XRP') {
+        options.counter = 'XRP';
       } else {
         options.error = 'must specify issuer for all currencies other than XRP';
         return;
       }
-    } else if (req.body.trade.issuer && ripple.UInt160.is_valid(req.body.trade.issuer)) {
-      options.trade = req.body.trade.currency.toUpperCase()+"."+req.body.trade.issuer;
+    } else if (req.body.counter.issuer && ripple.UInt160.is_valid(req.body.counter.issuer)) {
+      options.counter = req.body.counter.currency.toUpperCase()+"."+req.body.counter.issuer;
       
     } else {
-      var tradeGatewayAddress = gatewayNameToAddress(req.body.trade.issuer, req.body.trade.currency.toUpperCase());
-      if (tradeGatewayAddress) {
-        options.trade = req.body.trade.currency.toUpperCase()+"."+tradeGatewayAddress;
+      var counterGatewayAddress = gatewayNameToAddress(req.body.counter.issuer, req.body.counter.currency.toUpperCase());
+      if (counterGatewayAddress) {
+        options.counter = req.body.counter.currency.toUpperCase()+"."+counterGatewayAddress;
         
       } else {
-        options.error = 'invalid trade currency issuer: ' + req.body.trade.issuer;
+        options.error = 'invalid counter currency issuer: ' + req.body.counter.issuer;
         return;
       }
     }
@@ -733,14 +736,15 @@ function offersExercised (req, res) {
     else if (req.body.reduce === false) options.view.reduce      = false;
   
     
-    if (req.body.limit && typeof req.body.limit == "number") {
-      options.view.limit = req.body.limit;
-    }
+    if (options.view.reduce===false) {
+      if (req.body.limit  && !isNaN(req.body.limit))  options.view.limit = parseInt(req.body.limit, 10);
+      if (req.body.offset && !isNaN(req.body.offset)) options.view.skip  = parseInt(req.body.offset, 10);
+    } 
 
 
     // set startkey and endkey for couchdb query
-    options.view.startkey   = [options.trade+":"+options.base].concat(options.startTime.toArray().slice(0,6));
-    options.view.endkey     = [options.trade+":"+options.base].concat(options.endTime.toArray().slice(0,6));
+    options.view.startkey   = [options.counter+":"+options.base].concat(options.startTime.toArray().slice(0,6));
+    options.view.endkey     = [options.counter+":"+options.base].concat(options.endTime.toArray().slice(0,6));
     options.view.descending = req.body.descending || false; 
     options.view.stale      = "ok"; //dont wait for updates  
     options.alignedFirst    = tools.getAlignedTime(options.startTime, options.increment, options.multiple);

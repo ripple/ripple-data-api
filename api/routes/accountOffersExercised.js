@@ -15,10 +15,8 @@ var winston = require('winston'),
  *  account       : "r9aZAsv...." //required
  *  startTime     : (any momentjs-readable date), // optional
  *  endTime       : (any momentjs-readable date), // optional, defaults to now
- *  timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *  descending    : true/false, // optional, defaults to true
- *  reduce        : true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
- *  limit         : limit the number of responses, ignored if time increment is set or reduce is true
+ *  limit         : limit the number of responses, ignored if time increment is set
  *  offset        : offset by n transactions for pagination
  *  format        : 'json', 'csv'  // optional
  * }
@@ -30,9 +28,9 @@ var winston = require('winston'),
  *    "baseCurrency",
  *    "baseIssuer",
  *    "baseAmount",
- *    "tradeCurrency",
- *    "tradeIssuer",
- *    "tradeAmount",
+ *    "counterCurrency",
+ *    "counterIssuer",
+ *    "counterAmount",
  *    "type",
  *    "rate",
  *    "counterparty",
@@ -74,7 +72,7 @@ var winston = require('winston'),
  *        "issuer": "rJHygWcTLVpSXkowott6kzgZU6viQSVYM1",
  *        "amount": 0.0008549999942999986
  *      },
- *      "trade": {
+ *      "counter": {
  *        "currency": "XRP",
  *        "issuer": null,
  *        "amount": 37.449374
@@ -133,9 +131,10 @@ var winston = require('winston'),
   }' http://localhost:5993/api/accountOffersExercised
   
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
+    "account" : "rN9U9jLxBQq6N4bREdG2UxxoAXPGiSANfc",
     "limit"  : 5,
-    "offset" : 10
+    "offset" : 10,
+    "format" : "csv"
     
   }' http://localhost:5993/api/accountOffersExercised
   
@@ -202,14 +201,13 @@ function accountOffersExercised ( req, res ) {
       // send as an array of json objects
       var apiRes = {};
       apiRes.account       = account;
-      apiRes.timeRetrieved = moment.utc().format(); 
       apiRes.startTime     = range.start.format();
       apiRes.endTime       = range.end.format();
       apiRes.timeIncrement = req.body.timeIncrement;
       apiRes.results       = [];
     
       if (viewOpts.reduce === false) {
-    
+        
         rows.forEach(function(d){
           apiRes.results.push({
             base : {
@@ -218,7 +216,7 @@ function accountOffersExercised ( req, res ) {
               amount   : d.value[2]
             },
             
-            trade : {
+            counter : {
               currency : d.value[3],
               issuer   : d.value[4],
               amount   : d.value[5]
@@ -257,7 +255,7 @@ function accountOffersExercised ( req, res ) {
         }        
         
         rows.unshift(["baseCurrency",  "baseIssuer",  "baseAmount", 
-                   "tradeCurrency", "tradeIssuer", "tradeAmount",
+                   "counterCurrency", "counterIssuer", "counterAmount",
                    "type", "rate",   "counterparty",
                    "time", "txHash", "ledgerIndex"
                    ]);
