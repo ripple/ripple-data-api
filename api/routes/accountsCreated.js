@@ -96,8 +96,6 @@ function accountsCreated( req, res ) {
     
   viewOpts.stale = "ok"; //dont wait for updates
   
-  console.log(viewOpts);
-  
   db.view('accountsCreated', 'v1', viewOpts, function(err, couchRes){
 
     if (err) {
@@ -105,8 +103,6 @@ function accountsCreated( req, res ) {
       res.send(500, { error: err });
       return;
     }
-    
-    console.log(couchRes.rows);
 
 /*
   

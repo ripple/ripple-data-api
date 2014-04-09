@@ -187,7 +187,7 @@ function issuerCapitalization( req, res ) {
          
         } else winston.info("No results for currency:", util.inspect(c));
         
-        if (c.results.length) console.log(c.name, c.issuer, c.results[c.results.length-1]);
+        //if (c.results.length) console.log(c.name, c.issuer, c.results[c.results.length-1]);
         asyncCallbackPair(null, c);
 /*        
         async.map(c.hotwallets, function(hotwallet, asyncCallbackHotwallet){

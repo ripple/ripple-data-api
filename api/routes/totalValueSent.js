@@ -87,28 +87,28 @@ function totalValueSent( req, res ) {
   var conversionPairs = [
     {
       //XRP value of Bitstamp USD
-      base  : {currency: 'XRP'},
-      trade : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+      base    : {currency: 'XRP'},
+      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
     },
     {
       //XRP value of Bitstamp BTC
-      base  : {currency: 'XRP'},
-      trade : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+      base    : {currency: 'XRP'},
+      counter : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
     },
     {
       //XRP value of Snapswap USD
-      base  : {currency: 'XRP'},
-      trade : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
+      base    : {currency: 'XRP'},
+      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
     },
     {
       //XRP value of RippleCN CNY
-      base  : {currency: 'XRP'},
-      trade : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}
+      base    : {currency: 'XRP'},
+      counter : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}
     },
     {
       //XRP value of RippleChina CNY
-      base: {currency: 'XRP'},
-      trade: {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}
+      base    : {currency: 'XRP'},
+      counter : {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}
     }
   ];
   
@@ -200,9 +200,9 @@ function totalValueSent( req, res ) {
 
           if (data.error) return asyncCallbackPair(data.error);
   
-          if (data && data.results && data.results.length > 1) {
-            assetPair.amount = data.results[1][1]; 
-            assetPair.count  = data.results[1][2];
+          if (data && data.length > 1) {
+            assetPair.amount = data[1][1]; 
+            assetPair.count  = data[1][2];
           } else {
             assetPair.amount = 0;
             assetPair.count  = 0;
@@ -216,6 +216,7 @@ function totalValueSent( req, res ) {
 
       if (err) return res.send(500, { error: err });
   
+  
       getExchangeRates(startTime, endTime, conversionPairs, function(err, rates){
         if (err) return res.send(500, { error: err });
         
@@ -228,8 +229,8 @@ function totalValueSent( req, res ) {
         
           //check to see if the pair happens to be the
           //final conversion currency we are looking for
-          if (pair.trade.currency == ex.currency &&
-              pair.trade.issuer   == ex.issuer) finalRate = pair.rate;
+          if (pair.counter.currency == ex.currency &&
+              pair.counter.issuer   == ex.issuer) finalRate = pair.rate;
         });
         
         if (finalRate) finalize();
@@ -294,8 +295,8 @@ function totalValueSent( req, res ) {
   
       require("./offersExercised")({
         body: {
-          base  : assetPair.base,
-          trade : assetPair.trade,
+          base      : assetPair.base,
+          counter   : assetPair.counter,
           startTime : startTime,
           endTime   : endTime,
           timeIncrement: 'all'
@@ -331,7 +332,7 @@ function totalValueSent( req, res ) {
     require("./offersExercised")({
       body: {
         base      : {currency:"XRP"},
-        trade     : {currency:params.currency,issuer:params.issuer},
+        counter   : {currency:params.currency,issuer:params.issuer},
         startTime : params.startTime,
         endTime   : params.endTime,
         timeIncrement : 'all'
