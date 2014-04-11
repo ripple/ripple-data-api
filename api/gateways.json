@@ -113,5 +113,26 @@
             "currencies": ["CNY"]
             }],
         "hotwallets": []
+    }, {
+        "name": "Peercover",
+        "accounts": [{
+            "address": "ra9eZxMbJrUcgV8ui7aPc161FgrqWScQxV",
+            "currencies": ["USD","DOG","BTC","NXT"],
+            "hotwallets": []
+            }]
+    }, {
+        "name": "Ripple Singapore",
+        "accounts": [{
+            "address": "r9Dr5xwkeLegBeXq6ujinjSBLQzQ1zQGjH",
+            "currencies": ["XAU","XAG", "USD"],
+            "hotwallets": []
+            }]
+    }, {
+        "name": "Ripple Trade Japan",
+        "accounts": [{
+            "address": "rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6",
+            "currencies": ["JPY"],
+            "hotwallets": []
+            }]
     }
 ]
