@@ -87,7 +87,7 @@ function offersExercised (params, callback) {
   
   if (CACHE) getCached(function(error, result){
     
-    if (error) return callback ('Cache Error: ' + error);
+    if (error) return callback ('Redis - ' + error);
 
     return fromCouch(); 
   });
@@ -120,7 +120,7 @@ function offersExercised (params, callback) {
       db.view("offersExercisedV2", "v2", view, function (error, couchRes){
     
         if (DEBUG) d = (Date.now()-d)/1000;
-        if (error) return callback ('CouchDB Error: ' + error);       
+        if (error) return callback ('CouchDB - ' + error);       
         handleCouchResponse(couchRes.rows);
       });
     }
@@ -303,7 +303,7 @@ function offersExercised (params, callback) {
 
         //args.unshift(key+":points");
         redis.mset(points, function(error, res){
-          if (error) return callback("Cache error: " + error);
+          if (error) return callback("Redis - " + error);
           if (DEBUG) winston.info(points.length/2 + " points cached");
         });
       }

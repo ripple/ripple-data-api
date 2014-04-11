@@ -98,7 +98,7 @@ function accountsCreated(params, callback) {
   
   db.view('accountsCreated', 'v1', viewOpts, function(error, couchRes){
 
-    if (error) return callback ('CouchDB Error: ' + error);
+    if (error) return callback ('CouchDB - ' + error);
 
 /*
   

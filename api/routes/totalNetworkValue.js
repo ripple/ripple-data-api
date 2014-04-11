@@ -139,7 +139,7 @@ function totalNetworkValue(params, callback) {
     }
  
     redis.get(cacheKey, function(error, response){
-      if (error)      return callback("Cache error: " + error);
+      if (error)      return callback("Redis - " + error);
       if (response) return callback(null, JSON.parse(response));  
       else fromCouch();
     });
@@ -222,7 +222,7 @@ function totalNetworkValue(params, callback) {
           if (CACHE) {
 
             redis.set(cacheKey, JSON.stringify(response), function(error, res){
-              if (error) return callback("Cache error: " + error);
+              if (error) return callback("Redis - " + error);
               
               if (live) redis.expire(cacheKey, 60); //expire in 60 seconds  
               if (DEBUG) winston.info(cacheKey+" cached");
@@ -302,11 +302,11 @@ function totalNetworkValue(params, callback) {
   */  
   function getXRPbalance(callback) {
     db.list({descending:true, startkey:'_c', limit: 1}, function(error, res){
-      if (error) return callback("CouchDB error: " + error);  
+      if (error) return callback("CouchDB - " + error);  
       if (!res.rows.length) return callback("no ledgers saved"); //no ledgers saved;
   
       db.get(res.rows[0].id, function(error, res){
-        if (error) return callback("CouchDB error: " + error);
+        if (error) return callback("CouchDB - " + error);
         return callback(null, res.total_coins / 1000000.0);  
       });
     });

@@ -120,7 +120,7 @@ function issuerCapitalization(params, callback) {
     // Query CouchDB for changes in trustline balances
     db.view('currencyBalances', 'v1', viewOpts, function(error, trustlineRes){
       
-      if (error) return asyncCallbackPair("CouchDB error: " + error);
+      if (error) return asyncCallbackPair("CouchDB - " + error);
 
       c.results = trustlineRes.rows;
       
@@ -134,7 +134,7 @@ function issuerCapitalization(params, callback) {
       
       db.view('currencyBalances', 'v1', initialValueViewOpts, function(error, initValRes){
         
-        if (error) return asyncCallbackPair("CouchDB error: " + error);
+        if (error) return asyncCallbackPair("CouchDB - " + error);
         
         var startCapitalization = 0;
         if (initValRes && initValRes.rows && initValRes.rows.length > 0) {

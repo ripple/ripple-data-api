@@ -107,7 +107,7 @@ function currencyBalances (params, callback) {
   
   console.log(viewOpts);
   db.view_with_list('currencyBalances', 'v1', 'balancesByAccount', viewOpts, function(error, balances) {
-    if (error) return callback ('CouchDB Error: ' + error); 
+    if (error) return callback ('CouchDB - ' + error);
     
     handleResponse(balances);
   });

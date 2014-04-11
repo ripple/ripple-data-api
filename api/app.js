@@ -96,7 +96,6 @@ function requestHandler(req, res) {
   if (apiRoutes[apiRoute]) {
     apiRoutes[apiRoute](req.body, function(err, response){
       if (err) {
-        console.log(err);
         winston.error(err);
         return res.send(500, { error: err });
       }
@@ -115,7 +114,7 @@ function requestHandler(req, res) {
 if (CACHE) {
   redis.flushdb(); //reset cache on restart
   redis.on("error", function (err) {
-    winston.error("Cache Error " + err);
+    winston.error("Redis - " + err);
     CACHE = false; //turn it off if its not workings
   });
   

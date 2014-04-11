@@ -52,7 +52,7 @@ function offers (params, callback) {
   
   db.view("offers", "v1", options.view, function (error, couchRes){
     
-    if (error) return callback ('CouchDB Error: ' + error);
+    if (error) return callback ('CouchDB - ' + error);
     
     handleResponse(couchRes.rows);
   });

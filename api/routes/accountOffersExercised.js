@@ -180,7 +180,7 @@ function accountOffersExercised (params, callback) {
   
   db.view('accountOffersExercised', 'v1', viewOpts, function(error, couchRes) {
     
-    if (error) return callback ('CouchDB Error: ' + error);
+    if (error) return callback ('CouchDB - ' + error);
     
     handleResponse(couchRes.rows);
   });

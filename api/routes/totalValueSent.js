@@ -173,7 +173,7 @@ function totalValueSent(params, callback) {
     }
  
     redis.get(cacheKey, function(error, response){
-      if (error)    return callback("Cache error: " + error);
+      if (error)    return callback("Redis - " + error);
       if (response) return callback(null, JSON.parse(response));  
       else fromCouch();
     });
@@ -272,7 +272,7 @@ function totalValueSent(params, callback) {
           callback(null, response);   
           if (CACHE) {
             redis.set(cacheKey, JSON.stringify(response), function(error, res){
-              if (error) return callback("Cache error: "+ error);
+              if (error) return callback("Redis - "+ error);
               redis.expire(cacheKey, 60); //expire in 60 seconds  
               if (DEBUG) winston.info(cacheKey + " cached");
             });
