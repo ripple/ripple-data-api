@@ -524,7 +524,75 @@ The exchange rates between two or more currencies for a given time range and inc
                 ] 
             }
 
+### market_makers [/market_makers{base}{counter}{range}{startTime}{format}]
+Returns a list of accounts that participated in trading the specified trading pair during the specified time range, ordered by base currency volume.  If no trading pair is provided, the API uses a list of the top XRP markets
 
+#### POST
+
++ Parameters
+    + base (JSON, optional) ... base currency-issuer. If not present, top XRP markets are queried
+    + counter  (JSON, optional) ... counter currency-issuer. Required if base is present
+    + range (string, optional) ... Any of the following ("30d", "7d", "24h")
+    + startTime (string, optional) ... moment.js readable date string
+    + format ('json' or 'csv', optional) ... defaults to a CSV-like array
+    
++ Request (json)
+
+        {
+            base : {
+                currency : "XRP"
+            },
+            counter : {
+                currency : "USD",
+                issuer   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"
+            },
+            range : "24h"
+        }
+        
++ Response 200 (text/plain)
+
+        [
+            ["account","volume","count"],
+            ["rnErNnnxRxpki...",1928.618644523547,8],
+            ["rLqAVKdGpJt2...",1586.0617068572724,5],
+            ["rGEDQD48uACC2...",1318,3],
+            ...
+            ...
+            ...
+        ]
+        
++ Response 200 (json)
+
+        {
+            startTime : "2014-04-09T20:53:30+00:00",
+            endTime   : "2014-04-10T20:53:30+00:00",
+            results   : [
+                {
+                    account : "rwLezhH....",
+                    volume  : 9058276.664807992,
+                    count   : 219
+                },
+                {
+                    account : "rHrSaVx....",
+                    volume  : 4347587.137745989,
+                    count   : 456
+                },
+                .
+                .
+                .
+            ]    
+        }
+
++ Response 200 (csv)
+
+        account, volume, count
+        rwZewhQae..., 9484699.918622022, 245
+        rHrSaQVSj..., 2717824.9351769933, 245
+        rCvBeHsW3..., 2242708.7111989968, 329
+        ...
+        ...
+        ...
+        
 ### total_network_value [/total_network_value{time}{exchange}]
 Total value of currencies for the top gateways on the ripple network, normalized to a specified currrency.
 
