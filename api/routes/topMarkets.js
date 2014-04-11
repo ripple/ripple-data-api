@@ -60,18 +60,18 @@ var winston = require('winston'),
  
  */
 
-function topMarkets( req, res ) {
+function topMarkets(params, callback) {
 
   var cacheKey, viewOpts = {};
-  var ex = req.body.exchange || {currency:"XRP"};
+  var ex = params.exchange || {currency:"XRP"};
   
-  if (typeof ex != 'object')               return res.send(500, {error: 'invalid exchange currency'});
-  else if (!ex.currency)                   return res.send(500, {error: 'exchange currency is required'});
-  else if (typeof ex.currency != 'string') return res.send(500, {error: 'invalid exchange currency'});
+  if (typeof ex != 'object')               return callback('invalid exchange currency');
+  else if (!ex.currency)                   return callback('exchange currency is required');
+  else if (typeof ex.currency != 'string') return callback('invalid exchange currency');
   else if (ex.currency.toUpperCase() != "XRP" && !ex.issuer)
-    return res.send(500, {error: 'exchange issuer is required'});
+    return callback('exchange issuer is required');
   else if (ex.currency == "XRP" && ex.issuer)
-    return res.send(500, {error: 'XRP cannot have an issuer'});
+    return callback('XRP cannot have an issuer');
 
   //these must be traded in terms of XRP - perhaps we can change this later
   var marketPairs = [
@@ -99,7 +99,13 @@ function topMarkets( req, res ) {
       // SnapSwap USD market
       base: {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
       counter: {currency: 'XRP'}
+    },
+    {
+      base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
+      counter: {currency:'XRP'}
     }
+    
+    
   ];
 
 
@@ -107,39 +113,37 @@ function topMarkets( req, res ) {
   //parse startTime and endTime
   var startTime, endTime;
 
-  if (!req.body.startTime && !req.body.endTime) {
+  if (!params.startTime && !params.endTime) {
 
     startTime = moment.utc().subtract('hours', 24);
     endTime   = moment.utc();
 
-  } else if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+  } else if (params.startTime && params.endTime && moment(params.startTime).isValid() && moment(params.endTime).isValid()) {
 
-    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-      startTime = moment.utc(req.body.startTime);
-      endTime   = moment.utc(req.body.endTime);
+    if (moment(params.startTime).isBefore(moment(params.endTime))) {
+      startTime = moment.utc(params.startTime);
+      endTime   = moment.utc(params.endTime);
     } else {
-      endTime   = moment.utc(req.body.startTime);
-      startTime = moment.utc(req.body.endTime);
+      endTime   = moment.utc(params.startTime);
+      startTime = moment.utc(params.endTime);
     }
 
-  } else if (req.body.endTime && moment(req.body.endTime).isValid()) {
+  } else if (params.endTime && moment(params.endTime).isValid()) {
     
-    endTime   = moment.utc(req.body.endTime);
-    startTime = moment.utc(req.body.endTime).subtract('hours', 24);
+    endTime   = moment.utc(params.endTime);
+    startTime = moment.utc(params.endTime).subtract('hours', 24);
     
   } else {
 
-    if (!moment(req.body.startTime).isValid()) {
-      winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
-      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+    if (!moment(params.startTime).isValid()) {
+      return callback('invalid startTime: ' + params.startTime + ' is invalid at: ' + moment(params.startTime).invalidAt());
     }
 
-    if (!moment(req.body.endTime).isValid()) {
-      winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
-      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+    if (!moment(params.endTime).isValid()) {
+      return callback('invalid endTime: ' + params.endTime + ' is invalid at: ' + moment(params.endTime).invalidAt());
     }
 
-    return;
+    return callback("invalid time"); //should never get here
   }  
    
   if (endTime.isBefore(startTime)) { //swap times
@@ -147,7 +151,7 @@ function topMarkets( req, res ) {
     startTime = endTime;
     endTime   = tempTime;
   } else if (endTime.isSame(startTime)) {
-    return res.send(500, { error: 'please provide 2 distinct times'});
+    return callback('please provide 2 distinct times');
   }
   
 
@@ -160,9 +164,9 @@ function topMarkets( req, res ) {
       cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
     }
  
-    redis.get(cacheKey, function(err, response){
-      if (err) winston.error("cache error:", err);
-      if (response) res.send(JSON.parse(response));  
+    redis.get(cacheKey, function(error, response){
+      if (error)    return callback("Cache error: " + error);
+      if (response) return callback(null, JSON.parse(response));  
       else fromCouch();
     });
     
@@ -186,36 +190,31 @@ function topMarkets( req, res ) {
     async.map(marketPairs, function(assetPair, asyncCallbackPair){
   
       require("./offersExercised")({
-        body: {
-          base          : assetPair.base,
-          counter       : assetPair.counter,
-          startTime     : startTime,
-          endTime       : endTime,
-          timeIncrement : 'all'
-        }
-      }, {
-        send: function(data) {
+        base          : assetPair.base,
+        counter       : assetPair.counter,
+        startTime     : startTime,
+        endTime       : endTime,
+        timeIncrement : 'all'
+        
+      }, function (error, data) {
   
-          if (data.error) {
-            asyncCallbackPair(data.error);
-            return;
-          }
-  
-          if (data && data.length > 1) {
-            assetPair.rate   = data[1][8]; // vwavPrice
-            assetPair.count  = data[1][3]; // num trades
-            assetPair.amount = data[1][1]; // amount
-          } else {
-            assetPair.rate   = 0;
-            assetPair.count  = 0;
-            assetPair.amount = 0;
-          }
-          asyncCallbackPair(null, assetPair);
+        if (error) return asyncCallbackPair(error);
+
+        if (data && data.length > 1) {
+          assetPair.rate   = data[1][8]; // vwavPrice
+          assetPair.count  = data[1][3]; // num trades
+          assetPair.amount = data[1][1]; // amount
+        } else {
+          assetPair.rate   = 0;
+          assetPair.count  = 0;
+          assetPair.amount = 0;
         }
+        asyncCallbackPair(null, assetPair);
+        
       });
   
-    }, function(err, pairs) {
-      if (err) return res.send(500, { error: err });
+    }, function(error, pairs) {
+      if (error) return callback(error);
       
       var exchangeRate;
       
@@ -237,8 +236,8 @@ function topMarkets( req, res ) {
           endTime   : endTime,
           currency  : ex.currency,
           issuer    : ex.issuer
-        }, function(err,rate){
-          if (err) return res.send(500, { error: err });
+        }, function(error, rate){
+          if (error) return callback(error);
           exchangeRate = rate;
           finalize(); 
         });
@@ -258,14 +257,15 @@ function topMarkets( req, res ) {
         response.count        = count;
         response.components   = pairs;
         
-        res.send(response);  
+        callback(null, response);
+          
         if (CACHE) {
-          redis.set(cacheKey, JSON.stringify(response), function(err, res){
-            if (err) winston.error("cache error:", err);
-            else {
-              redis.expire(cacheKey, 60); //expire in 60 seconds 
-              if (DEBUG) winston.info(cacheKey + " cached");
-            } 
+          redis.set(cacheKey, JSON.stringify(response), function(error, res){
+            if (error) return callback("Cache error: " + error);
+            
+            redis.expire(cacheKey, 60); //expire in 60 seconds 
+            if (DEBUG) winston.info(cacheKey + " cached");
+            
           });
         }     
       }  
@@ -281,21 +281,19 @@ function topMarkets( req, res ) {
     
     // Mimic calling offersExercised 
     require("./offersExercised")({
-      body: {
-        base      : {currency:"XRP"},
-        counter     : {currency:params.currency,issuer:params.issuer},
-        startTime : params.startTime,
-        endTime   : params.endTime,
-        timeIncrement : 'all'
-      }
-    }, {
-      send: function(data) {
+      base      : {currency:"XRP"},
+      counter     : {currency:params.currency,issuer:params.issuer},
+      startTime : params.startTime,
+      endTime   : params.endTime,
+      timeIncrement : 'all'
+      
+    }, function(error, data) {
   
-        if (data.error) return callback(data.error);
-        if (data && data.length > 1) 
-             callback(null,data[1][8]); // vwavPrice
-        else callback({error:"cannot determine exchange rate"});
-      }
+      if (error) return callback(error);
+      if (data && data.length > 1) 
+           callback(null,data[1][8]); // vwavPrice
+      else callback("cannot determine exchange rate");
+      
     });    
   }
 }

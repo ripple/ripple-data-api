@@ -43,23 +43,16 @@ var winston = require('winston'),
     }' http://localhost:5993/api/offers 
  * 
  */
-function offers ( req, res ) {
+function offers (params, callback) {
   var options  = {};
   options.view = {};
   parseOptions(); //parse request params for query options
   
-  if (options.error) {
-    winston.error(options.error);
-    res.send(500, { error: options.error });
-    return;
-  }  
+  if (options.error) return callback(options.error);  
   
-  db.view("offers", "v1", options.view, function (err, couchRes){
-    if (err) {
-      winston.error('Error with request: ' + err);
-      res.send(500, { error: err });
-      return;
-    }
+  db.view("offers", "v1", options.view, function (error, couchRes){
+    
+    if (error) return callback ('CouchDB Error: ' + error);
     
     handleResponse(couchRes.rows);
   });
@@ -72,17 +65,17 @@ function offers ( req, res ) {
  */  
   function handleResponse (rows) {  
     
-    if (req.body.format === 'json') {
+    if (params.format === 'json') {
       var response = {
-        base          : req.body.base,
-        counter       : req.body.counter,
+        base          : params.base,
+        counter       : params.counter,
         startTime     : options.startTime.format(),
         endTime       : options.endTime.format(),
-        timeIncrement : req.body.timeIncrement,
+        timeIncrement : params.timeIncrement,
         results       : []
       };
       
-      if (req.body.timeIncrement) response.timeIncrement = req.body.timeIncrement;
+      if (params.timeIncrement) response.timeIncrement = params.timeIncrement;
 
       rows.forEach(function(row){
       
@@ -107,7 +100,7 @@ function offers ( req, res ) {
         }
       });     
       
-      res.send(response);
+      return callback(null, response);
       
     } else {
       
@@ -133,21 +126,21 @@ function offers ( req, res ) {
         results.push(value);
       }); 
       
-      if (req.body.format === 'csv') {
+      if (params.format === 'csv') {
 
         var csvStr = _.map(results, function(row){
           return row.join(', ');
         }).join('\n');
   
         // provide output as CSV
-        res.end(csvStr);
+        return callback(null, csvStr);
       
-      } else res.send(results);
+      } else return callback(null, results);
     }
   }
   
   function parseOptions() {
-     if (!req.body.base || !req.body.counter) {
+     if (!params.base || !params.counter) {
       options.error = 'please specify base and counter currencies';
       return;
     }
@@ -155,62 +148,62 @@ function offers ( req, res ) {
     // parse base currency details
     var base, counter;
     
-    if (!req.body.base.currency) {
+    if (!params.base.currency) {
         options.error = 'please specify a base currency';
         return;
       
-    } else if (!req.body.base.issuer) {
+    } else if (!params.base.issuer) {
       
-      if (req.body.base.currency.toUpperCase() === 'XRP') {
+      if (params.base.currency.toUpperCase() === 'XRP') {
         options.base = 'XRP';
       } else {
         options.error = 'must specify issuer for all currencies other than XRP';
         return;
       }
       
-    } else if (req.body.base.issuer && ripple.UInt160.is_valid(req.body.base.issuer)) {
-      options.base = req.body.base.currency.toUpperCase()+"."+req.body.base.issuer;
+    } else if (params.base.issuer && ripple.UInt160.is_valid(params.base.issuer)) {
+      options.base = params.base.currency.toUpperCase()+"."+params.base.issuer;
       
     } else {
-      var baseGatewayAddress = gatewayNameToAddress(req.body.base.issuer, req.body.base.currency.toUpperCase());
+      var baseGatewayAddress = gatewayNameToAddress(params.base.issuer, params.base.currency.toUpperCase());
       if (baseGatewayAddress) {
-        options.base = req.body.base.currency.toUpperCase()+"."+baseGatewayAddress;
+        options.base = params.base.currency.toUpperCase()+"."+baseGatewayAddress;
         
       } else {
-        options.error = 'invalid base currency issuer: ' + req.body.base.issuer;
+        options.error = 'invalid base currency issuer: ' + params.base.issuer;
         return;
       }
     }
   
     // parse counter currency details
-    if (!req.body.base.currency) {
+    if (!params.base.currency) {
       options.error = 'please specify a base currency';
       return;
       
-    } else if (!req.body.counter.issuer) {
-      if (req.body.counter.currency.toUpperCase()  === 'XRP') {
+    } else if (!params.counter.issuer) {
+      if (params.counter.currency.toUpperCase()  === 'XRP') {
         options.counter = 'XRP';
       } else {
         options.error = 'must specify issuer for all currencies other than XRP';
         return;
       }
-    } else if (req.body.counter.issuer && ripple.UInt160.is_valid(req.body.counter.issuer)) {
-      options.counter = req.body.counter.currency.toUpperCase()+"."+req.body.counter.issuer;
+    } else if (params.counter.issuer && ripple.UInt160.is_valid(params.counter.issuer)) {
+      options.counter = params.counter.currency.toUpperCase()+"."+params.counter.issuer;
       
     } else {
-      var counterGatewayAddress = gatewayNameToAddress(req.body.counter.issuer, req.body.counter.currency.toUpperCase());
+      var counterGatewayAddress = gatewayNameToAddress(params.counter.issuer, params.counter.currency.toUpperCase());
       if (counterGatewayAddress) {
-        options.counter = req.body.counter.currency.toUpperCase()+"."+counterGatewayAddress;
+        options.counter = params.counter.currency.toUpperCase()+"."+counterGatewayAddress;
         
       } else {
-        options.error = 'invalid counter currency issuer: ' + req.body.counter.issuer;
+        options.error = 'invalid counter currency issuer: ' + params.counter.issuer;
         return;
       }
     }
     
   
     //Parse start and end times
-    var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+    var time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
     
     if (time.error) {
       options.error = time.error;
@@ -226,26 +219,26 @@ function offers ( req, res ) {
     
     
     //parse time increment and time multiple
-    var results = tools.parseTimeIncrement(req.body.timeIncrement);  
+    var results = tools.parseTimeIncrement(params.timeIncrement);  
     options.multiple = results.group_multiple;
 
         //set reduce option only if its false
-    if (results.group_level)            options.view.group_level = results.group_level + 2;
-    else if (req.body.reduce === false) options.view.reduce      = false;
+    if (results.group_level)          options.view.group_level = results.group_level + 2;
+    else if (params.reduce === false) options.view.reduce      = false;
   
     if (options.view.reduce===false) {
-      if (req.body.limit  && !isNaN(req.body.limit))  options.view.limit = parseInt(req.body.limit, 10);
-      if (req.body.offset && !isNaN(req.body.offset)) options.view.skip  = parseInt(req.body.offset, 10);
+      if (params.limit  && !isNaN(params.limit))  options.view.limit = parseInt(params.limit, 10);
+      if (params.offset && !isNaN(params.offset)) options.view.skip  = parseInt(params.offset, 10);
     } 
         
-    if (req.body.limit && typeof req.body.limit == "number") {
-      options.view.limit = req.body.limit;
+    if (params.limit && typeof params.limit == "number") {
+      options.view.limit = params.limit;
     }
 
     // set startkey and endkey for couchdb query
     options.view.startkey   = [options.counter+":"+options.base].concat(options.startTime.toArray().slice(0,6));
     options.view.endkey     = [options.counter+":"+options.base].concat(options.endTime.toArray().slice(0,6));
-    options.view.descending = req.body.descending || false; 
+    options.view.descending = params.descending || false; 
   }
 } 
 

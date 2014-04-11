@@ -7,7 +7,7 @@ var winston = require('winston'),
 /**
  *  accountTransactions returns transactions in which an account sent or received an amount.
  * 
- *  expects req.body to have:
+ *  expects params to have:
  *  {
  *    account: //ripple address of the account to query
  *    startTime: (any momentjs-readable date), // optional
@@ -48,17 +48,17 @@ var winston = require('winston'),
  * 
  */
 
-function accountTransactions( req, res ) {
+function accountTransactions(params, callback) {
 
   var viewOpts = {};
 
-  if (!req.body.account) return res.send(500, { error: "please provide a valid ripple account"});
-  var account = req.body.account; 
+  if (!params.account) return callback("please provide a valid ripple account");
+  var account = params.account; 
   
   //Parse start and end times
-  var range = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
-  if (range.error)  return res.send(500, { error: range.error });  
+  if (range.error)  return callback(range.error);  
   if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
   
@@ -66,24 +66,20 @@ function accountTransactions( req, res ) {
   viewOpts.startkey = [account].concat(range.start.toArray().slice(0,6));
   viewOpts.endkey   = [account].concat(range.end.toArray().slice(0,6));
   
-  if (req.body.descending) viewOpts.descending = true;
+  if (params.descending) viewOpts.descending = true;
   
   viewOpts.reduce = false; //view has no reduce function
   
   if (viewOpts.reduce===false) {
-    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
-    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
+    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
   }
   
   viewOpts.stale = "ok"; //dont wait for updates
   
-  db.view('accountTransactions', 'v1', viewOpts, function(err, couchRes){
+  db.view('accountTransactions', 'v1', viewOpts, function(error, couchRes){
 
-    if (err) {
-      winston.error('Error with request: ' + err);
-      res.send(500, { error: err });
-      return;
-    }
+    if (error) return callback ('CouchDB Error: ' + error);
   
     handleResponse(couchRes.rows);
   });
@@ -96,7 +92,7 @@ function accountTransactions( req, res ) {
         
     var response, stats = {}, transactions = [];
 
-    if (req.body.format === 'json') {
+    if (params.format === 'json') {
       
       rows.forEach( function( row, index ) {
         var value = row.value;
@@ -142,7 +138,7 @@ function accountTransactions( req, res ) {
         transactions   : transactions
       }
       
-      res.send(response);
+      return callback(null, response);
       
     } else {
         response = [["currency","issuer","type","amount","counterparty","time","txHash","ledgerIndex"]];
@@ -159,18 +155,18 @@ function accountTransactions( req, res ) {
           ]);
         });
               
-      if (req.body.format == 'csv') {
+      if (params.format == 'csv') {
         var csvStr = _.map(response, function(row){
           return row.join(', ');
         }).join('\n');
 
         // provide output as CSV
-        res.end(csvStr);   
+        return callback(null, csvStr);   
            
       } else {
         
         //default response
-        res.send(response);
+        return callback(null, response);
       }
     }
   }

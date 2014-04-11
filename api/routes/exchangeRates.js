@@ -8,7 +8,7 @@ var moment = require('moment'),
  *  exchangeRates returns the exchange rate(s) between two or more currencies
  *  for a given time range, broken down by the given time increment
  *
- *  expects req.body to have:
+ *  expects params to have:
  *  {
  *    pairs    : [
  *      {
@@ -51,10 +51,10 @@ var moment = require('moment'),
 
  */
 
-function exchangeRates ( req, res) {
+function exchangeRates (params, callback) {
   var pairs, list = [];
   var endTime = moment.utc();
-  var range   = req.body.range || "day"; 
+  var range   = params.range || "day"; 
   
   if (range=="hour")       startTime = moment.utc().subtract("hours", 1);
   else if (range=="day")   startTime = moment.utc().subtract("days", 1);
@@ -64,16 +64,16 @@ function exchangeRates ( req, res) {
   else { 
     
     //invalid range
-    res.send(500, { error: 'invalid time range' }); 
+    return callback('invalid time range'); 
   }
   
-  if (req.body.pairs && Array.isArray(req.body.pairs)) 
-    pairs = req.body.pairs;
-  else if (req.body.base && req.body.counter) 
-    pairs = [{base:req.body.base,counter:req.body.counter}];
+  if (params.pairs && Array.isArray(params.pairs)) 
+    pairs = params.pairs;
+  else if (params.base && params.counter) 
+    pairs = [{base:params.base,counter:params.counter}];
   else {
     //pairs or base and counter required
-    res.send(500, { error: 'please specify a list of currency pairs or a base and counter currency'});
+    return callback('please specify a list of currency pairs or a base and counter currency');
   }
   
   pairs.forEach(function(pair){
@@ -82,7 +82,7 @@ function exchangeRates ( req, res) {
     if (currencyPair) list.push(currencyPair);
     else { 
       //invalid currency pair
-      res.send(500, { error: 'invalid currency pair: ' + JSON.stringify(pair) });
+      return callback('invalid currency pair: ' + JSON.stringify(pair));
     }
   });
   
@@ -91,20 +91,15 @@ function exchangeRates ( req, res) {
   async.mapLimit(list, 10, function(pair, asyncCallbackPair){
 
     require("./offersExercised")({
-      body: {
         base      : pair.base,
-        counter     : pair.counter,
+        counter   : pair.counter,
         startTime : startTime,
         endTime   : endTime,
         timeIncrement : 'all'
-      }
-    }, {
-      send: function(data) {
 
-        if (data.error) {
-          asyncCallbackPair(data.error);
-          return;
-        }
+    }, function(error, data) {
+
+        if (error) return asyncCallbackPair(error);
 
         if (data && data.length > 1) {
           pair.rate = data[1][8]; // volume weighted average price
@@ -113,17 +108,13 @@ function exchangeRates ( req, res) {
           pair.rate = 0;
         }
         asyncCallbackPair(null, pair);
-      }
     });
 
-  }, function(err, results){
-    if (err) {
-      res.send(500, { error: err });
-      return;
-    }
+  }, function(error, results){
+    if (error) return callback(error);
 
     var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
-    res.send(finalResults);
+    return callback (null, finalResults);
   });
 }
 
@@ -174,191 +165,4 @@ function parseCurrency (c) {
 
 
 
-/* DEPRECIATED
-  
- 
-function exchangeRatesHandler( req, res ) {
-
-  var startTime = moment().subtract('weeks', 1),
-    endTime = moment();
-
-  var gateways = [],
-    currencies = [],
-    gatewayCurrencyPairs = [];
-
-  // Parse gateways
-  if (typeof req.body.gateways === 'object') {
-
-    req.body.gateways.forEach(function(gateway){
-      var parsedGateway = parseGateway(gateway);
-      if (parsedGateway) {
-        gateways.push(parsedGateway);
-      } else {
-        res.send(500, { error: 'invalid or unknown gateway: ' + gateway });
-        return;
-      }
-    });
-
-  }
-
-  function parseGateway (nameOrAddress) {
-    // Check if gateway is a name or an address
-    if (ripple.UInt160.is_valid(nameOrAddress)) {
-
-      var gatewayName = getGatewayName(nameOrAddress);
-      if (gatewayName !== '') {
-        return parseGateway(gatewayName)
-      } else {
-        return { address: nameOrAddress };        
-      }
-
-    } else if (gatewayNameToAddress(nameOrAddress)){
-      var gateway = {
-        name: nameOrAddress, 
-        address: gatewayNameToAddress(nameOrAddress)
-      },
-      hotwallets = getHotWalletsForGateway(nameOrAddress);
-
-      if (hotwallets.length > 0) {
-        gateway.hotwallets = hotwallets;
-      }
-
-      return gateway;
-    } else {
-      return null;
-    }
-  }
-
-  // Parse currencies
-  var includeXRP = false;
-  if (typeof req.body.currencies === 'object') {
-    req.body.currencies.forEach(function(currency){
-      if (currency === 'XRP') {
-        includeXRP = true;
-      } else {
-        currencies.push(currency.toUpperCase());
-      }
-    });
-  }
-
-
-  // Get gateway/currency pairs to query CouchDB for
-  if (gateways.length > 0 && currencies.length > 0) {
-    gateways.forEach(function(gateway){
-      currencies.forEach(function(currency){
-        var pair = { 
-          address: gateway.address,
-          currency: currency
-        };
-        if (gateway.name) {
-          pair.name = gateway.name;
-        }
-        if (gateway.hotwallets && gateway.hotwallets.length > 0) {
-          pair.hotwallets = gateway.hotwallets;
-        }
-        gatewayCurrencyPairs.push(pair);
-      });
-    });
-  } else if (gateways.length > 0 && currencies.length === 0) {
-
-    if (_.every(gateways, function(gateway){ return gateway.name; })) {
-      gateways.forEach(function(gateway){
-        getCurrenciesForGateway(gateway.name).forEach(function(currency){
-          gatewayCurrencyPairs.push({
-            address: gateway.address,
-            currency: currency,
-            name: gateway.name,
-            hotwallets: gateway.hotwallets
-          });
-        });
-      });
-    } else {
-      res.send(500, { error: 'please specify currencies or use gateway names instead of accounts' });
-      return;
-    }
-
-  } else if (gateways.length === 0 && currencies.length > 0) {
-
-    currencies.forEach(function(currency){
-      getGatewaysForCurrency(currency).forEach(function(gateway){
-        gatewayCurrencyPairs.push({
-          address: gateway.account,
-          currency: currency,
-          name: gateway.name,
-          hotwallets: getHotWalletsForGateway(gateway.name)
-        });
-      });
-    });
-
-  } else {
-    res.send(500, { error: 'please specify at least one gateway and/or at least one currency'});
-    return;
-  }
-
-  var assetPairs = [];
-
-  for (var t = 0; t < gatewayCurrencyPairs.length; t++) {
-    var counter = gatewayCurrencyPairs[t];
-
-    if (includeXRP) {
-      assetPairs.push({
-        base: {currency: 'XRP'},
-        counter: {currency: counter.currency, issuer: counter.address}
-      });
-    }
-
-    for (var b = t + 1; b < gatewayCurrencyPairs.length; b++) {
-      var base = gatewayCurrencyPairs[b];
-
-      if (base) {
-        assetPairs.push({
-          base: {currency: base.currency, issuer: base.address},
-          counter: {currency: counter.currency, issuer: counter.address}
-        });
-      }
-    }
-  }
-
-  // Mimic calling offersExercised for each asset pair
-  async.mapLimit(assetPairs, 10, function(assetPair, asyncCallbackPair){
-
-    require("./routes/offersExercised")({
-      body: {
-        base: assetPair.base,
-        counter: assetPair.counter,
-        startTime: startTime,
-        endTime: endTime,
-        timeIncrement: 'all'
-      }
-    }, {
-      send: function(data) {
-
-        if (data.error) {
-          asyncCallbackPair(data.error);
-          return;
-        }
-
-        if (data && data.length > 1) {
-          assetPair.rate = data[1][8]; // vwavPrice
-        } else {
-          assetPair.rate = 0;
-        }
-        asyncCallbackPair(null, assetPair);
-      }
-    });
-
-  }, function(err, results){
-    if (err) {
-      res.send(500, { error: err });
-      return;
-    }
-
-    var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
-
-    res.send(finalResults);
-  });
-
-
-}
-*/
 module.exports = exchangeRates;

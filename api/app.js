@@ -47,6 +47,7 @@ var apiRoutes = {
   'offers'                  : require("./routes/offers"),
   'offersexercised'         : require("./routes/offersExercised"),
   'topmarkets'              : require("./routes/topMarkets"),
+  'marketmakers'            : require("./routes/marketMakers"),
   'accountscreated'         : require("./routes/accountsCreated"),
   'issuercapitalization'    : require("./routes/issuerCapitalization"),
   'currencybalances'        : require("./routes/currencyBalances"),
@@ -57,9 +58,9 @@ var apiRoutes = {
   'accounttransactions'     : require("./routes/accountTransactions"),
   'accounttransactionstats' : require("./routes/accountTransactionStats"),
   'accountoffersexercised'  : require("./routes/accountOffersExercised"),
+  'accounttrust'            : require("./routes/accountTrust"),
   'transactionstats'        : require("./routes/transactionStats"),
   'ledgersclosed'           : require("./routes/ledgersClosed"),
-  'gettransaction'          : require("./routes/getTransaction"), //is this useable?
 };
 
 
@@ -92,8 +93,18 @@ function requestHandler(req, res) {
   else  apiRoute = path.toLowerCase().replace(/_/g, "");
   
   
-  if (apiRoutes[apiRoute]) apiRoutes[apiRoute](req, res);
-  else {
+  if (apiRoutes[apiRoute]) {
+    apiRoutes[apiRoute](req.body, function(err, response){
+      if (err) {
+        console.log(err);
+        winston.error(err);
+        return res.send(500, { error: err });
+      }
+      
+      res.send(200, response);  
+    });
+    
+  } else {
     
     res.send(404, 'Sorry, that API route doesn\'t seem to exist.'+
       ' Available paths are: ' + 
@@ -104,9 +115,15 @@ function requestHandler(req, res) {
 if (CACHE) {
   redis.flushdb(); //reset cache on restart
   redis.on("error", function (err) {
-    console.log("Error " + err);
+    winston.error("Cache Error " + err);
     CACHE = false; //turn it off if its not workings
-  });  
+  });
+  
+  //on connect, get last 10 minutes of ledger closes.  Walk forward
+  //to see if they are all consecutive. If they are not consecutive,
+  //save the last consecutive ledger index and close time.  This will 
+  //be the point from which we determine whether or not we are caught up
+      
 }
 
 

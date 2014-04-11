@@ -106,35 +106,35 @@ var winston = require('winston'),
 
 
 
-function valueSent( req, res ) {
+function valueSent(params, callback) {
 
   //parse currency and issuer  
-  var currency = req.body.currency ? req.body.currency.toUpperCase() : "";
-  var issuer   = req.body.issuer   ? req.body.issuer : "";
+  var currency = params.currency ? params.currency.toUpperCase() : "";
+  var issuer   = params.issuer   ? params.issuer : "";
    
-  if (!currency) return res.send(500, "currency is required");
-  if (currency != "XRP" && !issuer) return res.send(500, "issuer is required");
+  if (!currency)                    return callback("currency is required");
+  if (currency != "XRP" && !issuer) return callback("issuer is required");
 
 
     
   //Parse start and end times
-  var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
 
-  if (time.error) return res.send(500, { error: time.error });
+  if (time.error) return callback(time.error);
 
   if (!time.start || !time.end) {
-   return res.send(500, {error:"startTime and endTime are required."});
+   return callback("startTime and endTime are required.");
   }
       
   var startTime = time.start;
   var endTime   = time.end;
 
   //parse time increment and time multiple
-  var results        = tools.parseTimeIncrement(req.body.timeIncrement);  
+  var results        = tools.parseTimeIncrement(params.timeIncrement);  
   var group_multiple = results.group_multiple;
   
-  if (typeof req.body.timeMultiple === 'number') {
-    group_multiple = group_multiple ? group_multiple*req.body.timeMultiple : req.body.timeMultiple;
+  if (typeof params.timeMultiple === 'number') {
+    group_multiple = group_multiple ? group_multiple*params.timeMultiple : params.timeMultiple;
   } else {
     group_multiple = 1;
   }  
@@ -149,18 +149,18 @@ function valueSent( req, res ) {
  
   //set reduce option only if its false
   if (results.group_level)            viewOpts.group_level = results.group_level + 3;
-  else if (req.body.reduce === false) viewOpts.reduce      = false;
+  else if (params.reduce === false) viewOpts.reduce      = false;
   
   if (viewOpts.reduce===false) {
-    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
-    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
+    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
   }
   
   viewOpts.stale = "ok"; //dont wait for updates
   
   //Query CouchDB with the determined viewOpts
-  db.view('valueSentV2', 'v1', viewOpts, function(err, couchRes) {
-    if (err) return res.send(500, err);
+  db.view('valueSentV2', 'v1', viewOpts, function(error, couchRes) {
+    if (error) return callback ('CouchDB Error: ' + error);
     
     handleResponse(couchRes.rows);
   });
@@ -173,13 +173,13 @@ function valueSent( req, res ) {
  */  
   function handleResponse (rows) {   
     
-    if (req.body.format === 'json') { 
+    if (params.format === 'json') { 
       var response = {
         currency      : currency,
         issuer        : issuer,
         startTime     : startTime.format(),
         endTime       : endTime.format(),  
-        timeIncrement : req.body.timeIncrement,
+        timeIncrement : params.timeIncrement,
         results       : []
       };
       
@@ -203,7 +203,7 @@ function valueSent( req, res ) {
         } 
       });
       
-      res.send(response);
+      return callback(null, response);
          
     } else {
       
@@ -223,18 +223,18 @@ function valueSent( req, res ) {
       rows.unshift(header);  
 
       
-      if (req.body.format === 'csv') {
+      if (params.format === 'csv') {
 
         var csvStr = _.map(rows, function(row){
           return row.join(', ');
         }).join('\n');
   
         // provide output as CSV
-        res.end(csvStr);
+        return callback(null, csvStr);
 
       } else {
         //no format or incorrect format specified
-        res.send(rows); 
+        return callback(null, rows); 
       }
     }
   }

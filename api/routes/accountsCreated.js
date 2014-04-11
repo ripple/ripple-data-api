@@ -6,7 +6,7 @@ var winston = require('winston'),
   
 /**
  *  accountsCreated returns the number of accounts created per time increment
- *  expects req.body to have:
+ *  expects params to have:
  *  {
  *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
  *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
@@ -65,14 +65,14 @@ var winston = require('winston'),
  */
 
 
-function accountsCreated( req, res ) {
+function accountsCreated(params, callback) {
 
   var viewOpts = {};
 
   //Parse start and end times
-  var range = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
-  if (range.error) return res.send(500, { error: range.error });  
+  if (range.error) return callback(range.error);  
   if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
   
@@ -80,29 +80,25 @@ function accountsCreated( req, res ) {
   viewOpts.startkey = range.start.toArray().slice(0,6);
   viewOpts.endkey   = range.end.toArray().slice(0,6);
   
-  if (req.body.descending) viewOpts.descending = true;
+  if (params.descending) viewOpts.descending = true;
   
   //parse time increment and time multiple
-  var results = tools.parseTimeIncrement(req.body.timeIncrement);  
+  var results = tools.parseTimeIncrement(params.timeIncrement);  
 
   //set reduce option only if its false
   if (results.group_level)            viewOpts.group_level = results.group_level + 1;
-  else if (req.body.reduce === false) viewOpts.reduce      = false;
+  else if (params.reduce === false) viewOpts.reduce      = false;
 
   if (viewOpts.reduce===false) {
-    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
-    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
+    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
   }
     
   viewOpts.stale = "ok"; //dont wait for updates
   
-  db.view('accountsCreated', 'v1', viewOpts, function(err, couchRes){
+  db.view('accountsCreated', 'v1', viewOpts, function(error, couchRes){
 
-    if (err) {
-      winston.error('Error with request: ' + err);
-      res.send(500, { error: err });
-      return;
-    }
+    if (error) return callback ('CouchDB Error: ' + error);
 
 /*
   
@@ -159,7 +155,7 @@ function accountsCreated( req, res ) {
       
       if (couchRes.rows.length)  {    
 
-        var index = req.body.descending === false ? 0 : couchRes.rows.length-1;
+        var index = params.descending === false ? 0 : couchRes.rows.length-1;
         var time  = moment.utc(couchRes.rows[index].key);
 
         if (time.format("YYY-MM-DD")==genTime.format("YYY-MM-DD")) {
@@ -195,11 +191,11 @@ function accountsCreated( req, res ) {
  */  
   function handleResponse (rows) {
     
-    if (req.body.format === 'json') { 
+    if (params.format === 'json') { 
       var response = {
         startTime      : range.start.format(),
         endTime        : range.end.format(),
-        timeIncrement  : req.body.timeIncrement,
+        timeIncrement  : params.timeIncrement,
         total          : 0
       }
         
@@ -215,7 +211,7 @@ function accountsCreated( req, res ) {
           });
         });
               
-      } else if (req.body.timeIncrement) {
+      } else if (params.timeIncrement) {
 
         response.results = [];
         rows.forEach(function(row){
@@ -231,8 +227,7 @@ function accountsCreated( req, res ) {
       }
       
       
-      res.send(response);
-      return;
+      return callback (null, response);
       
     } else {
       var data = [];
@@ -248,7 +243,7 @@ function accountsCreated( req, res ) {
           ]); 
         });       
         
-      } else if (req.body.timeIncrement) {
+      } else if (params.timeIncrement) {
         data.push(["time","count"]);
         rows.forEach(function(row){
           data.push([
@@ -259,19 +254,19 @@ function accountsCreated( req, res ) {
         
       } else res.send(rows[0] ? rows[0].value.toString() : 0);
       
-      if (req.body.format === 'csv') {
+      if (params.format === 'csv') {
 
         var csvStr = _.map(data, function(row){
           return row.join(', ');
         }).join('\n');
   
         // provide output as CSV
-        res.end(csvStr);
+        return callback(null, csvStr);
 
 
       } else {
         //no format or incorrect format specified
-        res.send(data);      
+        return callback(null, data);      
       } 
     }
   }

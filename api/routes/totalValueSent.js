@@ -58,18 +58,18 @@ var winston = require('winston'),
  
  */
 
-function totalValueSent( req, res ) {
+function totalValueSent(params, callback) {
 
   var cachKey, viewOpts = {};
-  var ex = req.body.exchange || {currency:"XRP"};
+  var ex = params.exchange || {currency:"XRP"};
   
-  if (typeof ex != 'object')               return res.send(500, {error: 'invalid exchange currency'});
-  else if (!ex.currency)                   return res.send(500, {error: 'exchange currency is required'});
-  else if (typeof ex.currency != 'string') return res.send(500, {error: 'invalid exchange currency'});
+  if (typeof ex != 'object')               return callback('invalid exchange currency');
+  else if (!ex.currency)                   return callback('exchange currency is required');
+  else if (typeof ex.currency != 'string') return callback('invalid exchange currency');
   else if (ex.currency.toUpperCase() != "XRP" && !ex.issuer)
-    return res.send(500, {error: 'exchange issuer is required'});
+    return callback('exchange issuer is required');
   else if (ex.currency == "XRP" && ex.issuer)
-    return res.send(500, {error: 'XRP cannot have an issuer'});
+    return callback('XRP cannot have an issuer');
  
  
   //all currencies we are going to check    
@@ -79,6 +79,7 @@ function totalValueSent( req, res ) {
     {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap USD
     {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //RippleCN CNY
     {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}, //RippleChina CNY
+    {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}, //RippleTradeJapan JPY
     {currency: 'XRP'}
   ];
  
@@ -109,6 +110,11 @@ function totalValueSent( req, res ) {
       //XRP value of RippleChina CNY
       base    : {currency: 'XRP'},
       counter : {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}
+    },
+    {
+      //XRP value of RippleTradeJapan JPY
+      base    : {currency: 'XRP'},
+      counter : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}
     }
   ];
   
@@ -116,36 +122,34 @@ function totalValueSent( req, res ) {
   //parse startTime and endTime
   var startTime, endTime;
 
-  if (!req.body.startTime && !req.body.endTime) {
+  if (!params.startTime && !params.endTime) {
 
     startTime = moment.utc().subtract('hours', 24);
     endTime   = moment.utc();
 
-  } else if (req.body.startTime && req.body.endTime && moment(req.body.startTime).isValid() && moment(req.body.endTime).isValid()) {
+  } else if (params.startTime && params.endTime && moment(params.startTime).isValid() && moment(params.endTime).isValid()) {
 
-    if (moment(req.body.startTime).isBefore(moment(req.body.endTime))) {
-      startTime = moment.utc(req.body.startTime);
-      endTime   = moment.utc(req.body.endTime);
+    if (moment(params.startTime).isBefore(moment(params.endTime))) {
+      startTime = moment.utc(params.startTime);
+      endTime   = moment.utc(params.endTime);
     } else {
-      endTime   = moment.utc(req.body.startTime);
-      startTime = moment.utc(req.body.endTime);
+      endTime   = moment.utc(params.startTime);
+      startTime = moment.utc(params.endTime);
     }
 
-  } else if (req.body.endTime && moment(req.body.endTime).isValid()) {
+  } else if (params.endTime && moment(params.endTime).isValid()) {
     
-    endTime   = moment.utc(req.body.endTime);
-    startTime = moment.utc(req.body.endTime).subtract('hours', 24);
+    endTime   = moment.utc(params.endTime);
+    startTime = moment.utc(params.endTime).subtract('hours', 24);
     
   } else {
 
-    if (!moment(req.body.startTime).isValid()) {
-      winston.error('invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt());
-      res.send(500, { error: 'invalid startTime: ' + req.body.startTime + ' is invalid at: ' + moment(req.body.startTime).invalidAt() });
+    if (!moment(params.startTime).isValid()) {
+      return callback('invalid startTime: ' + params.startTime + ' is invalid at: ' + moment(params.startTime).invalidAt());
     }
 
-    if (!moment(req.body.endTime).isValid()) {
-      winston.error('invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt());
-      res.send(500, { error: 'invalid endTime: ' + req.body.endTime + ' is invalid at: ' + moment(req.body.endTime).invalidAt() });
+    if (!moment(params.endTime).isValid()) {
+      return callback('invalid endTime: ' + params.endTime + ' is invalid at: ' + moment(params.endTime).invalidAt());
     }
 
     return;
@@ -156,7 +160,7 @@ function totalValueSent( req, res ) {
     startTime = endTime;
     endTime   = tempTime;
   } else if (endTime.isSame(startTime)) {
-    return res.send(500, { error: 'please provide 2 distinct times'});
+    return callback('please provide 2 distinct times');
   }
     
   if (CACHE) {
@@ -168,9 +172,9 @@ function totalValueSent( req, res ) {
       cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
     }
  
-    redis.get(cacheKey, function(err, response){
-      if (err) winston.error("cache error:", err);
-      if (response) res.send(JSON.parse(response));  
+    redis.get(cacheKey, function(error, response){
+      if (error)    return callback("Cache error: " + error);
+      if (response) return callback(null, JSON.parse(response));  
       else fromCouch();
     });
     
@@ -189,36 +193,33 @@ function totalValueSent( req, res ) {
     async.map(currencies, function(assetPair, asyncCallbackPair){
   
       require("./valueSent")({
-        body: {
-          currency  : assetPair.currency,
-          issuer    : assetPair.issuer,
-          startTime : startTime,
-          endTime   : endTime,
-        }
-      }, {
-        send: function(data) {
+        currency  : assetPair.currency,
+        issuer    : assetPair.issuer,
+        startTime : startTime,
+        endTime   : endTime
+        
+      }, function(error, data) {
 
-          if (data.error) return asyncCallbackPair(data.error);
-  
-          if (data && data.length > 1) {
-            assetPair.amount = data[1][1]; 
-            assetPair.count  = data[1][2];
-          } else {
-            assetPair.amount = 0;
-            assetPair.count  = 0;
-          }
-          
-          asyncCallbackPair(null, assetPair);
+        if (error) return asyncCallbackPair(error);
+
+        if (data && data.length > 1) {
+          assetPair.amount = data[1][1]; 
+          assetPair.count  = data[1][2];
+        } else {
+          assetPair.amount = 0;
+          assetPair.count  = 0;
         }
+        
+        asyncCallbackPair(null, assetPair);
+      
       });
   
-    }, function(err, currencies) {
+    }, function(error, currencies) {
 
-      if (err) return res.send(500, { error: err });
+      if (error) return callback(error);
   
-  
-      getExchangeRates(startTime, endTime, conversionPairs, function(err, rates){
-        if (err) return res.send(500, { error: err });
+      getExchangeRates(startTime, endTime, conversionPairs, function(error, rates){
+        if (error) return callback(error);
         
         var finalRate = ex.currency == "XRP" ? 1 : null;
         
@@ -240,8 +241,9 @@ function totalValueSent( req, res ) {
             endTime   : endTime,
             currency  : ex.currency,
             issuer    : ex.issuer
-          }, function(err,rate){
-            if (err) return res.send(500, { error: err });
+            
+          }, function(error, rate) {
+            if (error) return callback (error);
             finalRate = rate;
             finalize(); 
           });
@@ -267,14 +269,12 @@ function totalValueSent( req, res ) {
           response.count        = count;
           response.components   = currencies;
           
-          res.send(response);   
+          callback(null, response);   
           if (CACHE) {
-            redis.set(cacheKey, JSON.stringify(response), function(err, res){
-              if (err) winston.error("cache error:", err);
-              else {
-                redis.expire(cacheKey, 60); //expire in 60 seconds  
-                if (DEBUG) winston.info(cacheKey + " cached");
-              }
+            redis.set(cacheKey, JSON.stringify(response), function(error, res){
+              if (error) return callback("Cache error: "+ error);
+              redis.expire(cacheKey, 60); //expire in 60 seconds  
+              if (DEBUG) winston.info(cacheKey + " cached");
             });
           }      
         }  
@@ -294,28 +294,25 @@ function totalValueSent( req, res ) {
     async.mapLimit(pairs, 10, function(assetPair, asyncCallbackPair){
   
       require("./offersExercised")({
-        body: {
-          base      : assetPair.base,
-          counter   : assetPair.counter,
-          startTime : startTime,
-          endTime   : endTime,
-          timeIncrement: 'all'
-        }
-      }, {
-        send: function(data) {
+        base      : assetPair.base,
+        counter   : assetPair.counter,
+        startTime : startTime,
+        endTime   : endTime,
+        timeIncrement: 'all'
+       
+      }, function(error, data) {
   
-          if (data.error) return asyncCallbackPair(data.error);
-  
-          if (data && data.length > 1) 
-                assetPair.rate = data[1][8]; // vwavPrice
-          else  assetPair.rate = 0;
-          
-          asyncCallbackPair(null, assetPair);
-        }
+        if (error) return asyncCallbackPair(error);
+        if (data && data.length > 1) 
+              assetPair.rate = data[1][8]; // vwavPrice
+        else  assetPair.rate = 0;
+        
+        asyncCallbackPair(null, assetPair);
+        
       });
   
-    }, function(err, results){
-      if (err) return callback(err);
+    }, function(error, results){
+      if (error) return callback(error);
       return callback(null, results);
     });  
   }
@@ -330,21 +327,19 @@ function totalValueSent( req, res ) {
     
     // Mimic calling offersExercised 
     require("./offersExercised")({
-      body: {
-        base      : {currency:"XRP"},
-        counter   : {currency:params.currency,issuer:params.issuer},
-        startTime : params.startTime,
-        endTime   : params.endTime,
-        timeIncrement : 'all'
-      }
-    }, {
-      send: function(data) {
+      base      : {currency:"XRP"},
+      counter   : {currency:params.currency,issuer:params.issuer},
+      startTime : params.startTime,
+      endTime   : params.endTime,
+      timeIncrement : 'all'
+      
+    }, function(error, data) {
   
-        if (data.error) return callback(data.error);
-        if (data && data.length > 1) 
-             callback(null,data[1][8]); // vwavPrice
-        else callback({error:"cannot determine exchange rate"});
-      }
+      if (error) return callback(error);
+      if (data && data.length > 1) 
+           callback(null,data[1][8]); // vwavPrice
+      else callback("cannot determine exchange rate");
+      
     });    
   }
 }

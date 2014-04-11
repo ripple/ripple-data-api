@@ -51,14 +51,14 @@ var winston = require('winston'),
     }' http://localhost:5993/api/issuer_capitalization 
  
  */
-function issuerCapitalization( req, res ) {
+function issuerCapitalization(params, callback) {
 
   var error, currencies = [];
 
 //validate incoming currencies
-  if (Array.isArray(req.body.currencies)) {
+  if (Array.isArray(params.currencies)) {
     
-    req.body.currencies.forEach(function(c){
+    params.currencies.forEach(function(c){
 
       if (c.issuer) {
         c.name       = tools.getGatewayName(c.issuer);
@@ -71,33 +71,28 @@ function issuerCapitalization( req, res ) {
       } 
     });
     
-    if (error) return res.send(500, {error:error});
+    if (error) return callback(error);
     
-  } else {
-    res.send(500, { error: 'please specify at least one issuer-currency pair'});
-    return;
-  }
+  } else return callback('please specify at least one issuer-currency pair');
   
 //Parse start and end times
-  var time = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
-  if (time.error) return res.send(500, { error: time.error });
+  if (time.error)               return callback(time.error);
+  if (!time.start || !time.end) return callback("startTime and endTime are required.");
 
-  if (!time.start || !time.end) {
-   return res.send(500, {error:"startTime and endTime are required."});
-  }
       
   var startTime = time.start;
   var endTime   = time.end;
 
 //Parse timeIncrement and timeMultiple
-  var results = tools.parseTimeIncrement(req.body.timeIncrement);
+  var results        = tools.parseTimeIncrement(params.timeIncrement);
   var group          = results.group;
   var group_level    = results.group_level;
   var group_multiple = results.group_multiple;
   
-  if (typeof req.body.timeMultiple === 'number') {
-    group_multiple = group_multiple ? group_multiple*req.body.timeMultiple : req.body.timeMultiple;
+  if (typeof params.timeMultiple === 'number') {
+    group_multiple = group_multiple ? group_multiple*params.timeMultiple : params.timeMultiple;
   } else {
     group_multiple = 1;
   }
@@ -123,11 +118,9 @@ function issuerCapitalization( req, res ) {
       viewOpts.stale = "ok"; //dont wait for updates
       
     // Query CouchDB for changes in trustline balances
-    db.view('currencyBalances', 'v1', viewOpts, function(err, trustlineRes){
-      if (err) {
-        asyncCallbackPair(err);
-        return;
-      }
+    db.view('currencyBalances', 'v1', viewOpts, function(error, trustlineRes){
+      
+      if (error) return asyncCallbackPair("CouchDB error: " + error);
 
       c.results = trustlineRes.rows;
       
@@ -139,11 +132,9 @@ function issuerCapitalization( req, res ) {
       };
 
       
-      db.view('currencyBalances', 'v1', initialValueViewOpts, function(err, initValRes){
-        if (err) {
-          asyncCallbackPair(err);
-          return;
-        }
+      db.view('currencyBalances', 'v1', initialValueViewOpts, function(error, initValRes){
+        
+        if (error) return asyncCallbackPair("CouchDB error: " + error);
         
         var startCapitalization = 0;
         if (initValRes && initValRes.rows && initValRes.rows.length > 0) {
@@ -207,9 +198,9 @@ function issuerCapitalization( req, res ) {
 
           db.view('trustlines', 'trustlineBalancesBetweenAccounts', hotwalletViewOpts, asyncCallbackHotwallet);
 
-        }, function(err, hotwalletResults){
-          if (err) {
-            asyncCallbackPair(err);
+        }, function(error, hotwalletResults){
+          if (error) {
+            asyncCallbackPair(error);
             return;
           }
 
@@ -277,13 +268,10 @@ function issuerCapitalization( req, res ) {
 
       });
     });
-  }, function(err, results){
-    if (err) {
-      res.send(500, {error: 'error retrieving data from CouchDB: ' + err});
-      return;
-    }
+  }, function(error, results){
+    if (error) return callback(error);
 
-    res.send(results);
+    return callback(null, results);
   });
 }
 

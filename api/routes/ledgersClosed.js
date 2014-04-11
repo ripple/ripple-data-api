@@ -103,14 +103,14 @@ var winston = require('winston'),
  */
 
    
-function ledgersClosed( req, res ) {
+function ledgersClosed(params, callback) {
   
   var viewOpts = {};
   
   //Parse start and end times
-  var range = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
-  if (range.error) return res.send(500, { error: range.error });  
+  if (range.error)  return callback(range.error);  
   if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
   
@@ -118,41 +118,37 @@ function ledgersClosed( req, res ) {
   viewOpts.startkey = range.start.toArray().slice(0,6);
   viewOpts.endkey   = range.end.toArray().slice(0,6);
   
-  if (req.body.descending) viewOpts.descending = true;
+  if (params.descending) viewOpts.descending = true;
   
   //parse time increment and time multiple
-  var results = tools.parseTimeIncrement(req.body.timeIncrement);  
+  var results = tools.parseTimeIncrement(params.timeIncrement);  
 
   //set reduce option only if its false
   if (results.group_level)   viewOpts.group_level = results.group_level + 1;
-   else if (req.body.reduce === false) viewOpts.reduce = false;
+   else if (params.reduce === false) viewOpts.reduce = false;
  
   if (viewOpts.reduce===false) {
-    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
-    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
+    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
   } 
   
   viewOpts.stale = "ok"; //dont wait for updates 
   
-  db.view('ledgersClosed', 'v1', viewOpts, function(err, couchRes){
+  db.view('ledgersClosed', 'v1', viewOpts, function(error, couchRes){
 
-    if (err) {
-      winston.error('Error with request: ' + err);
-      res.send(500, { error: err });
-      return;
-    }
+    if (error) return callback ('CouchDB Error: ' + error);
     
     handleResponse(couchRes.rows);
   });
   
   function handleResponse (rows) {
     
-    if (req.body.format === 'json') {
+    if (params.format === 'json') {
       
       var apiRes = {};
       apiRes.startTime     = range.start.format();
       apiRes.endTime       = range.end.format();
-      apiRes.timeIncrement = req.body.timeIncrement;
+      apiRes.timeIncrement = params.timeIncrement;
       apiRes.total         = 0;
     
       if (viewOpts.reduce === false) {
@@ -165,7 +161,7 @@ function ledgersClosed( req, res ) {
           }); 
         });
             
-      } else if (req.body.timeIncrement) {
+      } else if (params.timeIncrement) {
         apiRes.results = [];
         rows.forEach(function(row){
           apiRes.total += row.value;
@@ -179,7 +175,7 @@ function ledgersClosed( req, res ) {
         apiRes.total = rows[0] ? rows[0].value : 0;
       }
       
-      res.json(apiRes);
+      return callback(null, apiRes);
     
     } else {
             var data = [], keys = {}, nKeys = 0;
@@ -193,7 +189,7 @@ function ledgersClosed( req, res ) {
           ]); 
         });       
         
-      } else if (req.body.timeIncrement) {
+      } else if (params.timeIncrement) {
         data.push(["time","count"]);
         for (var j=0; j<rows.length; j++) {
           data.push([
@@ -202,22 +198,22 @@ function ledgersClosed( req, res ) {
           ]);
         }
         
-      } else res.send(rows[0] ? rows[0].value.toString() : 0);
+      } else return callback(null, rows[0] ? rows[0].value.toString() : 0);
       
   
-      if (req.body.format === 'csv') {
+      if (params.format === 'csv') {
 
         var csvStr = _.map(data, function(row){
           return row.join(', ');
         }).join('\n');
   
         // provide output as CSV
-        res.end(csvStr);
+        return callback(null, csvStr);
 
 
       } else {
         //no format or incorrect format specified
-        res.send(data);      
+        return callback(null, data);      
       } 
     }  
   } 

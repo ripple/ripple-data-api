@@ -74,14 +74,14 @@ var winston = require('winston'),
  * 
  */
 
-function transactionStats( req, res ) {
+function transactionStats(params, callback) {
   
   var viewOpts = {};
   
   //Parse start and end times
-  var range = tools.parseTimeRange(req.body.startTime, req.body.endTime, req.body.descending);
+  var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
-  if (range.error) return res.send(500, { error: range.error });  
+  if (range.error) return callback(range.error);  
   if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
   
@@ -89,29 +89,25 @@ function transactionStats( req, res ) {
   viewOpts.startkey = range.start.toArray().slice(0,6);
   viewOpts.endkey   = range.end.toArray().slice(0,6);
   
-  if (req.body.descending) viewOpts.descending = true;
+  if (params.descending) viewOpts.descending = true;
   
   //parse time increment and time multiple
-  var results = tools.parseTimeIncrement(req.body.timeIncrement);  
+  var results = tools.parseTimeIncrement(params.timeIncrement);  
 
   //set reduce option only if its false
   if (results.group_level)            viewOpts.group_level = results.group_level + 1;
-  else if (req.body.reduce === false) viewOpts.reduce      = false;
+  else if (params.reduce === false) viewOpts.reduce      = false;
 
   if (viewOpts.reduce===false) {
-    if (req.body.limit  && !isNaN(req.body.limit))  viewOpts.limit = parseInt(req.body.limit, 10);
-    if (req.body.offset && !isNaN(req.body.offset)) viewOpts.skip  = parseInt(req.body.offset, 10);
+    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
+    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
   }
     
   viewOpts.stale = "ok"; //dont wait for updates
   
-  db.view('transactionStats', 'v1', viewOpts, function(err, couchRes){
-
-    if (err) {
-      winston.error('Error with request: ' + err);
-      res.send(500, { error: err });
-      return;
-    }
+  db.view('transactionStats', 'v1', viewOpts, function(error, couchRes){
+    
+    if (error) return callback ('CouchDB Error: ' + error);  
     
     handleResponse(couchRes.rows);
   });
@@ -124,13 +120,13 @@ function transactionStats( req, res ) {
  */  
   function handleResponse (rows) {
     
-    if (req.body.format === 'json') {
+    if (params.format === 'json') {
       
       // send as an array of json objects
       var apiRes = {};
       apiRes.startTime     = range.start.format();
       apiRes.endTime       = range.end.format();
-      apiRes.timeIncrement = req.body.timeIncrement;
+      apiRes.timeIncrement = params.timeIncrement;
       apiRes.results       = [];
     
       if (viewOpts.reduce === false) {
@@ -152,7 +148,7 @@ function transactionStats( req, res ) {
         });  
       }
             
-      res.json(apiRes);
+      return callback(null, apiRes);
       
     } else {
       var data = [], keys = {}, nKeys = 0;
@@ -193,19 +189,19 @@ function transactionStats( req, res ) {
       }
       
   
-      if (req.body.format === 'csv') {
+      if (params.format === 'csv') {
 
         var csvStr = _.map(data, function(row){
           return row.join(', ');
         }).join('\n');
   
         // provide output as CSV
-        res.end(csvStr);
+        return callback(null, csvStr);
 
 
       } else {
         //no format or incorrect format specified
-        res.send(data);      
+        return callback(null, data);      
       }    
     }  
   }

@@ -86,17 +86,17 @@ var winston = require('winston'),
  * 
  */
 
-function currencyBalances ( req, res ) {
+function currencyBalances (params, callback) {
   var viewOpts  = {};
-  var currency  = req.body.currency || "XRP";
-  var issuer    = req.body.issuer;
-  var time      = req.body.time ? moment.utc(req.body.time) : moment.utc();
-  var totalOnly = req.body.total ? true : false;
+  var currency  = params.currency || "XRP";
+  var issuer    = params.issuer;
+  var time      = params.time ? moment.utc(params.time) : moment.utc();
+  var totalOnly = params.total ? true : false;
   
   if (currency.toUpperCase() != "XRP" && !issuer)
-    return res.send(500, {error: 'exchange issuer is required'});
+    return callback('exchange issuer is required');
   else if (currency == "XRP" && issuer)
-    return res.send(500, {error: 'XRP cannot have an issuer'});
+    return callback('XRP cannot have an issuer');
     
   var key = issuer ? currency+"."+issuer : currency;
   
@@ -106,8 +106,8 @@ function currencyBalances ( req, res ) {
   viewOpts.stale    = "ok";  //dont wait for updates
   
   console.log(viewOpts);
-  db.view_with_list('currencyBalances', 'v1', 'balancesByAccount', viewOpts, function(err, balances) {
-    if (err) return res.send(500, err);  
+  db.view_with_list('currencyBalances', 'v1', 'balancesByAccount', viewOpts, function(error, balances) {
+    if (error) return callback ('CouchDB Error: ' + error); 
     
     handleResponse(balances);
   });
@@ -119,7 +119,7 @@ function currencyBalances ( req, res ) {
  */  
   function handleResponse (balances) {
     
-    if (req.body.format === 'json') {
+    if (params.format === 'json') {
       
       // send as an array of json objects
       var apiRes = {
@@ -149,7 +149,7 @@ function currencyBalances ( req, res ) {
         });
       }
      
-      res.json(apiRes);
+      return callback(null, apiRes);
       
     } else {
       
@@ -159,25 +159,24 @@ function currencyBalances ( req, res ) {
           total += d[1];   
         });
         
-        res.end(total.toString());
-        return;    
+        return callback(null, total.toString());
       }
       
       balances.unshift(["account","balance","last"]);
   
-      if (req.body.format === 'csv') {
+      if (params.format === 'csv') {
 
         var csvStr = _.map(balances, function(row){
           return row.join(', ');
         }).join('\n');
   
         // provide output as CSV
-        res.end(csvStr);
+        return callback(null, csvStr);
 
 
       } else {
         //no format or incorrect format specified
-        res.send(200, balances);      
+        return callback(null, balances);      
       }    
     }  
   }
