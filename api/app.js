@@ -19,7 +19,7 @@ db = require('nano')(DBconfig.protocol+
   '/'   + DBconfig.database);
 
 DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
-CACHE = config.redis && config.redis.enabled ? true : false;
+CACHE = config.redis && config.redis.enabled    ? true : false;
 
 if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
 if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
@@ -85,26 +85,28 @@ winston.info('Listening on port ' + config.port);
 
 //function to handle all incoming requests
 function requestHandler(req, res) {
-  var path = req.path.slice(5),
-    apiRoute;
+  var path = req.path.slice(5), apiRoute;
   
-  if (path.indexOf('/') !== -1)  
-        apiRoute = path.slice(0, path.indexOf('/')).toLowerCase();
-  else  apiRoute = path.toLowerCase().replace(/_/g, "");
   
+  if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
+  
+  winston.info("Request: " + req.connection.remoteAddress +" POST "+path + " "+(new Date()));
+  apiRoute = path.replace(/_/g, "").toLowerCase();
   
   if (apiRoutes[apiRoute]) {
     apiRoutes[apiRoute](req.body, function(err, response){
       if (err) {
-        winston.error(err);
+        winston.error(err, " - "+path, "(Server Error) 500");
         return res.send(500, { error: err });
       }
       
+      winston.info("Response 200 OK - ", path, new Date())
       res.send(200, response);  
     });
     
   } else {
     
+    winston.info("Response 404 Not Found - ", path);
     res.send(404, 'Sorry, that API route doesn\'t seem to exist.'+
       ' Available paths are: ' + 
       Object.keys(apiRoutes).join(', ') + '\n');
