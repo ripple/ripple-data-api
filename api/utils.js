@@ -161,20 +161,23 @@ exports.parseTimeIncrement = function (inc) {
   if (inc) {
       inc    = inc.toLowerCase().slice(0, 2),
       levels = ['ye', 'mo', 'da', 'ho', 'mi', 'se']; // shortened to accept 'yearly' or 'min' as well as 'year' and 'minute'
-    
+      names  = ['years', 'months', 'days', 'hours', 'minutes', 'seconds'];
     if (inc === 'al') {
 
       results.group = false;
-
+      results.name  = "all";
+      
     } else if (inc === 'we') {
 
       results.group_multiple = group_multiple * 7; // multiply by days in a week
       results.group_level    = 2; // set group_level to day
+      results.name = "week";
       
     } else if (levels.indexOf(inc) !== -1) {
 
       results.group_level = levels.indexOf(inc);
-
+      results.name        = names[results.group_level];
+      
     } else {
 
       results.group = false;
@@ -195,6 +198,7 @@ exports.parseTimeIncrement = function (inc) {
  */ 
 exports.getAlignedTime = function (original, increment, multiple) {
   var time = moment(original); //clone the original
+  if (!multiple) multiple = 1;
 
   if (increment=='seconds') {
     time.subtract("seconds", time.seconds()%multiple);   

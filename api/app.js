@@ -5,13 +5,12 @@ var config   = require('../deployment.environments.json')[env];
 //local vars
 var winston = require('winston'),
   express   = require('express'),
+  moment    = require('moment'),
   app       = express();
   
 if (!config)   return winston.info('Invalid environment: ' + env);
 if (!DBconfig) return winston.info('Invalid DB config: '+env);
-
-//global vars
-db = require('nano')(DBconfig.protocol+
+db = require('./library/couchClient')(DBconfig.protocol+
   '://' + DBconfig.username + 
   ':'   + DBconfig.password + 
   '@'   + DBconfig.host + 
@@ -86,11 +85,11 @@ winston.info('Listening on port ' + config.port);
 //function to handle all incoming requests
 function requestHandler(req, res) {
   var path = req.path.slice(5), apiRoute;
-  
+  var time = Date.now();
   
   if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
   
-  winston.info("Request: " + req.connection.remoteAddress +" POST "+path + " "+(new Date()));
+  winston.info(req.connection.remoteAddress, "POST", path, "["+(new Date())+"]");
   apiRoute = path.replace(/_/g, "").toLowerCase();
   
   if (apiRoutes[apiRoute]) {
@@ -100,7 +99,8 @@ function requestHandler(req, res) {
         return res.send(500, { error: err });
       }
       
-      winston.info("Response 200 OK - ", path, new Date())
+      time = (Date.now()-time)/1000;
+      winston.info(req.connection.remoteAddress, path, 200, "["+(new Date())+"]", time+"s");
       res.send(200, response);  
     });
     
@@ -124,7 +124,22 @@ if (CACHE) {
   //to see if they are all consecutive. If they are not consecutive,
   //save the last consecutive ledger index and close time.  This will 
   //be the point from which we determine whether or not we are caught up
+/*  
+  require("./routes/ledgersClosed")({
+    startTime  : moment.utc().subtract(10, "minutes"),
+    descending : false,
+    reduce     : false
       
+  }, function(error, data) {
+    if (error) {
+      CACHE = false; //disable the cache
+      return winston.error(error);
+    }
+    
+    data.shift(); //remove header row
+    
+  });
+*/      
 }
 
 

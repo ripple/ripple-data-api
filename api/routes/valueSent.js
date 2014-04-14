@@ -107,7 +107,10 @@ var winston = require('winston'),
 
 
 function valueSent(params, callback) {
-
+  
+  var options  = {};
+  var cached;
+  
   //parse currency and issuer  
   var currency = params.currency ? params.currency.toUpperCase() : "";
   var issuer   = params.issuer   ? params.issuer : "";
@@ -140,30 +143,209 @@ function valueSent(params, callback) {
   }  
   
   //set view options    
-  var viewOpts = {
+  options.view = {
     startkey : [currency, issuer].concat(startTime.toArray().slice(0,6)),
     endkey   : [currency, issuer].concat(endTime.toArray().slice(0,6))  
   };
 
 
- 
   //set reduce option only if its false
-  if (results.group_level)            viewOpts.group_level = results.group_level + 3;
-  else if (params.reduce === false) viewOpts.reduce      = false;
+  if (results.group_level)            options.view.group_level = results.group_level + 3;
+  else if (params.reduce === false) options.view.reduce      = false;
   
-  if (viewOpts.reduce===false) {
-    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
-    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
+  if (options.view.reduce===false) {
+    if (params.limit  && !isNaN(params.limit))  options.view.limit = parseInt(params.limit, 10);
+    if (params.offset && !isNaN(params.offset)) options.view.skip  = parseInt(params.offset, 10);
+  }
+
+  options.view.increment = results.name;  
+  options.view.stale     = "ok"; //dont wait for updates
+
+  
+  //get cached results first.  if there are any,
+  //the view will be adjusted so that couch is queried for everything else
+  if (CACHE) getCached(options.view, function(error, subview, rows) {
+    
+    cached = rows;
+    if (error) return callback (error);
+    return fromCouch(subview ? subview : options.view);
+  });
+    
+  //cache not activated    
+  else fromCouch(options.view);
+
+
+/*
+ * Load data from couchDB
+ */      
+  function fromCouch(viewOpts) {
+    
+    
+    //Query CouchDB with the determined viewOpts
+    db.view('valueSentV2', 'v1', viewOpts, function(error, couchRes) {
+      if (error) return callback ('CouchDB - ' + error);
+      
+      handleResponse(viewOpts, prepareRows(viewOpts, couchRes.rows));
+    });
   }
   
-  viewOpts.stale = "ok"; //dont wait for updates
   
-  //Query CouchDB with the determined viewOpts
-  db.view('valueSentV2', 'v1', viewOpts, function(error, couchRes) {
-    if (error) return callback ('CouchDB - ' + error);
+/*
+ * Prepare data for caching and response
+ * 
+ */  
+  function prepareRows (options, rows) {
+
+    if (options.reduce===false) return rows;
+    if (options.increment=="all" || !options.group_level) {
+      
+      return [[
+        moment.utc(options.startkey.slice(2)).format(), 
+        rows[0].value[0], 
+        rows[0].value[1]
+      ]];
+    }
+        
+    if (rows) {       
+      var firstTime = moment.utc(options.startkey.slice(2));
+      var time      = tools.getAlignedTime(firstTime, options.increment);
+      var temp      = {};
+      
+
+      rows.forEach(function(row){
+        temp[moment.utc(row.key.slice(2)).unix()] = row.value;
+      });
+      
+      rows = [];
+      
+      while (endTime.diff(time)>0) {
+        var row = [time.format()];
+        if (temp[time.unix()]) row = row.concat(temp[time.unix()]);
+        else                   row = row.concat([0.0,0]);
+        rows.push(row); 
+                
+        time.add(options.increment, 1); //forward 1 increment          
+      }
+    }   
     
-    handleResponse(couchRes.rows);
-  });
+    if (CACHE) {     
+
+      cacheResults(options, rows); //cache new results
+      
+      //get rid of the first row if it is a duplicate of
+      //the first cached row, then combine the two
+      if (cached && cached.length) {
+     
+      if (rows.length && rows[0][0]==cached[0][0]) rows.shift();
+      rows = cached.concat(rows);
+      }
+    }
+    
+    return rows;
+  }
+
+
+/*
+ * get any cached data for this range and interval 
+ */
+  function getCached(options, callback) {
+    
+    //we dont cache completely reduced results
+    if (options.reduce===false || !options.group_level) {
+      return callback (null);  
+    } 
+    
+    var keyBase   = parseKey(options);
+    var firstTime = moment.utc(options.startkey.slice(2));
+    var time      = tools.getAlignedTime(firstTime, options.increment);
+    var end       = moment.utc(options.endkey.slice(2));
+    var cached    = [], keys = [];
+    
+    //skip the first unless it happens to be properly aligned
+    if (time.diff(firstTime)) time.add(options.increment, 1);
+    
+    //set up key list      
+    while(end.diff(time)>0) {
+      keys.push(keyBase+":"+time.unix());
+      time.add(options.increment, 1);
+    } 
+    
+    //get cached points for the range
+    redis.mget(keys, function(error, res){
+      
+      if (error)       return callback(error);
+      if (!res.length) return callback();
+      var last;
+      
+      for (var i=0; i<res.length; i++) {
+        if (!res[i]) break; //missing data from this point
+        row  = JSON.parse(res[i]);
+        last = row[0];
+
+        cached.push(row); //add to the list of cached results;
+      }
+      
+      if (!last) return callback();   //no cached rows 
+      last = moment.utc(last);
+
+      //adjust range of query to exclude cached results             
+      var key     = options.startkey.slice(0,2);
+      var subview = JSON.parse(JSON.stringify(options)); //shallow copy
+      
+      subview.startkey = key.concat(last.toArray().slice(0,6));
+      callback(null, subview, cached);
+    });
+          
+  }
+
+
+/*
+ * save the results from couch into the cache
+ * 
+ */  
+  function cacheResults (options, rows) {
+    
+    var keyBase   = parseKey(options);
+    var firstTime = moment.utc(options.startkey.slice(2));
+    var time      = tools.getAlignedTime(firstTime, options.increment);
+    var end       = moment.utc(options.endkey.slice(2)).subtract(options.increment, 1);
+    var points    = [];
+    
+    if (options.increment=="all") return; //ignore these
+    if (options.reduce===false || !options.group_level) return; //ignore these too
+    
+    rows.forEach(function(row){
+      var time    = moment.utc(row[0]);
+      var aligned = tools.getAlignedTime(time, options.increment);
+      var key     = keyBase+":"+time.unix();
+            
+      //exclude the ones that aren't aligned
+      //this should be the first and last unless the
+      //client aligned them properly beforehand
+ 
+      if (time.diff(aligned)) return; 
+      if (time.diff(end)>0)   return;
+      points.push(key);
+      points.push(JSON.stringify(row));
+    });
+    
+    if (points.length) {
+      redis.mset(points, function(error, res){
+        if (error) return callback("Redis - " + error);
+        if (DEBUG) winston.info(points.length/2 + " points cached");
+      });
+    } 
+  }    
+
+  
+  /*
+   * create the key used for the cache from the options
+   */
+  function parseKey(options) {    
+    return "VS:"+options.startkey[0]+":"+
+      options.startkey[1]+":"+
+      options.group_level; 
+  }
   
   
 /*
@@ -171,7 +353,7 @@ function valueSent(params, callback) {
  * of the request and return it to the caller.
  * 
  */  
-  function handleResponse (rows) {   
+  function handleResponse (viewOpts, rows) {   
     
     if (params.format === 'json') { 
       var response = {
@@ -212,16 +394,21 @@ function valueSent(params, callback) {
       if (viewOpts.reduce === false) header = header.concat(["account","destination","txHash","ledgerIndex"]);
       else                           header.push("count");
       
-      rows.forEach(function(row, index) {
-        var value = row.value;
-        var time  = row.key ? moment.utc(row.key.slice(2)) : startTime;
-        value.unshift(time.format());
-        if (row.id) value.push(parseInt(row.id, 10));
-        rows[index] = value;
-      }); 
+      if (viewOpts.reduce === false) {
+        header = header.concat(["account","destination","txHash","ledgerIndex"]);
+        rows.forEach(function(row, index) {
+          var value = row.value;
+          var time  = row.key ? moment.utc(row.key.slice(2)) : startTime;
+          value.unshift(time.format());
+          if (row.id) value.push(parseInt(row.id, 10));
+          rows[index] = value;
+        });  
+                 
+      } else {
+        header.push("count");
+      }
       
       rows.unshift(header);  
-
       
       if (params.format === 'csv') {
 

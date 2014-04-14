@@ -77,8 +77,6 @@ function offersExercised (params, callback) {
   var options  = {};
   options.view = {};
   
-  if (DEBUG) var d,t = Date.now(); //tracking elapsed time
-  
   parseOptions(); //parse request params for query options
   
   if (options.error) return callback (options.error);
@@ -119,7 +117,6 @@ function offersExercised (params, callback) {
 
       db.view("offersExercisedV2", "v2", view, function (error, couchRes){
     
-        if (DEBUG) d = (Date.now()-d)/1000;
         if (error) return callback ('CouchDB - ' + error);       
         handleCouchResponse(couchRes.rows);
       });
@@ -204,9 +201,19 @@ function offersExercised (params, callback) {
     //cache results
     if (CACHE) {
       var header = rows.shift();
-      //console.log(rows);
+
       if (rows.length) cacheResults(rows);
       if (options.cached) {
+        if (options.cached.length && rows.length) {
+          var last  = options.cached[options.cached.length-1];
+          var first = rows[0];
+          if (last[0]==first[0]) {
+            console.log("duplicate interval");
+            console.log(last, first);
+            console.log(options.view, options.subview);
+            options.cached.pop(); //remove it to stop the error
+          }
+        }
         rows = options.cached.concat(rows);
       }
       
@@ -387,16 +394,7 @@ function offersExercised (params, callback) {
  * 
  */  
   function handleResponse (rows) {
-    
-    if (DEBUG) {
-      t = (Date.now()-t)/1000;
-      var interval = params.timeMultiple  ? params.timeMultiple  : "";
-      interval    += params.timeIncrement ? params.timeIncrement : "";
-    
-      winston.info("offersExercised: "+interval, " - database: "+d+"s","total: "+t+"s");
-    }    
-    
-
+     
     if (params.format === 'csv') {
 
       var csvStr = _.map(rows, function(row){
@@ -730,12 +728,20 @@ function offersExercised (params, callback) {
       if (params.offset && !isNaN(params.offset)) options.view.skip  = parseInt(params.offset, 10);
     } 
 
-
+    if (DEBUG) {
+      var label = params.timeMultiple  ? params.timeMultiple  : "";
+      label    += params.timeIncrement ? params.timeIncrement : "";
+      if (options.view.limit) label = "limit:"+options.view.limit;
+      else if (options.view.reduce===false) label = "unreduced";
+      options.view.label = label; 
+    }
+        
     // set startkey and endkey for couchdb query
     options.view.startkey   = [options.counter+":"+options.base].concat(options.startTime.toArray().slice(0,6));
     options.view.endkey     = [options.counter+":"+options.base].concat(options.endTime.toArray().slice(0,6));
     options.view.descending = params.descending || false; 
     options.view.stale      = "ok"; //dont wait for updates  
+   
     options.alignedFirst    = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
     options.alignedLast     = tools.getAlignedTime(options.endTime, options.increment, options.multiple);
     return options;      
