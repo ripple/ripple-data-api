@@ -7,31 +7,32 @@ var winston = require('winston'),
 /*
  * marketMakers
  * Returns a list of accounts that participated in trading the specified currency
- * pair during the specified time range, ordered by base currency volume.
+ * pair during the specified time period, ordered by base currency volume.
  * If no trading pair is provided, the API uses a list of the top XRP markets
  * 
  * 
  * base (JSON, optional) ... base currency-issuer. If not present, top XRP markets are queried
  * counter  (JSON, optional) ... counter currency-issuer. Required if base is present
- * range (string, optional) ... Any of the following ("30d", "7d", "24h")
+ * period (string, optional) ... Any of the following ("24h", "3d", "7d", "30d")
  * startTime (string, optional) ... moment.js readable date string
+ * transactions (boolean, optional) ... include individual transactions in the response, defaults to false
  * format ('json' or 'csv', optional) ... defaults to a CSV-like array
  
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"    : {"currency": "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "counter" : {"currency": "BTC", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "range" : "7d"
+    "period" : "7d"
     
   }' http://localhost:5993/api/marketMakers 
 
   curl -o marketmakers.csv -H "Content-Type: application/json" -X POST -d '{
-    "range"   : "30d",
+    "period"  : "30d",
     "format"  : "csv"
      
   }' http://localhost:5993/api/marketMakers 
 
   curl -H "Content-Type: application/json" -X POST -d '{
-    "range"   : "24h",
+    "period"  : "24h",
     "format"  : "json"
      
   }' http://localhost:5993/api/marketMakers 
@@ -47,7 +48,7 @@ function topMarketMakers (params, callback) {
     currencies = [],
     base       = params.base,
     counter    = params.counter,
-    range      = params.range || "24hr",
+    period     = params.period || "24hr",
     startTime  = moment.utc(params.startTime),
     endTime    = params.startTime ? moment.utc(params.startTime) : moment.utc();
    
@@ -90,10 +91,11 @@ function topMarketMakers (params, callback) {
     {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}  //RippleTradeJapan JPY
   ];
 
-  if (range == "30d")    params.startTime ? endTime.add(30, "days")  : startTime.subtract(30, "days");
-  else if (range=="7d")  params.startTime ? endTime.add(7,  "days")  : startTime.subtract(7,  "days");
-  else if (range=="24h") params.startTime ? endTime.add(24, "hours") : startTime.subtract(24, "hours");
-  else                   params.startTime ? endTime.add(24, "hours") : startTime.subtract(24, "hours");
+  if (period == "30d")    params.startTime ? endTime.add(30, "days")  : startTime.subtract(30, "days");
+  else if (period=="7d")  params.startTime ? endTime.add(7,  "days")  : startTime.subtract(7,  "days");
+  else if (period=="3d")  params.startTime ? endTime.add(3,  "days")  : startTime.subtract(3,  "days");
+  else if (period=="24h") params.startTime ? endTime.add(24, "hours") : startTime.subtract(24, "hours");
+  else                    params.startTime ? endTime.add(24, "hours") : startTime.subtract(24, "hours");
   
   
  // Mimic calling offersExercised for each asset pair
@@ -126,29 +128,51 @@ function topMarketMakers (params, callback) {
     
     data.shift(); //remove header row
     data.forEach(function(d){
-        
+
       if (accounts[d[4]]) {
-        accounts[d[4]].volume += d[2];
+        accounts[d[4]].sell.baseVolume    += d[2];
+        accounts[d[4]].sell.counterVolume += d[3];
+        accounts[d[4]].sell.count++
+        accounts[d[4]].baseVolume    += d[2];
+        accounts[d[4]].counterVolume += d[3];
         accounts[d[4]].count++;
         
       } else {
         accounts[d[4]] = {
-          account : d[4],
-          volume  : d[2],
-          count   : 1,
+          buy           : {baseVolume:0.0,  counterVolume:0.0,  count:0},
+          sell          : {baseVolume:d[2], counterVolume:d[3], count:1},
+          account       : d[4],
+          baseVolume    : d[2],
+          counterVolume : d[3],
+          count         : 1,
         }
       }
       
-      if (accounts[d.counterparty]) {
-        accounts[d[5]].volume  += d[2];
+      if (accounts[d[5]]) {
+        accounts[d[5]].buy.baseVolume    += d[2];
+        accounts[d[5]].buy.counterVolume += d[3];
+        accounts[d[5]].buy.count++;
+        accounts[d[5]].baseVolume    += d[2];
+        accounts[d[5]].counterVolume += d[3];
         accounts[d[5]].count++;
         
       } else {
         accounts[d[5]] = {
-          account : d[5],
-          volume  : d[2],
-          count   : 1,
+          buy           : {baseVolume:d[2], counterVolume:d[3], count:1},
+          sell          : {baseVolume:0.0,  counterVolume:0.0,  count:0},
+          account       : d[5],
+          baseVolume    : d[2],
+          counterVolume : d[3],
+          count         : 1,
         }
+      }
+      
+      if (params.transactions) {
+        if (!accounts[d[4]].transactions) accounts[d[4]].transactions = [];
+        if (!accounts[d[5]].transactions) accounts[d[5]].transactions = [];
+        
+        accounts[d[4]].transactions.push(d);
+        accounts[d[5]].transactions.push(d);
       }
     });
   }
@@ -163,9 +187,9 @@ function topMarketMakers (params, callback) {
     
     if (params.format === 'json') { 
       response = {
-        startTime     : startTime.format(),
-        endTime       : endTime.format(),  
-        results       : rows
+        startTime : startTime.format(),
+        endTime   : endTime.format(),  
+        results   : rows
       };
       
       return callback(null, response);
@@ -173,14 +197,37 @@ function topMarketMakers (params, callback) {
     } else {
       
     
-      response = [["account","volume","count"]];
+      response = [[
+        "account",
+        "baseVolume", 
+        "counterVolume", 
+        "count", 
+        "buyBaseVolume", 
+        "buyCounterVolume", 
+        "buyCount", 
+        "sellBaseVolume",
+        "sellCounterVolume",
+        "sellCount"
+      ]];
+      
+      if (params.transactions && params.format!='csv') response[0].push("transactions");
       
       rows.forEach(function(row) {
-        response.push([
+        var r = [
           row.account,
-          row.volume,
-          row.count
-        ])
+          row.baseVolume,
+          row.counterVolume,
+          row.count,
+          row.buy.baseVolume,
+          row.buy.counterVolume,
+          row.buy.count,
+          row.sell.baseVolume,
+          row.sell.counterVolume,
+          row.sell.count
+        ];
+        
+        if (params.transactions && params.format!='csv') r.push(row.transactions);
+        response.push(r);
       }); 
       
       if (params.format === 'csv') {

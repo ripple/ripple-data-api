@@ -28,10 +28,9 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 04, 2013 4:00 am",
-    "endTime"   : "Mar 04, 2015 8:00 am",
-    "timeIncrement" : "minute",
-    "timeMultiple"  : 15,
+    "startTime" : "Apr 04, 2014 9:00 am z",
+    "endTime"   : "Apr 05, 2014 10:45 am z",
+    "timeIncrement" : "hour",
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
@@ -73,6 +72,7 @@ var winston = require('winston'),
     }' http://localhost:5993/api/offersExercised    
     
  */
+
 function offersExercised (params, callback) {
   var options  = {};
   options.view = {};
@@ -108,6 +108,11 @@ function offersExercised (params, callback) {
     if (DEBUG) d = Date.now();
   
     var view = options.subview ? options.subview : options.view;
+    
+    //if the start and end times are the same, there is no need to query couchDB
+    if (view.startkey.toString()===view.endkey.toString()) {
+      return handleResponse (options.cached || []); 
+    }
     
     //if the start key and end key are the same, we wont get
     //any results, so just pass along an empty result

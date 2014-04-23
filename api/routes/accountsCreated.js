@@ -8,8 +8,8 @@ var winston = require('winston'),
  *  accountsCreated returns the number of accounts created per time increment
  *  expects params to have:
  *  {
- *    startTime: (any momentjs-readable date), // optional, defaults to now if descending is true, 30 days ago otherwise
- *    endTime: (any momentjs-readable date), // optional, defaults to 30 days ago if descending is true, now otherwise
+ *    startTime: (any momentjs-readable date), // optional
+ *    endTime: (any momentjs-readable date), // optional, defaults to now
  *    timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *    descending: true/false, // optional, defaults to true
  *    reduce: true/false  // optional, defaults to false, ignored if timeIncrement is set. false returns individual transactions
@@ -18,8 +18,10 @@ var winston = require('winston'),
  *    format: 'json', 'csv'
  *  }
  * 
-    curl -H "Content-Type: application/json" -X POST -d '{
-      "reduce" : false
+    curl  -H "Content-Type: application/json" -X POST -d '{
+      "reduce" : false,
+      "format" : "csv",
+      "limit"  : 2
       
     }' http://localhost:5993/api/accountsCreated
 
@@ -133,16 +135,22 @@ function accountsCreated(params, callback) {
         var genAccounts = [];
         for (var i=0; i<l.accountState.length; i++) {
           var obj =  l.accountState[i];
- 
+
           if (obj.LedgerEntryType=="AccountRoot") {
             genAccounts.push({
               key : genTime.format(),
-              value : obj.Account
+              value : [obj.Account, null],
+              id : 32570
             });
           }
         }
         
-        couchRes.rows = genAccounts.concat(couchRes.rows);      
+        couchRes.rows = genAccounts.concat(couchRes.rows);   
+        if (viewOpts.limit || viewOpts.skip) {
+          var skip = viewOpts.skip || 0;
+          if (viewOpts.limit) couchRes.rows = couchRes.rows.slice(skip, viewOpts.limit+skip);  
+          else                couchRes.rows = couchRes.rows.slice(skip);
+        }
       }      
     } 
 
@@ -232,7 +240,7 @@ function accountsCreated(params, callback) {
     } else {
       var data = [];
       
-      if (viewOpts.reduce === false) {
+      if (viewOpts.reduce === false) {        
         data.push(["time","account","txHash","ledgerIndex"]);
         rows.forEach(function(row){
           data.push([

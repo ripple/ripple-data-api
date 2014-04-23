@@ -117,7 +117,7 @@ exports.parseTimeRange = function (time1, time2, descending) {
       return { error: 'invalid startTime: ' + time1 + ', please provide a Moment.js readable timestamp'};
     }
 
-    startTime = moment(time1).utc();
+    startTime = moment.utc(time1);
   } 
   
   if (time2) {
@@ -125,7 +125,7 @@ exports.parseTimeRange = function (time1, time2, descending) {
       return { error: 'invalid endTime: ' + time2 + ', please provide a Moment.js readable timestamp'};
     }
 
-    endTime = moment(time2).utc();
+    endTime = moment.utc(time2);
   } 
   
   if (startTime && endTime) {
@@ -149,7 +149,7 @@ exports.parseTimeRange = function (time1, time2, descending) {
     startTime = endTime;
     endTime   = tempTime;
   }
-  
+    
   return {start:startTime, end:endTime};  
 }
 
@@ -197,7 +197,7 @@ exports.parseTimeIncrement = function (inc) {
  * 
  */ 
 exports.getAlignedTime = function (original, increment, multiple) {
-  var time = moment(original); //clone the original
+  var time = moment.utc(original); //clone the original
   if (!multiple) multiple = 1;
 
   if (increment=='seconds') {

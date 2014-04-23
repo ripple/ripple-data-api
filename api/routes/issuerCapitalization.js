@@ -36,15 +36,15 @@ var winston = require('winston'),
  
   curl -H "Content-Type: application/json" -X POST -d '{
       "startTime" : "Mar 5, 2014 10:00 am",
-      "endTime"   : "Mar 6, 2014 10:00 am",
+      "endTime"   : "Mar 6, 2014 10:47 am",
       "currencies" : [{"currency"  : "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}],
-      "timeIncrement" : "month"
+      "timeIncrement" : "hour"
       
     }' http://localhost:5993/api/issuer_capitalization
 
   curl -H "Content-Type: application/json" -X POST -d '{
       "startTime" : "Mar 5, 2011 10:00 am",
-      "endTime"   : "Mar 6, 2015 10:00 am",
+      "endTime"   : "Mar 6, 2015 10:47 am",
       "currencies" : [{"currency"  : "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}],
       "timeIncrement" : "month"
       
@@ -89,9 +89,9 @@ function issuerCapitalization(params, callback) {
 
 
   //Parse timeIncrement and timeMultiple
-  var results        = tools.parseTimeIncrement(params.timeIncrement);
-  var group          = results.group;
-  var group_level    = results.group_level;
+  var results     = tools.parseTimeIncrement(params.timeIncrement);
+  var group       = results.group;
+  var group_level = results.group_level;
 
   //currencies = [currencies.pop()]; //for testing
  
@@ -148,7 +148,14 @@ function issuerCapitalization(params, callback) {
   function fromCouch (options, c, callback) {
 
     var viewOptions = options.subview ? options.subview : options.view;
-
+    
+    //if the start and end times are the same, there is no need to query couchDB
+    if (viewOptions.startkey.toString()===viewOptions.endkey.toString()) {
+      c.results = options.cached || [];
+      return callback(null, c);
+    }
+    
+    
     //Query CouchDB for changes in trustline balances    
     db.view('currencyBalances', 'v1', viewOptions, function(error, trustlineRes){
       
@@ -251,8 +258,7 @@ function issuerCapitalization(params, callback) {
         //get rid of the first row if it is a duplicate of
         //the first cached row, then combine the two
         if (options.cached && options.cached.length) {
-       
-          if (rows.length && rows[0][0]==options.cached[0][0]) rows.shift();
+          if (rows.length && rows[0][0]==options.cached[options.cached.length-1][0]) rows.shift();
           rows = options.cached.concat(rows);
         }
       }
@@ -281,21 +287,21 @@ function issuerCapitalization(params, callback) {
     
     var keyBase  = parseKey(options.view);
     var time     = moment.utc(options.alignedTime);
-    var end      = tools.getAlignedTime(options.endTime);
+    var end      = tools.getAlignedTime(endTime);
     var cached   = [], keys = [];
     
     //skip the first unless it happens to be properly aligned
-    if (time.diff(options.startTime)) time.add(options.increment, 1);
+    if (time.diff(startTime)) time.add(options.increment, 1);
     
     //set up key list      
-    while(end.diff(time)>0) {
+    while(end.diff(time)>=0) {
       keys.push(keyBase+":"+time.unix());
       time.add(options.increment, 1);
     } 
     
     //get cached points for the range
     redis.mget(keys, function(error, res){
-      
+       
       if (error)       return callback(error);
       if (!res.length) return callback();
       var last;
@@ -310,7 +316,7 @@ function issuerCapitalization(params, callback) {
       
       if (!last) return callback();   //no cached rows 
       last = moment.utc(last);
-         
+        
       //adjust range of query to exclude cached results        
       var key     = options.view.startkey.slice(0,1);
       var subview = JSON.parse(JSON.stringify(options.view)); //shallow copy

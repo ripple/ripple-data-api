@@ -54,10 +54,11 @@ var winston = require('winston'),
     }' http://localhost:5993/api/valueSent
      
   curl -H "Content-Type: application/json" -X POST -d '{
-      "currency"  : "CNY",
-      "issuer"    : "rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK",
+      "currency"  : "USD",
+      "issuer"    : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
       "startTime" : "Mar 5, 2014 10:00 am",
-      "endTime"   : "Mar 6, 2014 10:00 am"
+      "endTime"   : "Mar 6, 2014 10:00 am",
+      "timeIncrement" : "hour"
       
     }' http://localhost:5993/api/valueSent
  
@@ -167,8 +168,15 @@ function valueSent(params, callback) {
   if (CACHE) getCached(options.view, function(error, subview, rows) {
     
     cached = rows;
-    if (error) return callback (error);
-    return fromCouch(subview ? subview : options.view);
+    if (error)    return callback (error);
+    if (!subview) return fromCouch(options.view); //no cached
+    
+    //if the start and end times are the same, there is no need to query couchDB
+    if (subview.startkey.toString()===subview.endkey.toString()) {
+      return handleResponse(options.view, cached);
+    }    
+    
+    return fromCouch(subview); //some cached results
   });
     
   //cache not activated    
@@ -179,7 +187,6 @@ function valueSent(params, callback) {
  * Load data from couchDB
  */      
   function fromCouch(viewOpts) {
-    
     
     //Query CouchDB with the determined viewOpts
     db.view('valueSentV2', 'v1', viewOpts, function(error, couchRes) {
@@ -258,7 +265,7 @@ function valueSent(params, callback) {
     var keyBase   = parseKey(options);
     var firstTime = moment.utc(options.startkey.slice(2));
     var time      = tools.getAlignedTime(firstTime, options.increment);
-    var end       = moment.utc(options.endkey.slice(2));
+    var end       = tools.getAlignedTime(options.endkey.slice(2), options.increment);
     var cached    = [], keys = [];
     
     //skip the first unless it happens to be properly aligned
@@ -286,8 +293,8 @@ function valueSent(params, callback) {
       }
       
       if (!last) return callback();   //no cached rows 
-      last = moment.utc(last);
-
+      last = moment.utc(last).add(options.increment, 1); //start with the next increment
+      
       //adjust range of query to exclude cached results             
       var key     = options.startkey.slice(0,2);
       var subview = JSON.parse(JSON.stringify(options)); //shallow copy
@@ -322,7 +329,7 @@ function valueSent(params, callback) {
       //exclude the ones that aren't aligned
       //this should be the first and last unless the
       //client aligned them properly beforehand
- 
+       
       if (time.diff(aligned)) return; 
       if (time.diff(end)>0)   return;
       points.push(key);

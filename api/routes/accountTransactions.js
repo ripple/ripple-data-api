@@ -14,7 +14,7 @@ var winston = require('winston'),
  *    endTime: (any momentjs-readable date), // optional
  *    descending: true/false, // optional, defaults to true
  *    limit  : limit the number of responses, ignored if time increment is set or reduce is true
- *    offset : offset by n transactions for pagination
+ *    offset : offset by n transactions for pagination 
  *    format : 'json', 'csv'   // optional
  *  }
  * 
@@ -45,6 +45,12 @@ var winston = require('winston'),
       
     }' http://localhost:5993/api/accountTransactions
     
+    
+ curl -o counterparties.data -H "Content-Type: application/json" -X POST -d '{
+      "account"    : "rNKXT1p7jpt5WxSRSzmUV6ZB6kY7jdqHmx",
+      "counterparties" : true
+      
+    }' http://localhost:5993/api/accountTransactions    
  * 
  */
 
@@ -141,6 +147,22 @@ function accountTransactions(params, callback) {
       return callback(null, response);
       
     } else {
+      
+      if (params.counterparties) {
+        var counterparties = {}, data = [];
+        
+        for (var i=0; i<rows.length; i++) {
+          counterparties[rows[i].value[4]] = 1;
+        }
+        
+        for(var key in counterparties) {
+          data.push(key);
+        }
+        
+        console.log(data.length);
+        return callback(null, data);
+      }
+      
         response = [["currency","issuer","type","amount","counterparty","time","txHash","ledgerIndex"]];
         rows.forEach( function( row, index ) {
           response.push([

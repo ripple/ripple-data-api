@@ -532,8 +532,9 @@ Returns a list of accounts that participated in trading the specified trading pa
 + Parameters
     + base (JSON, optional) ... base currency-issuer. If not present, top XRP markets are queried
     + counter  (JSON, optional) ... counter currency-issuer. Required if base is present
-    + range (string, optional) ... Any of the following ("30d", "7d", "24h")
+    + period (string, optional) ... Any of the following ("24h", "3d", "7d", "30d")
     + startTime (string, optional) ... moment.js readable date string
+    + transactions (boolean, optional) ... include individual transactions in the response, defaults to false. ignored in csv format
     + format ('json' or 'csv', optional) ... defaults to a CSV-like array
     
 + Request (json)
@@ -546,7 +547,7 @@ Returns a list of accounts that participated in trading the specified trading pa
                 currency : "USD",
                 issuer   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"
             },
-            range : "24h"
+            period : "24h"
         }
         
 + Response 200 (text/plain)
