@@ -15,4 +15,4 @@ dbfilename dump.rdb
 #
 maxmemory 2gb
 maxmemory-policy allkeys-lru
-
+daemonize yes
