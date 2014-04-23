@@ -10,12 +10,19 @@ var winston = require('winston'),
   
 if (!config)   return winston.info('Invalid environment: ' + env);
 if (!DBconfig) return winston.info('Invalid DB config: '+env);
-db = require('./library/couchClient')(DBconfig.protocol+
-  '://' + DBconfig.username + 
-  ':'   + DBconfig.password + 
-  '@'   + DBconfig.host + 
-  ':'   + DBconfig.port + 
-  '/'   + DBconfig.database);
+db = require('./library/couchClient')({
+  url : DBconfig.protocol+
+    '://' + DBconfig.username + 
+    ':'   + DBconfig.password + 
+    '@'   + DBconfig.host + 
+    ':'   + DBconfig.port + 
+    '/'   + DBconfig.database,
+  //log : function (id, args) {
+  //  console.log(id, args);
+  //},
+  request_defaults : {timeout :30 * 1000} //30 seconds max for couchDB 
+});
+
 
 DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
 CACHE = config.redis && config.redis.enabled    ? true : false;
@@ -74,7 +81,6 @@ var allowCrossDomain = function(req, res, next) {
   else next();
 };
 
-
 app.use(allowCrossDomain);
 app.use(express.bodyParser()); // TODO use express.json() instead of bodyParser
 app.post('/api/*', requestHandler);
@@ -86,21 +92,23 @@ winston.info('Listening on port ' + config.port);
 function requestHandler(req, res) {
   var path = req.path.slice(5), apiRoute;
   var time = Date.now();
+  var ip   = req.connection.remoteAddress;
   
   if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
   
-  winston.info(req.connection.remoteAddress, "POST", path, "["+(new Date())+"]");
+  winston.info(ip, "POST", path, "["+(new Date())+"]");
   apiRoute = path.replace(/_/g, "").toLowerCase();
   
   if (apiRoutes[apiRoute]) {
     apiRoutes[apiRoute](req.body, function(err, response){
+
       if (err) {
         winston.error(err, " - "+path, "(Server Error) 500");
         return res.send(500, { error: err });
       }
       
       time = (Date.now()-time)/1000;
-      winston.info(req.connection.remoteAddress, path, 200, "["+(new Date())+"]", time+"s");
+      winston.info(ip, path, 200, "["+(new Date())+"]", time+"s");
       res.send(200, response);  
     });
     
@@ -110,7 +118,13 @@ function requestHandler(req, res) {
     res.send(404, 'Sorry, that API route doesn\'t seem to exist.'+
       ' Available paths are: ' + 
       Object.keys(apiRoutes).join(', ') + '\n');
-  } 
+  }
+  
+  res.setTimeout(45 * 1000); //max 45s
+  res.on("timeout", function(){
+    winston.error("Response 408 Request Timeout - ", path);
+    res.send(408, {error: "Request Timeout"});
+  }); 
 }
 
 if (CACHE) {
