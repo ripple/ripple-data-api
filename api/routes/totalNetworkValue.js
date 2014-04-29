@@ -224,7 +224,7 @@ function totalNetworkValue(params, callback) {
             redis.set(cacheKey, JSON.stringify(response), function(error, res){
               if (error) return callback("Redis - " + error);
               
-              if (live) redis.expire(cacheKey, 60); //expire in 60 seconds  
+              if (live) redis.expire(cacheKey, 240); //expire in 4 minutes  
               if (DEBUG) winston.info(cacheKey+" cached");
               
             });

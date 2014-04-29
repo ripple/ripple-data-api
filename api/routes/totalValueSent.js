@@ -273,7 +273,7 @@ function totalValueSent(params, callback) {
           if (CACHE) {
             redis.set(cacheKey, JSON.stringify(response), function(error, res){
               if (error) return callback("Redis - "+ error);
-              redis.expire(cacheKey, 60); //expire in 60 seconds  
+              redis.expire(cacheKey, 240); //expire in 4 minutes  
               if (DEBUG) winston.info(cacheKey + " cached");
             });
           }      
