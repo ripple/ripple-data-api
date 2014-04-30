@@ -56,16 +56,16 @@ var winston = require('winston'),
   }' http://localhost:5993/api/accountTransactionStats
     
   curl -H "Content-Type: application/json" -X POST -d '{
-    "startTime"  : "Mar 9, 2014 10:00 am",
+    "startTime"  : "Apr 4, 2014 10:00 am",
     "endTime"    : "Apr 10, 2014 10:00 am",
-    "account" : "rNgRuUdPLsnesHUiMHT5mgZLRuSB5UFuMQ",
+    "account" : "rrpNnNLKrartuEqfJGpqyDwPj1AFPg9vn1",
     "timeIncrement" : "hour"
     
   }' http://localhost:5993/api/accountTransactionStats
   
   curl -H "Content-Type: application/json" -X POST -d '{
     "account" : "rrpNnNLKrartuEqfJGpqyDwPj1AFPg9vn1",
-    "timeIncrement" : "hour"
+    "timeIncrement" : "day"
       
   }' http://localhost:5993/api/accountTransactionStats
       
@@ -80,18 +80,22 @@ var winston = require('winston'),
 
 function transactionStats(params, callback) {
   
-  var viewOpts = {};
-  var account  = params.account;
-      
+  var account = params.account,
+    limit     = params.limit  ? parseInt(params.limit, 10)  : 0,
+    offset    = params.offset ? parseInt(params.offset, 10) : 0,
+    maxLimit  = 500,
+    viewOpts  = {},
+    intervalCount;
+    
   if (!account) return callback("Please specify an account");  
-
+  if (!limit || limit>maxLimit) limit = maxLimit;
   
   //Parse start and end times
   var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
   if (range.error) return callback(range.error);  
-  if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
+  if (!range.start) range.start = moment.utc(range.end).subtract(30, "days");
   
   // set startkey and endkey for couchdb query
   viewOpts.startkey = [account].concat(range.start.toArray().slice(0,6));
@@ -107,8 +111,15 @@ function transactionStats(params, callback) {
   else if (params.reduce === false) viewOpts.reduce      = false;
 
   if (viewOpts.reduce===false) {
-    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
-    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
+    if (limit  && !isNaN(limit))  viewOpts.limit = limit;
+    if (offset && !isNaN(offset)) viewOpts.skip  = offset;
+  }
+  
+  if (results.group !== false) {
+    intervalCount = tools.countIntervals(range.start, range.end, results.name);
+    if (intervalCount>maxLimit) {
+      return callback("Please specify a smaller time range or larger interval");
+    }
   }
     
   viewOpts.stale = "ok"; //dont wait for updates
