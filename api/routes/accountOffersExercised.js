@@ -9,6 +9,8 @@ var winston = require('winston'),
  * list of offers excercised for a given account. providing a time increment or reduce option
  * results in a count of transactions for the given interval or time period
  *
+ *  max returned results : 500
+ * 
  * request:
  *
  * {
@@ -120,18 +122,18 @@ var winston = require('winston'),
   }' http://localhost:5993/api/accountOffersExercised
   
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "rN9U9jLxBQq6N4bREdG2UxxoAXPGiSANfc",
+    "account" : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
     "timeIncrement" : "day"
       
   }' http://localhost:5993/api/accountOffersExercised
       
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "rN9U9jLxBQq6N4bREdG2UxxoAXPGiSANfc"
+    "account" : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV"
     
   }' http://localhost:5993/api/accountOffersExercised
   
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "rN9U9jLxBQq6N4bREdG2UxxoAXPGiSANfc",
+    "account" : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
     "limit"  : 5,
     "offset" : 10,
     "format" : "csv"
