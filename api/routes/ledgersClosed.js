@@ -10,7 +10,7 @@ var winston = require('winston'),
  * request:
  *
  * {
- *  startTime     : (any momentjs-readable date), // optional
+ *  startTime     : (any momentjs-readable date), // optional, defaults to 30 days before endTime
  *  endTime       : (any momentjs-readable date), // optional, defaults to now
  *  timeIncrement : (any of the following: "all", "year", "month", "day", "hour", "minute", "second") // optional, defaults to "day"
  *  descending    : true/false, // optional, defaults to true
@@ -81,7 +81,8 @@ var winston = require('winston'),
   
  curl -H "Content-Type: application/json" -X POST -d '{
     "startTime" : "Apr 1, 2014 10:00 am",
-    "endTime"   : "Apr 10, 2014 10:00 am"
+    "endTime"   : "Apr 10, 2014 10:00 am",
+    "timeIncrement" : "day"
     
   }' http://localhost:5993/api/ledgersClosed 
 
@@ -105,14 +106,20 @@ var winston = require('winston'),
    
 function ledgersClosed(params, callback) {
   
-  var viewOpts = {};
+  var viewOpts = {},
+    limit      = params.limit  ? parseInt(params.limit, 10)  : 0,
+    offset     = params.offset ? parseInt(params.offset, 10) : 0,
+    maxLimit   = 500,
+    intervalCount;
+    
+  if (!limit || limit>maxLimit) limit = maxLimit;   
   
   //Parse start and end times
   var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
   if (range.error)  return callback(range.error);  
-  if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
+  if (!range.start) range.start = moment.utc(range.end).subtract(30, "days");
   
   // set startkey and endkey for couchdb query
   viewOpts.startkey = range.start.toArray().slice(0,6);
@@ -128,11 +135,19 @@ function ledgersClosed(params, callback) {
    else if (params.reduce === false) viewOpts.reduce = false;
  
   if (viewOpts.reduce===false) {
-    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
-    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
-  } 
+    if (limit  && !isNaN(limit))  viewOpts.limit = limit;
+    if (offset && !isNaN(offset)) viewOpts.skip  = offset;
+  }
+  
+  if (results.group !== false) {
+    intervalCount = tools.countIntervals(range.start, range.end, results.name);
+    if (intervalCount>maxLimit) {
+      return callback("Please specify a smaller time range or larger interval");
+    }
+  }
   
   viewOpts.stale = "ok"; //dont wait for updates 
+
   
   db.view('ledgersClosed', 'v1', viewOpts, function(error, couchRes){
 
