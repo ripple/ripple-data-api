@@ -109,8 +109,14 @@ var winston = require('winston'),
 
 function valueSent(params, callback) {
   
-  var options  = {};
-  var cached;
+  var options  = {},
+    limit      = params.limit  ? parseInt(params.limit, 10)  : 0,
+    offset     = params.offset ? parseInt(params.offset, 10) : 0,
+    maxLimit   = 500,
+    intervalCount,
+    cached;
+  
+  if (!limit || limit>maxLimit) limit = maxLimit;
   
   //parse currency and issuer  
   var currency = params.currency ? params.currency.toUpperCase() : "";
@@ -118,7 +124,6 @@ function valueSent(params, callback) {
    
   if (!currency)                    return callback("currency is required");
   if (currency != "XRP" && !issuer) return callback("issuer is required");
-
 
     
   //Parse start and end times
@@ -151,14 +156,21 @@ function valueSent(params, callback) {
 
 
   //set reduce option only if its false
-  if (results.group_level)            options.view.group_level = results.group_level + 3;
+  if (results.group_level)          options.view.group_level = results.group_level + 3;
   else if (params.reduce === false) options.view.reduce      = false;
   
   if (options.view.reduce===false) {
-    if (params.limit  && !isNaN(params.limit))  options.view.limit = parseInt(params.limit, 10);
-    if (params.offset && !isNaN(params.offset)) options.view.skip  = parseInt(params.offset, 10);
-  }
+    if (limit  && !isNaN(limit))  options.view.limit = limit;
+    if (offset && !isNaN(offset)) options.view.skip  = offset;
+  } 
 
+  if (results.group !== false) {
+    intervalCount = tools.countIntervals(startTime, endTime, results.name);
+    if (intervalCount>maxLimit) {
+      return callback("Please specify a smaller time range or larger interval");
+    }
+  }
+  
   options.view.increment = results.name;  
   options.view.stale     = "ok"; //dont wait for updates
 
