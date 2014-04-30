@@ -28,9 +28,9 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Apr 04, 2014 9:00 am z",
+    "startTime" : "Mar 04, 2014 9:00 am z",
     "endTime"   : "Apr 05, 2014 10:45 am z",
-    "timeIncrement" : "hour",
+    "timeIncrement" : "minute",
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
@@ -727,11 +727,24 @@ function offersExercised (params, callback) {
     if (results.group_level)          options.view.group_level = results.group_level + 2;
     else if (params.reduce === false) options.view.reduce      = false;
   
-    
+    var limit  = params.limit  ? parseInt(params.limit, 10)  : 0,
+      offset   = params.offset ? parseInt(params.offset, 10) : 0,
+      maxLimit = 500,
+      intervalCount;
+      
+    if (!limit || limit>maxLimit) limit = maxLimit;
+      
     if (options.view.reduce===false) {
-      if (params.limit  && !isNaN(params.limit))  options.view.limit = parseInt(params.limit, 10);
-      if (params.offset && !isNaN(params.offset)) options.view.skip  = parseInt(params.offset, 10);
-    } 
+      if (limit  && !isNaN(limit))  options.view.limit = limit;
+      if (offset && !isNaN(offset)) options.view.skip  = offset;
+    }  
+    
+    if (results.group !== false) {
+      intervalCount = tools.countIntervals(time.start, time.end, results.name, options.multiple);
+      if (intervalCount>maxLimit) {
+        return callback("Please specify a smaller time range or larger interval");
+      }
+    }
 
     if (DEBUG) {
       var label = params.timeMultiple  ? params.timeMultiple  : "";
