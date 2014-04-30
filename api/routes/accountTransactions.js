@@ -7,15 +7,18 @@ var winston = require('winston'),
 /**
  *  accountTransactions returns transactions in which an account sent or received an amount.
  * 
+ *  max returned results : 500;
+ * 
  *  expects params to have:
  *  {
  *    account: //ripple address of the account to query
- *    startTime: (any momentjs-readable date), // optional
- *    endTime: (any momentjs-readable date), // optional
+ *    startTime: (any momentjs-readable date), // optional, defaults to 30 days before endTime
+ *    endTime: (any momentjs-readable date), // optional, defaults to now
  *    descending: true/false, // optional, defaults to true
  *    limit  : limit the number of responses, ignored if time increment is set or reduce is true
  *    offset : offset by n transactions for pagination 
  *    format : 'json', 'csv'   // optional
+ *    
  *  }
  * 
 
@@ -56,17 +59,21 @@ var winston = require('winston'),
 
 function accountTransactions(params, callback) {
 
-  var viewOpts = {};
+  var account = params.account,
+    limit     = params.limit  ? parseInt(params.limit, 10)  : 0,
+    offset    = params.offset ? parseInt(params.offset, 10) : 0,
+    maxLimit  = 500,
+    viewOpts  = {};
 
-  if (!params.account) return callback("please provide a valid ripple account");
-  var account = params.account; 
+  if (!account) return callback("please provide a valid ripple account");
+  if (!limit || limit>maxLimit) limit = maxLimit;
   
   //Parse start and end times
   var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
   if (range.error)  return callback(range.error);  
-  if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
+  if (!range.start) range.start = moment.utc(range.end).subtract(30, "days");
   
   // set startkey and endkey for couchdb query
   viewOpts.startkey = [account].concat(range.start.toArray().slice(0,6));
@@ -77,10 +84,11 @@ function accountTransactions(params, callback) {
   viewOpts.reduce = false; //view has no reduce function
   
   if (viewOpts.reduce===false) {
-    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
-    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
+    if (limit  && !isNaN(limit))  viewOpts.limit = limit;
+    if (offset && !isNaN(offset)) viewOpts.skip  = offset;
   }
   
+  console.log(limit, offset, viewOpts)
   viewOpts.stale = "ok"; //dont wait for updates
   
   db.view('accountTransactions', 'v1', viewOpts, function(error, couchRes){
@@ -148,6 +156,7 @@ function accountTransactions(params, callback) {
       
     } else {
       
+      //TODO: document this param and apply other formats to it
       if (params.counterparties) {
         var counterparties = {}, data = [];
         
