@@ -154,6 +154,14 @@ exports.parseTimeRange = function (time1, time2, descending) {
 }
 
 
+exports.countIntervals = function (start, end, intervalName, multiple) {
+  if (!multiple) multiple = 1;
+  
+  var diff   = Math.abs(end.diff(start)),
+    interval = moment.duration(multiple, intervalName).asMilliseconds();
+    
+  return diff/interval;
+}
 
 exports.parseTimeIncrement = function (inc) {
   var results = {};

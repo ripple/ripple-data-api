@@ -13,7 +13,7 @@ var winston = require('winston'),
  *
  * {
  *  account       : "r9aZAsv...." //required
- *  startTime     : (any momentjs-readable date), // optional
+ *  startTime     : (any momentjs-readable date), // optional, defaults to 30 days before end time
  *  endTime       : (any momentjs-readable date), // optional, defaults to now
  *  descending    : true/false, // optional, defaults to true
  *  limit         : limit the number of responses, ignored if time increment is set
@@ -120,13 +120,13 @@ var winston = require('winston'),
   }' http://localhost:5993/api/accountOffersExercised
   
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV",
-    "timeIncrement" : "hour"
+    "account" : "rN9U9jLxBQq6N4bREdG2UxxoAXPGiSANfc",
+    "timeIncrement" : "day"
       
   }' http://localhost:5993/api/accountOffersExercised
       
   curl -H "Content-Type: application/json" -X POST -d '{
-    "account" : "r3kmLJN5D28dHuH8vZNUZpMC43pEHpaocV"
+    "account" : "rN9U9jLxBQq6N4bREdG2UxxoAXPGiSANfc"
     
   }' http://localhost:5993/api/accountOffersExercised
   
@@ -145,18 +145,23 @@ var winston = require('winston'),
   
 function accountOffersExercised (params, callback) {
   
-  var viewOpts = {};
-  var account  = params.account;
+  var account = params.account,
+    limit     = params.limit  ? parseInt(params.limit, 10)  : 0,
+    offset    = params.offset ? parseInt(params.offset, 10) : 0,
+    maxLimit  = 500,
+    viewOpts  = {},
+    intervalCount;
+  
       
   if (!account) return callback("Please specify an account");  
-
+  if (!limit || limit>maxLimit) limit = maxLimit;
   
   //Parse start and end times
   var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
   if (range.error) return callback(range.error);  
-  if (!range.start) range.start = moment.utc(0);
   if (!range.end)   range.end   = moment.utc();
+  if (!range.start) range.start = moment.utc(range.end).subtract(30, "days");
   
   // set startkey and endkey for couchdb query
   viewOpts.startkey = [account].concat(range.start.toArray().slice(0,6));
@@ -168,12 +173,19 @@ function accountOffersExercised (params, callback) {
   var results = tools.parseTimeIncrement(params.timeIncrement);  
 
   //set reduce option only if its false
-  if (results.group_level)   viewOpts.group_level = results.group_level + 2;
+  if (results.group_level) viewOpts.group_level = results.group_level + 2;
   else if (!params.reduce) viewOpts.reduce      = false;
   
   if (viewOpts.reduce===false) {
-    if (params.limit  && !isNaN(params.limit))  viewOpts.limit = parseInt(params.limit, 10);
-    if (params.offset && !isNaN(params.offset)) viewOpts.skip  = parseInt(params.offset, 10);
+    if (limit  && !isNaN(limit))  viewOpts.limit = limit;
+    if (offset && !isNaN(offset)) viewOpts.skip  = offset;
+  }
+  
+  if (results.group !== false) {
+    intervalCount = tools.countIntervals(range.start, range.end, results.name);
+    if (intervalCount>maxLimit) {
+      return callback("Please specify a smaller time range or larger interval");
+    }
   }
   
   viewOpts.stale = "ok"; //dont wait for updates
