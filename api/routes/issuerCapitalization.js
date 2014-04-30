@@ -79,7 +79,7 @@ function issuerCapitalization(params, callback) {
     
   } else return callback('please specify at least one issuer-currency pair');
   
-  if (pairs.length>10) return callback("Cannot retrieve more than 10 currencies");
+  if (currencies.length>10) return callback("Cannot retrieve more than 10 currencies");
   
   //Parse start and end times
   var time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
@@ -95,9 +95,11 @@ function issuerCapitalization(params, callback) {
   var group       = results.group;
   var group_level = results.group_level;
 
-  intervalCount = tools.countIntervals(time.start, time.end, results.name);
-  if (intervalCount>maxLimit) {
-    return callback("Please specify a smaller time range or larger interval");
+  if (results.group !== false) {
+    intervalCount = tools.countIntervals(time.start, time.end, results.name);
+    if (intervalCount>maxLimit) {
+      return callback("Please specify a smaller time range or larger interval");
+    }
   }
     
   //currencies = [currencies.pop()]; //for testing
