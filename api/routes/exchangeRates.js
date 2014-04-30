@@ -45,6 +45,18 @@ var moment = require('moment'),
     "pairs" : [{
       "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
       "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
     }] 
   }' http://localhost:5993/api/exchangerates
 
@@ -86,7 +98,8 @@ function exchangeRates (params, callback) {
     }
   });
   
-
+  if (pairs.length>20) return callback("Cannot retrieve more than 20 pairs");
+  
 //call offersExercised for each asset pair
   async.mapLimit(list, 10, function(pair, asyncCallbackPair){
 
