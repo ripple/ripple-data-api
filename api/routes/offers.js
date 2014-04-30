@@ -36,14 +36,14 @@ var winston = require('winston'),
     "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "startTime" : "Feb 10, 2014 4:44:00 am",
     "endTime"   : "Apr 16, 2014 5:09:00 am",
-    "reduce"    : false,
-    "limit"     : 10,
-    "offset"    : 10
+    "reduce"    : false
+
      
     }' http://localhost:5993/api/offers 
  * 
  */
 function offers (params, callback) {
+  
   var options  = {};
   options.view = {};
   parseOptions(); //parse request params for query options
@@ -225,16 +225,26 @@ function offers (params, callback) {
         //set reduce option only if its false
     if (results.group_level)          options.view.group_level = results.group_level + 2;
     else if (params.reduce === false) options.view.reduce      = false;
-  
+
+    var limit  = params.limit  ? parseInt(params.limit, 10)  : 0,
+      offset   = params.offset ? parseInt(params.offset, 10) : 0,
+      maxLimit = 500,
+      intervalCount;
+      
+    if (!limit || limit>maxLimit) limit = maxLimit;
+      
     if (options.view.reduce===false) {
-      if (params.limit  && !isNaN(params.limit))  options.view.limit = parseInt(params.limit, 10);
-      if (params.offset && !isNaN(params.offset)) options.view.skip  = parseInt(params.offset, 10);
+      if (limit  && !isNaN(limit))  options.view.limit = limit;
+      if (offset && !isNaN(offset)) options.view.skip  = offset;
     } 
         
-    if (params.limit && typeof params.limit == "number") {
-      options.view.limit = params.limit;
+    if (results.group !== false) {
+      intervalCount = tools.countIntervals(time.start, time.end, results.name);
+      if (intervalCount>maxLimit) {
+        return callback("Please specify a smaller time range or larger interval");
+      }
     }
-
+    
     // set startkey and endkey for couchdb query
     options.view.startkey   = [options.counter+":"+options.base].concat(options.startTime.toArray().slice(0,6));
     options.view.endkey     = [options.counter+":"+options.base].concat(options.endTime.toArray().slice(0,6));
