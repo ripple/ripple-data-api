@@ -79,6 +79,7 @@ function issuerCapitalization(params, callback) {
     
   } else return callback('please specify at least one issuer-currency pair');
   
+  if (pairs.length>10) return callback("Cannot retrieve more than 10 currencies");
   
   //Parse start and end times
   var time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
