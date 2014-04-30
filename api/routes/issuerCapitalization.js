@@ -55,7 +55,9 @@ var winston = require('winston'),
 
 function issuerCapitalization(params, callback) {
 
-  var error, currencies = []
+  var error, 
+    maxLimit   = 500,
+    currencies = [];
   
   //validate incoming currencies
   if (Array.isArray(params.currencies)) {
@@ -87,14 +89,18 @@ function issuerCapitalization(params, callback) {
   var startTime = time.start;
   var endTime   = time.end;
 
-
   //Parse timeIncrement and timeMultiple
   var results     = tools.parseTimeIncrement(params.timeIncrement);
   var group       = results.group;
   var group_level = results.group_level;
 
+  intervalCount = tools.countIntervals(time.start, time.end, results.name);
+  if (intervalCount>maxLimit) {
+    return callback("Please specify a smaller time range or larger interval");
+  }
+    
   //currencies = [currencies.pop()]; //for testing
- 
+  
   
   //get capitalization data for each currency
   async.map(currencies, function(c, asyncCallbackPair){
