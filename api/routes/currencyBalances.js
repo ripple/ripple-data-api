@@ -87,6 +87,10 @@ var winston = require('winston'),
  */
 
 function currencyBalances (params, callback) {
+  
+  //currently not working
+  if (1) return callback('This API is unavailable');
+  
   var viewOpts  = {};
   var currency  = params.currency || "XRP";
   var issuer    = params.issuer;
