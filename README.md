@@ -1,5 +1,6 @@
 API Documentation: http://docs.rippledataapi.apiary.io/
 
+
 # Ripple Data API
 The Ripple data API is the end point for ripplecharts and other applications that need historical data.  This API is built on Node.js, CouchDB, and Redis.
 
@@ -22,6 +23,8 @@ All API routes are post requests with parameters passed as a JSON object.  the s
 
 ### offers_exercised [/offers_exercised{base}{counter}{startTime}{endTime}{timeIncrement}{timeMultiple}{descending}{reduce}{limit}{offset}{format}]
 Exchange offers exercised over time - returns volume in terms of base and counter currencies, number of trades, open, high, low, close, and volume weighted price.
+
++ Maximum returned results : 500
 
 #### POST    
 
@@ -257,6 +260,9 @@ The amount of value sent from all accounts for a specific currency over time.
 ### issuer_capitalization [/issuer_capitalization{currencies}{startTime}{endTime}{timeIncrement}]
 Returns the total capitalization (outstanding balance) of a specified issuer & specified currency pair, over the given time range.
 
++ Maximum currencies per query : 10
++ Maximum returned results : 500 per currency
+
 #### POST
 
 + Parameters
@@ -309,11 +315,13 @@ Returns the total capitalization (outstanding balance) of a specified issuer & s
 ### accounts_created [/accounts_created{startTime}{endTime}{timeIncrement}{descending}{reduce}{limit}{offset}{format}]
 The number of ripple accounts that have been created over time.
 
++ Max returned results : 500
+
 #### POST
 
 + Parameters
-    + startTime (string, optional) ... any momentjs-readable date
-    + endTime (string, optional) ... any momentjs-readable date
+    + startTime (string, optional) ... any momentjs-readable date, defaults to 30 days before end time
+    + endTime (string, optional) ... any momentjs-readable date, defaults to now
     + timeIncrement (string, optional) ... any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second" - defaults to "day"
     + descending (boolean, optional) ... defaults to false
     + reduce (boolean, optional) ... defaults to true, false returns individual accounts
@@ -474,7 +482,9 @@ Breakdown of valid transactions by type on the ripple network over time.
         ...
 
 ### exchange_rates [/exchange_rates{pairs}{base}{counter}{range}]
-The exchange rates between two or more currencies for a given time range and increment.
+The exchange rates between two currencies for a given time period.  Returns the volume weighted average price for the specified range, as well as the last traded price.
+
++ Max returned results : 20
 
 #### POST  
 
@@ -532,9 +542,8 @@ Returns a list of accounts that participated in trading the specified trading pa
 + Parameters
     + base (JSON, optional) ... base currency-issuer. If not present, top XRP markets are queried
     + counter  (JSON, optional) ... counter currency-issuer. Required if base is present
-    + period (string, optional) ... Any of the following ("24h", "3d", "7d", "30d")
+    + range (string, optional) ... Any of the following ("30d", "7d", "24h")
     + startTime (string, optional) ... moment.js readable date string
-    + transactions (boolean, optional) ... include individual transactions in the response, defaults to false. ignored in csv format
     + format ('json' or 'csv', optional) ... defaults to a CSV-like array
     
 + Request (json)
@@ -547,7 +556,7 @@ Returns a list of accounts that participated in trading the specified trading pa
                 currency : "USD",
                 issuer   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"
             },
-            period : "24h"
+            range : "24h"
         }
         
 + Response 200 (text/plain)
@@ -747,12 +756,14 @@ The total of amounts sent or exchanged from any wallet, either through a payment
 ### account_offers_exercised [/account_offers_exercised{account}{startTime}{endTime}{timeIncrement}{descending}{reduce}{limit}{offset}{format}]
 Returns a list of offers excercised for a given account. Providing a time increment or reduce option results in a count of transactions for the given interval or time period.
 
++ Maximum returned results : 500
+    
 #### POST
 
 + Parameters 
     + account (string) ... valid ripple address
-    + startTime (string, optional) ... any momentjs-readable date
-    + endTime (string, optional) ... any momentjs-readable date
+    + startTime (string, optional) ... any momentjs-readable date, defaults to 30 days before endTime
+    + endTime (string, optional) ... any momentjs-readable date, defaults to now
     + descending (boolean, optional) ... defaults to false
     + limit (integer, optional) ... limit the number of responses
     + offset (integer, optional) ... offset by n transactions for pagination
@@ -847,12 +858,14 @@ Returns a list of offers excercised for a given account. Providing a time increm
 ### account_transactions [/account_transactions{account}{startTime}{endTime}{descending}{limit}{offset}{format}]
 Returns a list of transactions in which the specified account sent or received an amount.
 
++ Maximum returned results : 500
+
 #### POST  
 
 + Parameters 
     + account (string) ... valid ripple address
-    + startTime (string, optional) ... any momentjs-readable date
-    + endTime (string, optional) ... any momentjs-readable date
+    + startTime (string, optional) ... any momentjs-readable date, defaults to 30 days before endTime
+    + endTime (string, optional) ... any momentjs-readable date, defaults to now
     + descending (boolean, optional) ... defaults to false
     + limit (integer, optional) ... limit the number of responses
     + offset (integer, optional) ... offset by n transactions for pagination
@@ -930,12 +943,14 @@ Returns a list of transactions in which the specified account sent or received a
 ### account_transaction_stats [/account_transaction_stats{account}{startTime}{endTime}{timeIncrement}{descending}{reduce}{limit}{offset}{format}]
 Breakdown of valid transactions by type for a specified account on the ripple network over time.
 
++ Max returned results : 500
+
 #### POST
 
 + Parameters 
     + account (string) ... valid ripple address
-    + startTime (string, optional) ... any momentjs-readable date
-    + endTime (string, optional) ... any momentjs-readable date
+    + startTime (string, optional) ... any momentjs-readable date, defaults to 30 days before endTime
+    + endTime (string, optional) ... any momentjs-readable date, defaults to now
     + timeIncrement (string, optional) ... any of the following: "all", "none", "year", "month", "day", "hour", "minute", "second" - defaults to "day"
     + descending (boolean, optional) ... defaults to false
     + reduce (boolean, optional) ... defaults to true, false returns individual transactions
@@ -1022,6 +1037,8 @@ Breakdown of valid transactions by type for a specified account on the ripple ne
 ### ledgers_closed [/ledgers_closed{startTime}{endTime}{timeIncrement}{descending}{reduce}{limit}{offset}{format}]
 Returns the ledger closes over time, as individual ledger indexes or counts
 
++ Maximum returned results : 500
+
 #### POST
 + Parameters
     + startTime (string, optional) ... any momentjs-readable date
@@ -1100,6 +1117,8 @@ Returns the ledger closes over time, as individual ledger indexes or counts
 
 ### offers [/offers{base}{counter}{startTime}{endTime}{timeIncrement}{descending}{reduce}{limit}{offset}{format}]
 Returns all offer creates and cancels over time for a given trading pair.
+
++ Maximum returned results : 500
 
 #### POST    
 + Parameters
@@ -1208,5 +1227,4 @@ Returns all offer creates and cancels over time for a given trading pair.
         ...
         ...
         ...
-
  
