@@ -119,7 +119,7 @@ function requestHandler(req, res) {
       ' Available paths are: ' + 
       Object.keys(apiRoutes).join(', ') + '\n');
   }
-  
+
   res.setTimeout(45 * 1000); //max 45s
   res.on("timeout", function(){
     winston.error("Response 408 Request Timeout - ", path);
@@ -128,7 +128,10 @@ function requestHandler(req, res) {
 }
 
 if (CACHE) {
-  redis.flushdb(); //reset cache on restart
+  
+  //reset cache if the arg is present
+  if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb(); 
+  
   redis.on("error", function (err) {
     winston.error("Redis - " + err);
     CACHE = false; //turn it off if its not workings
