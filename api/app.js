@@ -1,11 +1,12 @@
-var env      = process.env.NODE_ENV || "development";
-var DBconfig = require('../db.config.json')[env];
-var config   = require('../deployment.environments.json')[env];
+var env    = process.env.NODE_ENV || "development",
+  DBconfig = require('../db.config.json')[env],
+  config   = require('../deployment.environments.json')[env];
 
 //local vars
 var winston = require('winston'),
   express   = require('express'),
   moment    = require('moment'),
+  relic     = require('newrelic'),
   app       = express();
   
 if (!config)   return winston.info('Invalid environment: ' + env);
@@ -158,9 +159,6 @@ if (CACHE) {
   });
 */      
 }
-
-
-
 
 
 
