@@ -13,7 +13,7 @@ var winston = require('winston'),
  * 
  * base (JSON, optional) ... base currency-issuer. If not present, top XRP markets are queried
  * counter  (JSON, optional) ... counter currency-issuer. Required if base is present
- * period (string, optional) ... Any of the following ("24h", "3d", "7d", "30d")
+ * period (string, optional) ... Any of the following ("24h", "3d", "7d")
  * startTime (string, optional) ... moment.js readable date string
  * transactions (boolean, optional) ... include individual transactions in the response, defaults to false
  * format ('json' or 'csv', optional) ... defaults to a CSV-like array
@@ -91,13 +91,12 @@ function topMarketMakers (params, callback) {
     {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}  //RippleTradeJapan JPY
   ];
 
-  if (period == "30d")    params.startTime ? endTime.add(30, "days")  : startTime.subtract(30, "days");
-  else if (period=="7d")  params.startTime ? endTime.add(7,  "days")  : startTime.subtract(7,  "days");
+  if (period=="7d")       params.startTime ? endTime.add(7,  "days")  : startTime.subtract(7,  "days");
   else if (period=="3d")  params.startTime ? endTime.add(3,  "days")  : startTime.subtract(3,  "days");
   else if (period=="24h") params.startTime ? endTime.add(24, "hours") : startTime.subtract(24, "hours");
   else                    params.startTime ? endTime.add(24, "hours") : startTime.subtract(24, "hours");
   
-  
+ 
  // Mimic calling offersExercised for each asset pair
   async.map(currencies, function(c, asyncCallbackPair){
 
@@ -109,13 +108,14 @@ function topMarketMakers (params, callback) {
       reduce    : false
       
     }, function(error, data) {
-
+        //console.log(data);
+        
         if (error) return asyncCallbackPair(error);
         prepareData(data);
         
         asyncCallbackPair(null);
       
-    });
+    }, true);
 
   }, function(error){
     if (error) return callback(error);

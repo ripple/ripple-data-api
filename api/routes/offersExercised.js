@@ -73,7 +73,7 @@ var winston = require('winston'),
     
  */
 
-function offersExercised (params, callback) {
+function offersExercised (params, callback, unlimit) {
   var options  = {};
   options.view = {};
   
@@ -729,10 +729,10 @@ function offersExercised (params, callback) {
   
     var limit  = params.limit  ? parseInt(params.limit, 10)  : 0,
       offset   = params.offset ? parseInt(params.offset, 10) : 0,
-      maxLimit = 500,
+      maxLimit = unlimit ? Infinity : 500,
       intervalCount;
       
-    if (!limit || limit>maxLimit) limit = maxLimit;
+    if (!limit || limit>maxLimit) limit = maxLimit == Infinity ? null : maxLimit;
       
     if (options.view.reduce===false) {
       if (limit  && !isNaN(limit))  options.view.limit = limit;
