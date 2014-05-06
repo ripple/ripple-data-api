@@ -49,24 +49,19 @@ var winston = require('winston'),
     }' http://localhost:5993/api/accountTransactions
     
     
- curl -o counterparties.data -H "Content-Type: application/json" -X POST -d '{
-      "account"    : "rNKXT1p7jpt5WxSRSzmUV6ZB6kY7jdqHmx",
-      "counterparties" : true
-      
-    }' http://localhost:5993/api/accountTransactions    
  * 
  */
 
-function accountTransactions(params, callback) {
+function accountTransactions(params, callback, unlimit) {
 
   var account = params.account,
     limit     = params.limit  ? parseInt(params.limit, 10)  : 0,
     offset    = params.offset ? parseInt(params.offset, 10) : 0,
-    maxLimit  = 500,
+    maxLimit  = unlimit ? Infinity : 500,
     viewOpts  = {};
 
   if (!account) return callback("please provide a valid ripple account");
-  if (!limit || limit>maxLimit) limit = maxLimit;
+  if (!limit || limit>maxLimit) limit = maxLimit === Infinity ? null : maxLimit;
   
   //Parse start and end times
   var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
@@ -168,7 +163,12 @@ function accountTransactions(params, callback) {
           data.push(key);
         }
         
-        console.log(data.length);
+        if (params.format == 'csv') {
+          var csv = "account\n";
+          data.forEach(function(account) {csv += account+"\n"});
+          return callback (null, csv);
+        }  
+        
         return callback(null, data);
       }
       
