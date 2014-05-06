@@ -28,9 +28,8 @@ var winston = require('winston'),
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
     "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "startTime" : "Mar 04, 2014 9:00 am z",
-    "endTime"   : "Apr 05, 2014 10:45 am z",
-    "timeIncrement" : "minute",
+    "limit" : 1,
+    "reduce" : false,
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
@@ -700,6 +699,7 @@ function offersExercised (params, callback, unlimit) {
     
     if (!time.start || !time.end) {
       options.error = "startTime and endTime are required.";
+      return;
     }
     
     options.startTime = time.start;
