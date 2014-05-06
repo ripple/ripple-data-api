@@ -54,7 +54,7 @@ var apiRoutes = {
   'offers'                  : require("./routes/offers"),
   'offersexercised'         : require("./routes/offersExercised"),
   'topmarkets'              : require("./routes/topMarkets"),
-  'marketmakers'            : require("./routes/marketMakers"),
+  'markettraders'           : require("./routes/marketTraders"),
   'accountscreated'         : require("./routes/accountsCreated"),
   'issuercapitalization'    : require("./routes/issuerCapitalization"),
   'currencybalances'        : require("./routes/currencyBalances"),
@@ -102,15 +102,17 @@ function requestHandler(req, res) {
   
   if (apiRoutes[apiRoute]) {
     apiRoutes[apiRoute](req.body, function(err, response){
-
+      
+      
       if (err) {
         winston.error(err, " - "+path, "(Server Error) 500");
-        return res.send(500, { error: err });
+        res.send(500, { error: err });
+        return;
       }
       
       time = (Date.now()-time)/1000;
       winston.info(ip, path, 200, "["+(new Date())+"]", time+"s");
-      res.send(200, response);  
+      res.send(200, response); 
     });
     
   } else {
@@ -159,8 +161,3 @@ if (CACHE) {
   });
 */      
 }
-
-
-
-
-

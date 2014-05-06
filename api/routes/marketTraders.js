@@ -5,7 +5,7 @@ var winston = require('winston'),
   tools     = require('../utils');
 
 /*
- * marketMakers
+ * marketTraders
  * Returns a list of accounts that participated in trading the specified currency
  * pair during the specified time period, ordered by base currency volume.
  * If no trading pair is provided, the API uses a list of the top XRP markets
@@ -23,25 +23,25 @@ var winston = require('winston'),
     "counter" : {"currency": "BTC", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "period" : "7d"
     
-  }' http://localhost:5993/api/marketMakers 
+  }' http://localhost:5993/api/marketTraders 
 
-  curl -o marketmakers.csv -H "Content-Type: application/json" -X POST -d '{
+  curl -o marketTraders.csv -H "Content-Type: application/json" -X POST -d '{
     "period"  : "30d",
     "format"  : "csv"
      
-  }' http://localhost:5993/api/marketMakers 
+  }' http://localhost:5993/api/marketTraders 
 
   curl -H "Content-Type: application/json" -X POST -d '{
     "period"  : "24h",
     "format"  : "json"
      
-  }' http://localhost:5993/api/marketMakers 
+  }' http://localhost:5993/api/marketTraders 
   
 
       
  */
 
-function topMarketMakers (params, callback) {
+function marketTraders (params, callback) {
 
   var list     = [], 
     accounts   = {},
@@ -249,4 +249,4 @@ function topMarketMakers (params, callback) {
 }
 
 
-module.exports = topMarketMakers;
+module.exports = marketTraders;
