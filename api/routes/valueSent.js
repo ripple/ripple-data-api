@@ -220,8 +220,8 @@ function valueSent(params, callback) {
       
       return [[
         moment.utc(options.startkey.slice(2)).format(), 
-        rows[0].value[0], 
-        rows[0].value[1]
+        rows.length ? rows[0].value[0] : 0,
+        rows.length ? rows[0].value[1] : 0
       ]];
     }
         
