@@ -1,6 +1,7 @@
 {
   "development": {
     "port"       : 5993,
+    "maxSockets" : 150,
     "batchSize"  : 100,
     "startIndex" : 1,
     "rippleds"   :  [
@@ -19,6 +20,7 @@
   
   "staging": {
     "port"       : 5993,
+    "maxSockets" : 150,
     "batchSize"  : 100,
     "startIndex" : 32570, //effective genesis ledger
     "rippleds"   :  [
@@ -37,6 +39,7 @@
   
   "production": {
     "port"       : 5993,
+    "maxSockets" : 150,
     "batchSize"  : 100,
     "startIndex" : 32570, //effective genesis ledger
     "rippleds"   :  [

@@ -1,6 +1,11 @@
 var env    = process.env.NODE_ENV || "development",
   DBconfig = require('../db.config.json')[env],
-  config   = require('../deployment.environments.json')[env];
+  config   = require('../deployment.environments.json')[env],
+  http     = require('http'),
+  https     = require('https');
+
+//this is the maximum number of concurrent requests to couchDB
+http.globalAgent.maxSockets = https.globalAgent.maxSockets = config.maxSockets || 100;
 
 //local vars
 var winston = require('winston'),
@@ -21,7 +26,7 @@ db = require('./library/couchClient')({
   //log : function (id, args) {
   //  console.log(id, args);
   //},
-  request_defaults : {timeout :30 * 1000} //30 seconds max for couchDB 
+  request_defaults : {timeout :30 * 1000}, //30 seconds max for couchDB 
 });
 
 
