@@ -6,7 +6,7 @@ function( keys, values, rereduce ) {
     values.forEach( function(d) {
       for (var key in d) {
         if (stats[key]) stats[key] += d[key];
-        else stats[key] = 1;       
+        else stats[key] = d[key];       
       }
     });
     
