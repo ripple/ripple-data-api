@@ -224,8 +224,7 @@ function totalValueSent(params, callback) {
         var finalRate = ex.currency == "XRP" ? 1 : null;
         
         rates.forEach(function(pair, index){
-  
-          currencies[index].rate            = pair.rate; 
+          currencies[index].rate            = pair.rate || 0; 
           currencies[index].convertedAmount = pair.rate ? currencies[index].amount / pair.rate : 0;
         
           //check to see if the pair happens to be the
@@ -259,7 +258,7 @@ function totalValueSent(params, callback) {
             }
             
             currency.convertedAmount *= finalRate;
-            currency.rate = finalRate / currency.rate;
+            currency.rate = currency.rate ? finalRate / currency.rate : 0;
             total += currency.convertedAmount;
             count += currency.count;
           });
