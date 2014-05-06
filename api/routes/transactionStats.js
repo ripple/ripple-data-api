@@ -48,12 +48,10 @@ var winston = require('winston'),
  * }
  * 
   curl -H "Content-Type: application/json" -X POST -d '{
-    "startTime" : "Mar 10, 2014 4:35 am",
-    "endTime"   : "Mar 11, 2014 5:10:30 am",
+    "startTime" : "Mar 10, 2014 11:59 am z",
+    "endTime"   : "Mar 11, 2014 12:00 am z",
     "reduce" : false,
-    "limit"  : 10,
-    "format" : "csv",
-    "descending" : true
+    "format" : "csv"
       
   }' http://localhost:5993/api/transactionStats
     
@@ -81,7 +79,7 @@ function transactionStats(params, callback) {
   var viewOpts = {},
     limit      = params.limit  ? parseInt(params.limit, 10)  : 0,
     offset     = params.offset ? parseInt(params.offset, 10) : 0,
-    maxLimit   = 50,
+    maxLimit   = 500,
     intervalCount;
     
   if (!limit || limit>maxLimit) limit = maxLimit;   
