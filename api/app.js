@@ -1,8 +1,9 @@
 var env    = process.env.NODE_ENV || "development",
   DBconfig = require('../db.config.json')[env],
   config   = require('../deployment.environments.json')[env],
+  StatsD   = require('node-dogstatsd').StatsD,
   http     = require('http'),
-  https     = require('https');
+  https    = require('https');
 
 //this is the maximum number of concurrent requests to couchDB
 http.globalAgent.maxSockets = https.globalAgent.maxSockets = config.maxSockets || 100;
@@ -16,7 +17,9 @@ var winston = require('winston'),
   
 if (!config)   return winston.info('Invalid environment: ' + env);
 if (!DBconfig) return winston.info('Invalid DB config: '+env);
-db = require('./library/couchClient')({
+
+datadog = new StatsD(config.datadogURL, config.datadogPort);
+db      = require('./library/couchClient')({
   url : DBconfig.protocol+
     '://' + DBconfig.username + 
     ':'   + DBconfig.password + 
@@ -106,6 +109,8 @@ function requestHandler(req, res) {
   apiRoute = path.replace(/_/g, "").toLowerCase();
   
   if (apiRoutes[apiRoute]) {
+    
+    logRequest(apiRoute);
     apiRoutes[apiRoute](req.body, function(err, response){
       
       
@@ -115,11 +120,12 @@ function requestHandler(req, res) {
         return;
       }
       
+      res.send(200, response); 
       time = (Date.now()-time)/1000;
       winston.info(ip, path, 200, "["+(new Date())+"]", time+"s");
-      res.send(200, response); 
+      datadog.histogram('ripple_data_api.responseTime', time, ["route:"+apiRoute]);
     });
-    
+   
   } else {
     
     winston.info("Response 404 Not Found - ", path);
@@ -134,6 +140,30 @@ function requestHandler(req, res) {
     res.send(408, {error: "Request Timeout"});
   }); 
 }
+
+function logRequest(route) {
+
+  datadog.increment('ripple_data_api.post', 1, ["route:"+route]);
+  setTimeout(function(){
+      
+      datadog.gauge('ripple_data_api.couchDB_queDepth', countSockets());
+  }, 100);
+      
+  function countSockets () {
+    var count = 0;
+    for (var key1 in http.globalAgent.sockets) {
+      count += http.globalAgent.sockets[key1].length;
+    }
+      
+    for (var key2 in https.globalAgent.sockets) {
+      count += https.globalAgent.sockets[key2].length;
+    } 
+    
+    if (DEBUG) winston.info("open sockets: ", count);
+    return count; 
+  }  
+}
+
 
 if (CACHE) {
   

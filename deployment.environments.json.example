@@ -1,6 +1,8 @@
 {
   "development": {
     "port"       : 5993,
+    "datadogURL"  : "localhost",
+    "datadogPort" : 8125, 
     "maxSockets" : 150,
     "batchSize"  : 100,
     "startIndex" : 1,
@@ -20,6 +22,8 @@
   
   "staging": {
     "port"       : 5993,
+    "datadogURL"  : "localhost",
+    "datadogPort" : 8125
     "maxSockets" : 150,
     "batchSize"  : 100,
     "startIndex" : 32570, //effective genesis ledger
@@ -38,11 +42,13 @@
   },
   
   "production": {
-    "port"       : 5993,
-    "maxSockets" : 150,
-    "batchSize"  : 100,
-    "startIndex" : 32570, //effective genesis ledger
-    "rippleds"   :  [
+    "port"        : 5993,
+    "datadogURL"  : "localhost",
+    "datadogPort" : 8125
+    "maxSockets"  : 150,  
+    "batchSize"   : 100,
+    "startIndex"  : 32570, //effective genesis ledger
+    "rippleds"    :  [
       "http://s_east.ripple.com:51234",
       "http://s_west.ripple.com:51234"
     ],
