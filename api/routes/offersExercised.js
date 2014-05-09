@@ -105,7 +105,7 @@ function offersExercised (params, callback, unlimit) {
  */
   function fromCouch() {
     if (DEBUG) d = Date.now();
-  
+    
     var view = options.subview ? options.subview : options.view;
     
     //if the start and end times are the same, there is no need to query couchDB
@@ -285,7 +285,7 @@ function offersExercised (params, callback, unlimit) {
         options.cached           = cached;
         options.subview          = JSON.parse(JSON.stringify(options.view)); //shallow copy
         options.subview.startkey = key.concat(last.toArray().slice(0,6));
-
+        //options.alignedFirst     = last;
         callback(); //continue from the last cached point       
       });
     }    
@@ -472,150 +472,83 @@ function offersExercised (params, callback, unlimit) {
  */  
   function applyGroupMultiple (rows) {
     
-    // data structures for processing rows
-    var tabledRowCount = 0, newElementCount = 0;
-    var tabledRows     = [];
-    var epochStartTime = moment.utc(options.alignedFirst); //clone it
-    var epochEndTime   = moment.utc(epochStartTime);
+    if (!rows.length) return [];
 
-    var results = [];
+    //get initial epoch end time as aligned from the first row
+    var time  = tools.getAlignedTime(rows[0].value.openTime, options.increment, options.multiple),
+      results = [], reduced, now;
 
-    // define the epoch for grouping of results
-    epochEndTime.add(options.increment, options.multiple);
+    var addResult = function addResult (reduced) {
+      reduced.volumeWeightedAvg = reduced.curr1VwavNumerator / reduced.curr1Volume;
+      results.push([
+        reduced.startTime, 
+        reduced.curr2Volume, 
+        reduced.curr1Volume, 
+        reduced.numTrades, 
+        reduced.open,
+        reduced.high, 
+        reduced.low,  
+        reduced.close, 
+        reduced.curr1VwavNumerator / reduced.curr1Volume,
+        moment.utc(reduced.openTime).format(),
+        moment.utc(reduced.closeTime).format(),
+        false
+      ]);      
+    }
     
-    // create initial row of table for assembling grouped results
-    tabledRows[tabledRowCount] = [];
-
-    rows.forEach(function(element, index, array) {
-      
-      var elementTime = moment.utc(element.value.openTime);
-
-      // until element time is before or equal to epoch close time
-      while (elementTime.diff(epochEndTime) > 0) {
-        // set element time to be that of beginning of epoch
-        element.value.epochTime = epochStartTime.format();
-  
-        // increment epoch start & close time
-        epochStartTime.add(options.increment, params.timeMultiple);
-        epochEndTime.add(options.increment, params.timeMultiple);
-
-        // create a new row for every epoch
-        tabledRowCount = tabledRowCount + 1;
-        tabledRows[tabledRowCount] = [];
-
-        // reset index for storage into new row
-        newElementCount = 0;
-      }
-
-      // set element time to be that of beginning of epoch
-      element.value.epochTime = epochStartTime.format();
-
-      // store row to be grouped
-      tabledRows[tabledRowCount][newElementCount] = element;
-
-      // increment variable used for counting and indexing row elements
-      newElementCount = newElementCount + 1;
-    });
-
-    // data structures for grouping results 
-    var groupedStartTime = 0, groupedOpenTime,        groupedCloseTime,
-      groupedBaseVolume,      groupedCounterVolume,   groupedNumTrades,       
-      groupedOpenPrice,       groupedClosePrice,      groupedHighPrice,       
-      groupedLowPrice,        groupedVwavPrice,        
-      groupedVwavNumerator,   groupedVwavDenominator;
- 
-    tabledRows.forEach(function(element, index, array) {
-      
-      element.forEach(function(e, i, a) {
-
-        // if this is first column
-        if (i === 0) {
-          // set initial values for each group
-          groupedStartTime       = e.value.epochTime;
-          groupedOpenPrice       = e.value.open;
-          groupedOpenTime        = e.value.openTime;
-          groupedClosePrice      = e.value.close;
-          groupedCloseTime       = e.value.closeTime;
-          groupedBaseVolume      = 0;
-          groupedCounterVolume   = 0;
-          groupedNumTrades       = 0;
-          groupedHighPrice       = 0;
-          groupedLowPrice        = Number.MAX_VALUE;
-          groupedVwavPrice       = 0;
-          groupedVwavNumerator   = 0;
-          groupedVwavDenominator = 0;
-        }
+    rows.forEach(function(row){
+         
+      //if the epoch end time is less than or equal
+      //to the open time of the segment, start a new row
+      //its possible that the first could have a time
+      //diff of 0, we want to accept that as well         
+      if (time.diff(row.value.openTime) < 0 || !reduced) {
         
-        // SUM: base currency volume
-        groupedBaseVolume = parseFloat(groupedBaseVolume) + parseFloat(e.value.curr2Volume);
-
-        // SUM: trade currency volume
-        groupedCounterVolume = parseFloat(groupedCounterVolume) + parseFloat(e.value.curr1Volume);
-
-        // SUM: number trades
-        groupedNumTrades = parseFloat(groupedNumTrades) + parseFloat(e.value.numTrades);
-
-        // LAST: close price - assumes we are ordered by time
-        groupedClosePrice = e.value.close;
-
-        // LAST: close time - assumes we are ordered by time
-        groupedCloseTime = e.value.closeTime;
-
-        // MAX: high price
-        groupedHighPrice = Math.max(groupedHighPrice, parseFloat(e.value.high));
-
-        // MIN: low price
-        groupedLowPrice = Math.min(groupedLowPrice, parseFloat(e.value.low));
-
-        // regenerate volume weighted average price numerator, defined as sum of trade volume multiplied by VWAP
-        groupedVwavNumerator = groupedVwavNumerator + e.value.volumeWeightedAvg * e.value.curr1Volume;
-
-        // regenerate volume weighted average price denominator, defined as sum of trade volume
-        groupedVwavDenominator = groupedVwavDenominator + e.value.curr1Volume;
-      });
-
-      // regenerate volume weighted average price statistics over entire group
-      if (groupedVwavDenominator === 0) {
-        // don't divide by zero, set result to zero if denominator value is zero
-        groupedVwavPrice = 0;
-      } else {
-        // recalculate volume weighted average price over entire group
-        groupedVwavPrice = groupedVwavNumerator / groupedVwavDenominator;
-      }
-
-      // don't include empty rows
-      if (groupedStartTime !== 0) {
-        // create grouped result based on processed group of rows
-        results.push([
-          groupedStartTime, 
-          groupedBaseVolume, 
-          groupedCounterVolume, 
-          groupedNumTrades, 
-          groupedOpenPrice,
-          groupedHighPrice, 
-          groupedLowPrice,  
-          groupedClosePrice, 
-          groupedVwavPrice,
-          moment.utc(groupedOpenTime).format(),
-          moment.utc(groupedCloseTime).format(),
-          false
-        ]);
+        //this is the complete row, add it to results
+        if (reduced) addResult(reduced);
         
-        groupedStartTime = 0;
+        //set this row as the first, and advance the
+        //epoch tracker past this interval
+        reduced = row.value;
+        while(time.diff(reduced.openTime) < 0) {
+          reduced.startTime = time.format();
+          time.add(options.increment, options.multiple); //end of epoch 
+        } 
+            
+        return;
       }
-    });
+      
+      //merge this data with the previous rows
+      if (row.value.openTime<reduced.openTime) {
+        reduced.openTime = row.value.openTime;
+        reduced.open     = row.value.open;
+      }
+      
+      if (reduced.closeTime<row.value.closeTime) {
+        reduced.closeTime = row.value.closeTime;
+        reduced.close     = row.value.close;
+      }
 
+      if (row.value.high>reduced.high) reduced.high = row.value.high;
+      if (row.value.low<reduced.low)   reduced.low  = row.value.low;
+
+      reduced.curr1VwavNumerator += row.value.curr1VwavNumerator;
+      reduced.curr1Volume += row.value.curr1Volume;
+      reduced.curr2Volume += row.value.curr2Volume;
+      reduced.numTrades   += row.value.numTrades;
+    });
+    
+    addResult(reduced); //add the last row
+    
     //if the first group could have had trades that are not
     //represented because of the alignment of the start time
     //and/or end time, flag those groups as partial.
     //they will not be saved to the cache.
-    if (results.length) {
-      var now = moment.utc();
-      if (moment.utc(results[0][0]).diff(options.startTime)<0) results[0][11] = true;
-      if (epochEndTime.diff(options.endTime)>0) results[results.length-1][11] = true;
-      else if (epochEndTime.diff(now)>0)        results[results.length-1][11] = true;
-    }
-
+    now = moment.utc();
+    if (moment.utc(results[0][0]).diff(options.startTime)<0) results[0][11] = true;
+    if (time.diff(options.endTime)>0) results[results.length-1][11] = true;
+    else if (time.diff(now)>0)        results[results.length-1][11] = true;
+   
     return results;      
   }
   
