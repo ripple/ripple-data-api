@@ -6,7 +6,7 @@ var moment = require('moment'),
 
 /**
  *  exchangeRates returns the exchange rate(s) between two or more currencies
- *  for a given time range, broken down by the given time increment
+ *  for a given time range, returning both a volume weighted average and last price
  *
  *  expects params to have:
  *  {
@@ -24,6 +24,7 @@ var moment = require('moment'),
  *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
  *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
  *    range   : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
+ *    last    : (boolean) retreive the last traded price only (faster query)  
  *  }
  * 
  *  response :
@@ -60,7 +61,14 @@ var moment = require('moment'),
     }] 
   }' http://localhost:5993/api/exchangerates
 
+  curl -H "Content-Type: application/json" -X POST -d '{
 
+    "base"    : {"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency":"XRP"},
+    "last"    : true
+ 
+  }' http://localhost:5993/api/exchangerates
+    
  */
 
 function exchangeRates (params, callback) {
@@ -68,7 +76,8 @@ function exchangeRates (params, callback) {
   var endTime = moment.utc();
   var range   = params.range || "day"; 
   
-  if (range=="hour")       startTime = moment.utc().subtract("hours", 1);
+  if (params.last)         startTime = moment.utc("Jan 1 2013 z");
+  else if (range=="hour")  startTime = moment.utc().subtract("hours", 1);
   else if (range=="day")   startTime = moment.utc().subtract("days", 1);
   else if (range=="week")  startTime = moment.utc().subtract("weeks", 1);
   else if (range=="month") startTime = moment.utc().subtract("months", 1);
@@ -103,24 +112,37 @@ function exchangeRates (params, callback) {
 //call offersExercised for each asset pair
   async.mapLimit(list, 10, function(pair, asyncCallbackPair){
 
-    require("./offersExercised")({
-        base      : pair.base,
-        counter   : pair.counter,
-        startTime : startTime,
-        endTime   : endTime,
-        timeIncrement : 'all'
+    var options = {
+      base      : pair.base,
+      counter   : pair.counter,
+      startTime : startTime,
+      endTime   : endTime,      
+    }
+    
+    if (params.last) {
+      options.reduce     = false;
+      options.limit      = 1,
+      options.descending = true;
+    } else {
+      options.timeIncrement = 'all';  
+    }
+    
+    require("./offersExercised")(options, function(error, data) {
 
-    }, function(error, data) {
+      if (error) return asyncCallbackPair(error);
 
-        if (error) return asyncCallbackPair(error);
-
+      if (params.last) {
+          pair.last = data && data.length > 1 ? data[1][1] : 0;
+        
+      } else {
         if (data && data.length > 1) {
           pair.rate = data[1][8]; // volume weighted average price
           pair.last = data[1][7]; // close price
         } else {
           pair.rate = 0;
         }
-        asyncCallbackPair(null, pair);
+      }
+      asyncCallbackPair(null, pair);
     });
 
   }, function(error, results){

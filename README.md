@@ -1,6 +1,5 @@
 API Documentation: http://docs.rippledataapi.apiary.io/
 
-
 # Ripple Data API
 The Ripple data API is the end point for ripplecharts and other applications that need historical data.  This API is built on Node.js, CouchDB, and Redis.
 
@@ -481,7 +480,7 @@ Breakdown of valid transactions by type on the ripple network over time.
         ...
         ...
 
-### exchange_rates [/exchange_rates{pairs}{base}{counter}{range}]
+### exchange_rates [/exchange_rates{pairs}{base}{counter}{range}{last}]
 The exchange rates between two currencies for a given time period.  Returns the volume weighted average price for the specified range, as well as the last traded price.
 
 + Max returned results : 20
@@ -493,6 +492,7 @@ The exchange rates between two currencies for a given time period.  Returns the 
     + base (JSON, optional) ... base currency of the trading pair, in the form {currency,issuer}.  Required if `pairs` is absent
     + counter (JSON, optional) ... counter currency of the trading pair, in the form {currency, issuer}.  Required if `pairs` is absent
     + range (string, optional) ... "hour", "day", "week", "month", "year".  Time range to average the price over, defaults to `day`
+    + last (boolean, optional) ... true returns the last price only (faster response time)
  
 + Request (json)
     
@@ -534,7 +534,7 @@ The exchange rates between two currencies for a given time period.  Returns the 
                 ] 
             }
 
-### market_makers [/market_makers{base}{counter}{range}{startTime}{format}]
+### market_traders [/market_traders{base}{counter}{range}{startTime}{format}]
 Returns a list of accounts that participated in trading the specified trading pair during the specified time range, ordered by base currency volume.  If no trading pair is provided, the API uses a list of the top XRP markets
 
 #### POST
@@ -542,7 +542,7 @@ Returns a list of accounts that participated in trading the specified trading pa
 + Parameters
     + base (JSON, optional) ... base currency-issuer. If not present, top XRP markets are queried
     + counter  (JSON, optional) ... counter currency-issuer. Required if base is present
-    + range (string, optional) ... Any of the following ("30d", "7d", "24h")
+    + range (string, optional) ... Any of the following ("24hr", "3d", "7d")
     + startTime (string, optional) ... moment.js readable date string
     + format ('json' or 'csv', optional) ... defaults to a CSV-like array
     
@@ -1227,4 +1227,5 @@ Returns all offer creates and cancels over time for a given trading pair.
         ...
         ...
         ...
+
  
