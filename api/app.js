@@ -13,6 +13,7 @@ var winston = require('winston'),
   express   = require('express'),
   moment    = require('moment'),
   relic     = require('newrelic'),
+  monitor   = require('./library/monitor'),
   app       = express();
   
 if (!config)   return winston.info('Invalid environment: ' + env);
@@ -32,7 +33,7 @@ db      = require('./library/couchClient')({
   request_defaults : {timeout :30 * 1000}, //30 seconds max for couchDB 
 });
 
-
+//set up global debug and cache variables
 DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
 CACHE = config.redis && config.redis.enabled    ? true : false;
 
@@ -49,6 +50,7 @@ if (CACHE) {
   }
 }
 
+
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
   // should the gateways json file live in couchdb?
@@ -56,7 +58,6 @@ gatewayList = require('./gateways.json');
 DATEARRAY  = ['YYYY', '-MM', '-DD', 'THH', ':mm', ':ssZZ'];
 DATEFORMAT = DATEARRAY.join('');
   
-
 
 var apiRoutes = {
   'offers'                  : require("./routes/offers"),
@@ -110,7 +111,7 @@ function requestHandler(req, res) {
   
   if (apiRoutes[apiRoute]) {
     
-    logRequest(apiRoute);
+    monitor.logRequest(apiRoute);
     apiRoutes[apiRoute](req.body, function(err, response){
       
       
@@ -123,7 +124,7 @@ function requestHandler(req, res) {
       res.send(200, response); 
       time = (Date.now()-time)/1000;
       winston.info(ip, path, 200, "["+(new Date())+"]", time+"s");
-      datadog.histogram('ripple_data_api.responseTime', time, ["route:"+apiRoute]);
+      monitor.logResponseTime(time, apiRoute);
     });
    
   } else {
@@ -141,58 +142,18 @@ function requestHandler(req, res) {
   }); 
 }
 
-function logRequest(route) {
+//initialize ledger monitor
+monitor.ledgerMonitor();
 
-  datadog.increment('ripple_data_api.post', 1, ["route:"+route]);
-  setTimeout(function(){
-      
-      datadog.gauge('ripple_data_api.couchDB_queDepth', countSockets());
-  }, 100);
-      
-  function countSockets () {
-    var count = 0;
-    for (var key1 in http.globalAgent.sockets) {
-      count += http.globalAgent.sockets[key1].length;
-    }
-      
-    for (var key2 in https.globalAgent.sockets) {
-      count += https.globalAgent.sockets[key2].length;
-    } 
-    
-    if (DEBUG) winston.info("open sockets: ", count);
-    return count; 
-  }  
-}
-
-
+//do some cache intializations
 if (CACHE) {
-  
+   
   //reset cache if the arg is present
   if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb(); 
   
   redis.on("error", function (err) {
     winston.error("Redis - " + err);
-    CACHE = false; //turn it off if its not workings
-  });
-  
-  //on connect, get last 10 minutes of ledger closes.  Walk forward
-  //to see if they are all consecutive. If they are not consecutive,
-  //save the last consecutive ledger index and close time.  This will 
-  //be the point from which we determine whether or not we are caught up
-/*  
-  require("./routes/ledgersClosed")({
-    startTime  : moment.utc().subtract(10, "minutes"),
-    descending : false,
-    reduce     : false
-      
-  }, function(error, data) {
-    if (error) {
-      CACHE = false; //disable the cache
-      return winston.error(error);
-    }
-    
-    data.shift(); //remove header row
-    
-  });
-*/      
+    CACHE = false; //turn it off if its not working
+  });    
 }
+
