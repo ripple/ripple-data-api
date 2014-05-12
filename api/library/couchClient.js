@@ -1,4 +1,5 @@
-var winston = require('winston');
+var env   = process.env.NODE_ENV || "development",
+  winston = require('winston');
 
 function init (url) {
   var client = require('nano')(url);
@@ -16,7 +17,7 @@ function init (url) {
       d = (Date.now()-d)/1000;
       if (DEBUG) winston.info("CouchDB - "+doc+"/"+view, label, d+"s");
       
-      datadog.histogram('ripple_data_api.couchDB_responseTime', d, ["view:"+(label || "unknown")]);    
+      datadog.histogram('ripple_data_api.couchDB_responseTime', d, null, ["view:"+doc+"/"+view, "node_env:"+env]);    
       callback(error, response);
     });
   }

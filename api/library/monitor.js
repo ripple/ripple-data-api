@@ -1,7 +1,8 @@
-var winston = require('winston'),
-  moment    = require('moment'),
-  http      = require('http'),
-  https     = require('https');
+var env   = process.env.NODE_ENV || "development",
+  winston = require('winston'),
+  moment  = require('moment'),
+  http    = require('http'),
+  https   = require('https');
 
 //ledger check variables  
 var last, resetCache, interval;
@@ -9,9 +10,9 @@ var last, resetCache, interval;
 //log incomming request and que depth  
 module.exports.logRequest = function (route) {
 
-  datadog.increment('ripple_data_api.post', 1, ["route:"+route]);
+  datadog.increment('ripple_data_api.post', null, ["route:"+route, "node_env:"+env]);
   setTimeout(function(){
-    datadog.gauge('ripple_data_api.couchDB_queDepth', countSockets());
+    datadog.gauge('ripple_data_api.couchDB_queDepth', countSockets(), null, ["node_env:"+env]);
   }, 100);
       
   function countSockets () {
@@ -32,7 +33,7 @@ module.exports.logRequest = function (route) {
 
 //log response time for request  
 module.exports.logResponseTime = function (time, route) {
-  datadog.histogram('ripple_data_api.responseTime', time, ["route:"+route]);
+  datadog.histogram('ripple_data_api.responseTime', time, null, ["route:"+route, "node_env:"+env]);
 }
 
 
@@ -105,7 +106,7 @@ function ledgerCheck(startTime) {
     diff = time.diff(last[0])/1000;
     
     if (DEBUG) winston.info("Ledger latency:", diff+"s", last[1]);
-    datadog.gauge('ripple_data_api.ledger_latency', diff);
+    datadog.gauge('ripple_data_api.ledger_latency', diff, null, ["node_env:"+env]);
     
     //if the latency is greater than 4 mintues, activate the 
     //reset flag.  If the ledger latency gets back down under 30 seconds,
@@ -113,7 +114,7 @@ function ledgerCheck(startTime) {
     //and turn the flag back off.    
     if (diff>(60 * 4)) resetCache = true;
     else if (resetCache && diff<30) {
-      if (CACHE) redis.flushdb(); 
+      if (0 && CACHE) redis.flushdb(); //disabled for now
       resetCache = false;  
     }
     
