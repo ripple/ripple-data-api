@@ -12,7 +12,6 @@ http.globalAgent.maxSockets = https.globalAgent.maxSockets = config.maxSockets |
 var winston = require('winston'),
   express   = require('express'),
   moment    = require('moment'),
-  relic     = require('newrelic'),
   monitor   = require('./library/monitor'),
   app       = express();
   
