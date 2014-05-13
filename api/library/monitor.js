@@ -96,6 +96,7 @@ function ledgerCheck(startTime) {
         
         if (data[i][1]==last[1]+1) last = data[i];
         else {
+
           winston.info("unconsecutive ledgers:", data[i], last[0], last[1]);
           break;
         }
@@ -112,8 +113,14 @@ function ledgerCheck(startTime) {
     //reset flag.  If the ledger latency gets back down under 30 seconds,
     //we will reset the cache to clear out any false data stored,
     //and turn the flag back off.    
-    if (diff>(60 * 4)) resetCache = true;
-    else if (resetCache && diff<30) {
+    if (diff>(60 * 4)) {
+      resetCache = true;
+      
+      //for now, we are going to just reset last so that
+      //it will skip over what is most likely a missed ledger
+      last = null;
+      
+    } else if (resetCache && diff<30) {
       if (0 && CACHE) redis.flushdb(); //disabled for now
       resetCache = false;  
     }
