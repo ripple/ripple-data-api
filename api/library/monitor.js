@@ -52,11 +52,11 @@ module.exports.ledgerMonitor = function () {
 function ledgerCheck(startTime) {
   if (!startTime && last) startTime = moment.utc(last[0]).subtract(30, "seconds");
   else if (!startTime)    startTime = moment.utc().subtract(15, "minutes");
-  
-    params      = {
-      startTime  : startTime,
-      descending : false,
-      reduce     : false    
+    
+  var params = {
+    startTime  : startTime,
+    descending : false,
+    reduce     : false    
   };
   
   require("../routes/ledgersClosed")(params, function(error, data) {
@@ -86,7 +86,7 @@ function ledgerCheck(startTime) {
         
         //setup a reccurring check
         if (interval) clearInterval(interval);
-        interval = setInterval(ledgerCheck, 30000);
+        interval = setInterval(ledgerCheck, 60000);
       }
     }
     
@@ -113,13 +113,13 @@ function ledgerCheck(startTime) {
     //reset flag.  If the ledger latency gets back down under 30 seconds,
     //we will reset the cache to clear out any false data stored,
     //and turn the flag back off.    
-    if (diff>(60 * 4)) {
+    if (diff>(4 * 60)) {
       resetCache = true;
       
       //for now, we are going to just reset last so that
       //it will skip over what is most likely a missed ledger
       last = null;
-      
+
     } else if (resetCache && diff<30) {
       if (0 && CACHE) redis.flushdb(); //disabled for now
       resetCache = false;  
