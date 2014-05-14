@@ -91,7 +91,8 @@ var allowCrossDomain = function(req, res, next) {
 };
 
 app.use(allowCrossDomain);
-app.use(express.bodyParser()); // TODO use express.json() instead of bodyParser
+app.use(express.json());
+app.use(express.urlencoded());
 app.post('/api/*', requestHandler);
 app.listen(config.port);
 winston.info('Listening on port ' + config.port);
