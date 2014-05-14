@@ -12,29 +12,13 @@ module.exports = function(grunt) {
      
   var gruntConfig = {
     pkg    : grunt.file.readJSON('package.json'),
-    "couch-compile": {
-      app: {
-        files: {
-          "db/designdoc.json": "db/design/*"
-          
-        }
-      }
-    },
-    "couch-push": {   
-      options : {
-        user : DBconfig.username,
-        pass : DBconfig.password, 
-      },
-      localhost : {
-        files : {}
-      }
-    },
     jshint : {
       files   : [
         'api/**/*.js' 
         //'db/**/*.js' 
         ],
       options : {
+        'force'    : true,
         'validthis': true,
         'laxcomma' : true,
         'laxbreak' : true,
@@ -52,19 +36,37 @@ module.exports = function(grunt) {
       files   : [
         'api/**/*.js', 
         //'db/**/*.js', 
-        'db.config.json', 
+        'db.config.jsons', 
         'deployment.environments.json', 
-        '!Gruntfile.js'
+        'Gruntfile.js'
       ],
       tasks   : ['npm-install', 'jshint', 'develop'],
-      options : { spawn: false, atBegin: true }
+      options : { nospawn: true, atBegin: true }
     },
+
     develop : {
       server : {
         file : 'api/app.js',
-        args : ['debug'] 
+        args : ['debug','no-cache'] 
       }
-    }
+    },
+    "couch-compile": {
+      app: {
+        files: {
+          "db/designdoc.json": "db/design/*"
+        }
+      }
+    },
+    "couch-push": {   
+      options : {
+        user : DBconfig.username,
+        pass : DBconfig.password, 
+      },
+      localhost : {
+        files : {}
+      }
+    }     
+    
   };
   
   
@@ -76,6 +78,6 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-develop');
   grunt.loadTasks('./node_modules/grunt-couch/tasks');
-  
-  grunt.registerTask('default', ['jshint', 'npm-install', 'couch-compile', 'couch-push']);
+  grunt.registerTask('default', ['watch']);
+  grunt.registerTask('updateViews', ['couch-compile', 'couch-push']);
 };
