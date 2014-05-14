@@ -50,6 +50,11 @@ var winston = require('winston'),
       
     }' http://localhost:5993/api/issuer_capitalization 
  
+   curl -H "Content-Type: application/json" -X POST -d '{
+      "currencies" : [{"currency"  : "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}]
+      
+    }' http://localhost:5993/api/issuer_capitalization 
+    
  */
 
 
@@ -80,12 +85,12 @@ function issuerCapitalization(params, callback) {
   } else return callback('please specify at least one issuer-currency pair');
   
   if (currencies.length>10) return callback("Cannot retrieve more than 10 currencies");
+  if (!params.startTime) params.startTime = "Jan 1 2013 12:00+0:00";
   
   //Parse start and end times
   var time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
   
-  if (time.error)               return callback(time.error);
-  if (!time.start || !time.end) return callback("startTime and endTime are required.");
+  if (time.error)   return callback(time.error);
     
   var startTime = time.start;
   var endTime   = time.end;
@@ -116,9 +121,10 @@ function issuerCapitalization(params, callback) {
     
     // Setup CouchDB view options
     options.view = {
-      startkey : [c.currency+"."+c.issuer].concat(startTime.toArray().slice(0,6)),
-      endkey   : [c.currency+"."+c.issuer].concat(endTime.toArray().slice(0,6)),
-      reduce   : true,
+      startkey      : [c.currency+"."+c.issuer].concat(startTime.toArray().slice(0,6)),
+      endkey        : [c.currency+"."+c.issuer].concat(endTime.toArray().slice(0,6)),
+      inclusive_end : false,
+      reduce        : true,
     };
     
     if (group) viewOpts.group = group;
@@ -170,6 +176,11 @@ function issuerCapitalization(params, callback) {
       
       if (error) return callback("CouchDB - " + error);
       
+      if (!options.view.group_level && params.startTime === "Jan 1 2013 12:00+0:00") {
+        c.amount = 0 - trustlineRes.rows[0].value;
+        return callback (null, c);
+      }
+      
       //if there are cached results, we can get the start capitalization from there
       if (options.cached && options.cached.length) {
         startCapitalization = options.cached[options.cached.length-1][1];
@@ -180,15 +191,16 @@ function issuerCapitalization(params, callback) {
       //time to the start of our range.  
       } else {
         var initialValueViewOpts = {
-          startkey : [c.currency+"."+c.issuer],
-          endkey   : viewOptions.startkey,
-          group    : false,
-          stale    : "ok"
+          startkey      : [c.currency+"."+c.issuer],
+          endkey        : viewOptions.startkey,
+          inclusive_end : false,
+          group         : false,
+          stale         : "ok"
         };
   
         //query couchDB for the start capitalization
         db.view('currencyBalances', 'v1', initialValueViewOpts, function(error, initValRes) {
-        
+
           if (error) return callback("CouchDB - " + error);
           
           var startCapitalization = 0;
