@@ -83,7 +83,6 @@ function accountTransactions(params, callback, unlimit) {
     if (offset && !isNaN(offset)) viewOpts.skip  = offset;
   }
   
-  console.log(limit, offset, viewOpts)
   viewOpts.stale = "ok"; //dont wait for updates
   
   db.view('accountTransactions', 'v1', viewOpts, function(error, couchRes){

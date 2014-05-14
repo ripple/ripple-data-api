@@ -30,8 +30,6 @@ function accountTrust (params, callback) {
   if (limit  && !isNaN(limit))  viewOpts.limit = limit;
   if (offset && !isNaN(offset)) viewOpts.skip  = offset;
   
-  console.log(viewOpts);
-  
   db.view('accountTrust', 'v1', viewOpts, function(error, couchRes){
     
     if (error) return callback ('CouchDB - ' + error);
