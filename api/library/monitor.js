@@ -97,7 +97,7 @@ function ledgerCheck(startTime) {
         if (data[i][1]==last[1]+1) last = data[i];
         else {
 
-          winston.info("unconsecutive ledgers:", data[i], last[0], last[1]);
+          winston.info("non-consecutive ledgers:", data[i], last[0], last[1]);
           break;
         }
       }
@@ -108,7 +108,7 @@ function ledgerCheck(startTime) {
     
     if (DEBUG) winston.info("Ledger latency:", diff+"s", last[1]);
     datadog.gauge('ripple_data_api.ledger_latency', diff, null, ["node_env:"+env]);
-    
+        
     //if the latency is greater than 4 mintues, activate the 
     //reset flag.  If the ledger latency gets back down under 30 seconds,
     //we will reset the cache to clear out any false data stored,
