@@ -15,7 +15,8 @@
     "grunt-contrib-jshint": "^0.10.0",
     "grunt-contrib-watch": "^0.6.1",
     "grunt-develop": "^0.4.0",
-    "grunt-npm-install": "^0.1.0"
+    "grunt-npm-install": "^0.1.0",
+    "couch-compile": "^1.0.1"
   },
   "dependencies": {
     "winston": "~0.7.2",
