@@ -4,7 +4,7 @@ function(head, req) {
     var account = row.value[0];
     
     //loop through the balances to find the latest change for each account
-    if (!accounts[account] || row.value[3]>accounts[account][2]) 
+    if (!accounts[account] || row.value[3]>accounts[account][1]) 
       accounts[account] = [row.value[1], row.value[3]];
   }
   
