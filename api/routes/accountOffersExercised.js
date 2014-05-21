@@ -145,18 +145,18 @@ var winston = require('winston'),
  */
 
   
-function accountOffersExercised (params, callback) {
+function accountOffersExercised (params, callback, unlimit) {
   
   var account = params.account,
     limit     = params.limit  ? parseInt(params.limit, 10)  : 0,
     offset    = params.offset ? parseInt(params.offset, 10) : 0,
-    maxLimit  = 500,
+    maxLimit  = unlimit ? Infinity : 500,
     viewOpts  = {},
     intervalCount;
   
       
   if (!account) return callback("Please specify an account");  
-  if (!limit || limit>maxLimit) limit = maxLimit;
+  if (!limit || limit>maxLimit) limit = maxLimit === Infinity ? null : maxLimit;
   
   //Parse start and end times
   var range = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
