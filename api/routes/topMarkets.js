@@ -62,7 +62,7 @@ var winston = require('winston'),
 
 function topMarkets(params, callback) {
 
-  var cacheKey, viewOpts = {};
+  var cacheKey, live, viewOpts = {};
   var ex = params.exchange || {currency:"XRP"};
   
   if (typeof ex != 'object')               return callback('invalid exchange currency');
@@ -160,6 +160,7 @@ function topMarkets(params, callback) {
     if (ex.issuer) cacheKey += "."+ex.issuer;
     if (endTime.unix()==moment.utc().unix()) { //live update request
       cacheKey += ":live:"+endTime.diff(startTime, "seconds");
+      live = true;
     } else {
       cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
     }
@@ -256,18 +257,16 @@ function topMarkets(params, callback) {
         response.total        = total;
         response.count        = count;
         response.components   = pairs;
-        
-        callback(null, response);
           
         if (CACHE) {
           redis.set(cacheKey, JSON.stringify(response), function(error, res){
             if (error) return callback("Redis - " + error);
-            
-            redis.expire(cacheKey, 240); //expire in 4 minutes 
+            if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes 
             if (DEBUG) winston.info(cacheKey + " cached");
-            
           });
-        }     
+        } 
+        
+        callback(null, response);    
       }  
     });
   }

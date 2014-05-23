@@ -139,7 +139,7 @@ function totalNetworkValue(params, callback) {
     }
  
     redis.get(cacheKey, function(error, response){
-      if (error)      return callback("Redis - " + error);
+      if (error)    return callback("Redis - " + error);
       if (response) return callback(null, JSON.parse(response));  
       else fromCouch();
     });
@@ -217,18 +217,17 @@ function totalNetworkValue(params, callback) {
           response.exchangeRate = finalRate;
           response.total        = total;
           response.components   = currencies;
-          
-          callback(null, response);   
+           
           if (CACHE) {
 
             redis.set(cacheKey, JSON.stringify(response), function(error, res){
-              if (error) return callback("Redis - " + error);
-              
-              if (live) redis.expire(cacheKey, 240); //expire in 4 minutes  
+              if (error) return callback("Redis - " + error);  
+              if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes  
               if (DEBUG) winston.info(cacheKey+" cached");
-              
             });
-          }      
+          }
+          
+          callback(null, response);       
         }
                 
       });      

@@ -48,7 +48,7 @@ module.exports = function(grunt) {
     develop : {
       server : {
         file : 'api/app.js',
-        args : ['debug','no-cache'] 
+        args : ['debug'] 
       }
     },
     "couch-compile": {
