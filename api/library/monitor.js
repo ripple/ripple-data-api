@@ -1,33 +1,14 @@
 var env   = process.env.NODE_ENV || "development",
   winston = require('winston'),
-  moment  = require('moment'),
-  http    = require('http'),
-  https   = require('https');
+  moment  = require('moment');
 
 //ledger check variables  
 var last, resetCache, interval;
   
 //log incomming request and que depth  
-module.exports.logRequest = function (route) {
-
+module.exports.logRequest = function (route, nSockets) {
   datadog.increment('ripple_data_api.post', null, ["route:"+route, "node_env:"+env]);
-  setTimeout(function(){
-    datadog.gauge('ripple_data_api.couchDB_queDepth', countSockets(), null, ["node_env:"+env]);
-  }, 100);
-      
-  function countSockets () {
-    var count = 0;
-    for (var key1 in http.globalAgent.sockets) {
-      count += http.globalAgent.sockets[key1].length;
-    }
-      
-    for (var key2 in https.globalAgent.sockets) {
-      count += https.globalAgent.sockets[key2].length;
-    } 
-    
-    if (DEBUG) winston.info("open sockets: ", count);
-    return count; 
-  }  
+  datadog.gauge('ripple_data_api.couchDB_queDepth', nSockets, null, ["node_env:"+env]);
 }
   
 
@@ -124,22 +105,5 @@ function ledgerCheck(startTime) {
       if (0 && CACHE) redis.flushdb(); //disabled for now
       resetCache = false;  
     }
-    
-  });
-    
+  });   
 }
-
-/*
- * 
-   curl  -H "Content-Type: application/json" -X POST -d '{
-  
-      "method" : "ledger", 
-      "params" : [ { 
-        "ledger_index" : 6198471, 
-        "transactions" : true, 
-        "expand"       : true
-      } ] 
-   }' http://s_east.ripple.com:51234
- 
-  
- */
