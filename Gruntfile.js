@@ -5,11 +5,12 @@ module.exports = function(grunt) {
   var deploymentConfig  = require('./deployment.config.js')(env);
   var DBconfig          = require('./db.config.json')[env];
   var db = DBconfig.protocol +
-    '://' + DBconfig.host  + 
+    '://' + DBconfig.username + 
+    ':'   + DBconfig.password + 
+    '@'   + DBconfig.host + 
     ':'   + DBconfig.port  + 
     '/'   + DBconfig.database;
-    
-     
+       
   var gruntConfig = {
     pkg    : grunt.file.readJSON('package.json'),
     jshint : {
@@ -47,7 +48,7 @@ module.exports = function(grunt) {
     develop : {
       server : {
         file : 'api/app.js',
-        args : ['debug','no-cache'] 
+        args : ['debug'] 
       }
     },
     "couch-compile": {

@@ -3,10 +3,12 @@ var env    = process.env.NODE_ENV || "development",
   config   = require('../deployment.environments.json')[env],
   StatsD   = require('node-dogstatsd').StatsD,
   http     = require('http'),
-  https    = require('https');
-
+  https    = require('https'),
+  maxSockets;
+  
 //this is the maximum number of concurrent requests to couchDB
-http.globalAgent.maxSockets = https.globalAgent.maxSockets = config.maxSockets || 100;
+maxSockets = config.maxSockets || 100;
+http.globalAgent.maxSockets = https.globalAgent.maxSockets = maxSockets;
 
 //local vars
 var winston = require('winston'),
@@ -38,17 +40,6 @@ CACHE = config.redis && config.redis.enabled    ? true : false;
 
 if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
 if (process.argv.indexOf('no-cache') !== -1) CACHE = false; 
-  
-if (CACHE) {
-  if (!config.redis || !config.redis.port || !config.redis.host) {
-    CACHE = false;
-    winston.error("Redis port and host are required");
-    
-  } else {
-    redis = require("redis").createClient(config.redis.port, config.redis.host, config.redis.options);
-  }
-}
-
 
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
@@ -57,7 +48,6 @@ gatewayList = require('./gateways.json');
 DATEARRAY  = ['YYYY', '-MM', '-DD', 'THH', ':mm', ':ssZZ'];
 DATEFORMAT = DATEARRAY.join('');
   
-
 var apiRoutes = {
   'offers'                  : require("./routes/offers"),
   'offersexercised'         : require("./routes/offersExercised"),
@@ -100,9 +90,10 @@ winston.info('Listening on port ' + config.port);
 
 //function to handle all incoming requests
 function requestHandler(req, res) {
-  var path = req.path.slice(5), apiRoute;
-  var time = Date.now();
-  var ip   = req.connection.remoteAddress;
+  var path = req.path.slice(5),
+    time   = Date.now(),
+    ip     = req.connection.remoteAddress,
+    apiRoute, nSockets;
   
   if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
   
@@ -111,7 +102,11 @@ function requestHandler(req, res) {
   
   if (apiRoutes[apiRoute]) {
     
-    monitor.logRequest(apiRoute);
+    nSockets = countSockets();
+    monitor.logRequest(apiRoute, nSockets);
+    
+    if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
+    
     apiRoutes[apiRoute](req.body, function(err, response){
       
       
@@ -145,15 +140,39 @@ function requestHandler(req, res) {
 //initialize ledger monitor
 monitor.ledgerMonitor();
 
-//do some cache intializations
+//cache initialization
 if (CACHE) {
+  if (!config.redis || !config.redis.port || !config.redis.host) {
+    CACHE = false;
+    winston.error("Redis port and host are required");
+    
+  } else {
+    redis = require("redis").createClient(config.redis.port, config.redis.host, config.redis.options);
    
-  //reset cache if the arg is present
-  if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb(); 
+    //reset cache if the arg is present
+    if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb(); 
   
-  redis.on("error", function (err) {
-    winston.error("Redis - " + err);
-    CACHE = false; //turn it off if its not working
-  });    
+    redis.on("error", function (err) {
+      winston.error("Redis - " + err);
+      CACHE = false; //turn it off if its not working
+    }); 
+    
+    //initialize historical metrics and associated cron jobs
+    //require('./library/history').init(); 
+  } 
 }
 
+
+function countSockets () {
+  var count = 0;
+  for (var key1 in http.globalAgent.sockets) {
+    count += http.globalAgent.sockets[key1].length;
+  }
+    
+  for (var key2 in https.globalAgent.sockets) {
+    count += https.globalAgent.sockets[key2].length;
+  } 
+  
+  if (DEBUG) winston.info("open sockets: ", count);
+  return count; 
+} 
