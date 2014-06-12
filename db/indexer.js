@@ -41,7 +41,7 @@ function Indexer () {
       db.fetch({keys: designDocIds}, function(err, res){
         if (err) return winston.error('problem getting design docs: ' + err);  
            
-        async.each(res.rows, function(row, asyncCallback){
+        async.each(res.rows, function(row, asyncCallback) {
   
           if (!row.key || !row.doc) return asyncCallback(null, null);      
   
@@ -49,31 +49,34 @@ function Indexer () {
             view   = Object.keys(row.doc.views)[0];
   
           // query one view per design doc
-          db.view(ddoc, view, { limit:1, stale:'update_after'}, function(err, res){
+          db.view(ddoc, view, { limit:1, stale:'update_after'}, function(err, res) {
             if (err) {
               winston.error("invalid response triggering design doc: " + ddoc);
               return asyncCallback(err); 
-            }
+            }  
             
-            //display which views are being indexed
-            if (DEBUG>1) {
-              nano.request({path: '_active_tasks'}, function(err, res){
-                if (err) return asyncCallback(err);
-        
-                res.forEach(function(process){
-                  if (process.design_document === '_design/' + ddoc) {
-                    winston.info('triggered update of _design/' + ddoc);
-                  }
-                });
-        
-                asyncCallback(null, null);
-              });
-            }                
+            asyncCallback(null, null);         
           });
   
         }, 
-        function(err) { if (DEBUG>2 && err) return winston.error(err); });
+        function(err) { 
+          if (DEBUG>2 && err) {
+            return winston.error(err); 
+          }
+        });
         
+                //display which views are being indexed
+        if (DEBUG>2) {
+          nano.request({path: '_active_tasks'}, function(err, res){
+            if (err) return asyncCallback(err);
+    
+            res.forEach(function(process){
+              if (process.design_document) { 
+                winston.info('triggered update of ' + process.design_document);
+              }
+            });
+          });
+        }     
       });
     });  
   }
