@@ -7,7 +7,7 @@ var winston = require('winston'),
 /**
  *  topMarkets: 
  * 
- *  the total trading volume for the top 5 markets on the ripple network 
+ *  the total trading volume for the top markets on the ripple network 
  *  for a given time period, normalized USD. Returns data for the last 24 hours 
  *  if no arguments are given.
  *
@@ -101,6 +101,12 @@ function topMarkets(params, callback) {
       counter: {currency: 'XRP'}
     },
     {
+      // SnapSwap BTC market
+      base: {currency:'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
+      counter: {currency:'XRP'}
+    },
+    {
+      // Ripple Trade Japan JPY
       base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
       counter: {currency:'XRP'}
     }
