@@ -35,9 +35,9 @@ var winston = require('winston'),
  * 
  
   curl -H "Content-Type: application/json" -X POST -d '{
-      "startTime" : "Mar 5, 2014 10:00 am",
-      "endTime"   : "Mar 6, 2014 10:47 am",
-      "currencies" : [{"currency"  : "USD", "issuer": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}],
+      "startTime" : "June 26, 2014 10:00 am",
+      "endTime"   : "June 30, 2014 10:47 am",
+      "currencies" : [{"currency"  : "BTC", "issuer": "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q"}],
       "timeIncrement" : "hour"
       
     }' http://localhost:5993/api/issuer_capitalization
@@ -109,7 +109,6 @@ function issuerCapitalization(params, callback) {
     
   //currencies = [currencies.pop()]; //for testing
   
-  
   //get capitalization data for each currency
   async.map(currencies, function(c, asyncCallbackPair){
 
@@ -135,7 +134,6 @@ function issuerCapitalization(params, callback) {
     }
 
     options.view.stale = "ok"; //dont wait for updates
- 
  
     //get cached results first.  if there are any,
     //the view will be adjusted so that couch is queried for everything else
@@ -169,7 +167,6 @@ function issuerCapitalization(params, callback) {
       c.results = options.cached || [];
       return callback(null, c);
     }
-    
     
     //Query CouchDB for changes in trustline balances    
     db.view('currencyBalances', 'v1', viewOptions, function(error, trustlineRes){
@@ -218,7 +215,20 @@ function issuerCapitalization(params, callback) {
           
           //we have all the required pieces, now we can put together the results
           c.results = prepareRows(options, startCapitalization, trustlineRes.rows);
-          callback(null, c);
+          
+          //if we have hot wallets, we need to factor in their balances 
+          if (c.hotwallets) {
+            getHotWalletBalances(c, options, function(err, balances) {
+              if (err) {
+                return callback(err);
+              }
+              c.results = prepareRows(options, startCapitalization, trustlineRes.rows, balances);
+              return callback(null, c);
+            });
+          } else {
+            c.results = prepareRows(options, startCapitalization, trustlineRes.rows);
+            return callback(null, c);
+          }
         });
       }
     });    
@@ -229,7 +239,7 @@ function issuerCapitalization(params, callback) {
    * this function take the start capitalization, range results, cached results
    * and options to finalize a result.
    */
-  function prepareRows (options, startCapitalization, rows) {
+  function prepareRows (options, startCapitalization, rows, balances) {
     
     var viewOptions = options.subview ? options.subview : options.view;
     
@@ -272,6 +282,21 @@ function issuerCapitalization(params, callback) {
         time.add(options.increment, 1); //forward 1 increment           
       }
       
+      if (balances) {
+        var last = 0;
+        rows.forEach(function(row, index) {
+          if (balances[row[0]]) {
+            last = balances[row[0]];
+          }
+
+          rows[index][1] -= last;
+        });
+      
+        if (balances[time.format()]) {
+          rows[rows.length-1][1] = lastPeriodClose - balances[time.format()];
+        }
+      }
+              
       if (CACHE) {     
       
         cacheResults(options, rows); //cache new results
@@ -351,7 +376,6 @@ function issuerCapitalization(params, callback) {
     });
   }
   
-  
   /*
    * create the key used for the cache from the options
    */
@@ -393,6 +417,67 @@ function issuerCapitalization(params, callback) {
         if (DEBUG) winston.info(points.length/2 + " points cached");
       });
     }  
+  }
+  
+/**
+ * getHotWalletBalances
+ * @param {Object} c
+ * @param {Object} options
+ * @param {Object} callback
+ */
+
+  function getHotWalletBalances (c, options, callback) {
+    var viewOptions = options.subview ? options.subview : options.view;
+    var balances    = {};
+          
+    async.map(c.hotwallets, function(account, asyncCallback) {  
+      var view = JSON.parse(JSON.stringify(viewOptions));
+      var key  = c.currency + "." + account; 
+      var balance = 0, intitial;
+      
+      view.startkey[0] = key;
+      view.endkey[0]   = key;
+    
+      initial = {
+         startkey   : view.startkey,
+         endkey     : [key],
+         reduce     : false,
+         limit      : 1,
+         descending : true,
+         stale      : 'ok' 
+      }
+      
+      //get initial balance 
+      db.view('currencyBalances', 'v1', initial, function(err, resp) {
+        if (err) {
+          return asyncCallback(err);
+        }
+        
+        if (resp.rows.length && resp.rows[0].value[0] === c.issuer) {
+          balance = resp.rows[0].value[1];
+        }
+        
+        db.view('currencyBalances', 'v1', view, function(err, resp) {
+          if (err) {
+            return asyncCallback(err);
+          }
+          
+          var time = moment.utc(view.startkey.slice(1)).format();
+          balances[time] = balances[time] ? balances[time] + balance : balance;
+          
+          resp.rows.forEach(function(row) {
+            time = moment.utc(row.key.slice(1)).add(options.increment, 1).format();
+            balance += row.value;
+            balances[time] = balances[time] ? balances[time] + balance : balance;
+          });
+          
+          asyncCallback(null);
+        });
+      });              
+    
+    }, function(err, results) {
+      return callback(err, balances); 
+    });    
   }
 }
 
