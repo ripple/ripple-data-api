@@ -510,11 +510,12 @@ function offersExercised (params, callback, unlimit) {
         //set this row as the first, and advance the
         //epoch tracker past this interval
         reduced = row.value;
-        while(time.diff(reduced.openTime) < 0) {
+
+        while(time.diff(reduced.openTime) <= 0) {
           reduced.startTime = time.format();
           time.add(options.increment, options.multiple); //end of epoch 
         } 
-            
+
         return;
       }
       
