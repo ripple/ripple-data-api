@@ -268,6 +268,7 @@ function issuerCapitalization(params, callback) {
       //for the next time listed.  If there is not a result for the
       //time period, the value is unchanged.
       while (1) {
+        if (lastPeriodClose < 0) lastPeriodClose = 0;
        
         //if we are past the end time, this is the value for the end time,
         //not the full interval past it.  Also we are finished.
@@ -283,13 +284,17 @@ function issuerCapitalization(params, callback) {
       }
       
       if (balances) {
-        var last = 0;
+        var last = 0, final;
         rows.forEach(function(row, index) {
           if (balances[row[0]]) {
             last = balances[row[0]];
           }
-
-          rows[index][1] -= last;
+          
+          if (rows[index][1] > last) {
+            rows[index][1] -= last;
+          } else {
+            rows[index][1] = 0;
+          }
         });
       
         if (balances[time.format()]) {
@@ -468,7 +473,9 @@ function issuerCapitalization(params, callback) {
           resp.rows.forEach(function(row) {
             time = moment.utc(row.key.slice(1)).add(options.increment, 1).format();
             balance += row.value;
-            balances[time] = balances[time] ? balances[time] + balance : balance;
+            if (balance > 0) {
+              balances[time] = balances[time] ? balances[time] + balance : balance;
+            }
           });
           
           asyncCallback(null);
