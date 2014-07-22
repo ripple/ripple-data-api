@@ -81,6 +81,7 @@ function totalNetworkValue(params, callback) {
     {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //RippleCN CNY
     {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}, //RippleChina CNY
     {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}, //RippleTradeJapan JPY
+    {currency: 'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}, //RippleTradeJapan JPY
   ];
   
   //XRP conversion rates for each of the currencies - these must be in the same order as above  
@@ -119,6 +120,11 @@ function totalNetworkValue(params, callback) {
       //XRP value of RippleTradeJapan JPY
       base    : {currency: 'XRP'},
       counter : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}
+    },
+    {
+      // Justcoin BTC market
+      base: {currency:'XRP'},
+      counter: {currency:'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}
     }
   ];
   

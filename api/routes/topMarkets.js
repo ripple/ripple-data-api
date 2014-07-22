@@ -106,6 +106,11 @@ function topMarkets(params, callback) {
       counter: {currency:'XRP'}
     },
     {
+      // Justcoin BTC market
+      base: {currency:'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'},
+      counter: {currency:'XRP'}
+    },    
+    {
       // Ripple Trade Japan JPY
       base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
       counter: {currency:'XRP'}
