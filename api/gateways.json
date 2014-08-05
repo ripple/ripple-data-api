@@ -170,5 +170,18 @@
             }],
         "hotwallets": ["raoFdQah8c8owTj4TPMr8o1WntnXybXCgB"],
         "domain": "ripplelatam.com"
+    }, {
+        "name": "Ripple Fox",
+        "accounts": [{
+            "address": "rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y",
+            "currencies": ["CNY","FMM","STR"]
+            }],
+        "hotwallets": [
+          "rLSnkKvMfPD9abLoQFxQJMYyZqJcsqkL3o",
+          "rPcQaiyDxMwLr7Q9eFmn5VnVx2RN57MUmN",
+          "r3ipidkRUZWq8JYVjnSnNMf3v7o69vgLEW"
+        ],
+        "domain": "ripplefox.com"
     }
+    
 ]
