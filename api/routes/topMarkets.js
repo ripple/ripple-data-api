@@ -114,8 +114,33 @@ function topMarkets(params, callback) {
       // Ripple Trade Japan JPY
       base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
       counter: {currency:'XRP'}
-    }
-    
+    },    
+    {
+      // Bitstamp BTC/USD
+      base    : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
+      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
+    },    
+    {
+      // Bitstamp USD/ Snapswap USD
+      base    : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
+      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
+    },    
+    {
+      // Bitstamp USD/ rippleCN CNY
+      base    : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'},      
+      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+    },    
+    {
+      // Bitstamp USD/ rippleChina CNY
+      base    : {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'},
+      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+    },
+    {
+      // Bitstamp USD/ ripple trade japan JPY
+      base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
+      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+      
+    }     
     
   ];
 
@@ -229,17 +254,31 @@ function topMarkets(params, callback) {
       if (error) return callback(error);
       
       var exchangeRate;
+      var rates = { };
       
-      if (ex.currency == 'XRP') exchangeRate = 1;
-      else {
-        //check to see if the pair happens to be the
-        //final conversion currency we are looking for
-        pairs.forEach(function(pair, index){
-          if (pair.base.currency == ex.currency &&
-              pair.base.issuer   == ex.issuer) exchangeRate = 1 / pair.rate;
-        });      
-      }
-  
+      //get rates vs XRP
+      pairs.forEach(function(pair, index) {
+        if (pair.counter.currency === 'XRP') {
+          rates[pair.base.currency + "." + pair.base.issuer] = pair.rate;
+        }
+      });
+      
+      
+      
+      if (ex.currency == 'XRP') { 
+        exchangeRate = 1;
+      } else if (rates[ex.currency + '.' + ex.issuer]) {
+        exchangeRate = 1 / rates[ex.currency + '.' + ex.issuer];
+      } 
+      
+      //convert non - XRP to XRP value
+      pairs.forEach(function(pair, index) {
+        if (pair.counter.currency !== 'XRP') {
+          pair.rate = rates[pair.base.currency + "." + pair.base.issuer];
+        }  
+      })
+      
+      console.log(rates, pairs);
   
       if (exchangeRate) finalize();
       else {
