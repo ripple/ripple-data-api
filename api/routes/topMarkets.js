@@ -278,8 +278,6 @@ function topMarkets(params, callback) {
         }  
       })
       
-      console.log(rates, pairs);
-  
       if (exchangeRate) finalize();
       else {
         getConversion({

@@ -78,10 +78,12 @@ function totalNetworkValue(params, callback) {
     {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
     {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap USD
     {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap BTC
+    {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap EUR
     {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //RippleCN CNY
     {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}, //RippleChina CNY
     {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}, //RippleTradeJapan JPY
-    {currency: 'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}, //RippleTradeJapan JPY
+    {currency: 'ILS', issuer: 'rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9'}, //PayRoutes ILS
+    {currency: 'XAU', issuer: 'r9Dr5xwkeLegBeXq6ujinjSBLQzQ1zQGjH'}, //Ripple Singapore XAU
   ];
   
   //XRP conversion rates for each of the currencies - these must be in the same order as above  
@@ -105,7 +107,12 @@ function totalNetworkValue(params, callback) {
       //XRP value of Snapswap BTC
       base    : {currency: 'XRP'},
       counter : {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
-    },
+    }, 
+    {
+      //XRP value of Snapswap EUR
+      base    : {currency: 'XRP'},
+      counter : {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
+    },      
     {
       //XRP value of RippleCN CNY
       base    : {currency: 'XRP'},
@@ -122,9 +129,14 @@ function totalNetworkValue(params, callback) {
       counter : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}
     },
     {
-      // Justcoin BTC market
-      base: {currency:'XRP'},
-      counter: {currency:'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}
+      // Payroutes ILS market
+      base    : {currency:'XRP'},
+      counter : {currency:'ILS', issuer: 'rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9'}
+    },
+    {
+      // Ripple Singapore XAU market
+      base    : {currency:'XRP'},
+      counter : {currency:'XAU', issuer: 'r9Dr5xwkeLegBeXq6ujinjSBLQzQ1zQGjH'}
     }
   ];
   
@@ -254,7 +266,7 @@ function totalNetworkValue(params, callback) {
   function getExchangeRates (time, pairs, callback) {
     
     // Mimic calling offersExercised for each asset pair
-    async.mapLimit(pairs, 10, function(assetPair, asyncCallbackPair){
+    async.map(pairs,  function(assetPair, asyncCallbackPair){
   
       require("./offersExercised")({
         base      : assetPair.base,
