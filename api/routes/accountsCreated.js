@@ -271,7 +271,7 @@ function accountsCreated(params, callback) {
         data.push(["time","count"]);
         rows.forEach(function(row){
           data.push([
-            moment.utc(row.key).format(),
+            moment.utc(row.key || range.start).format(),
             row.value
           ]);
         });
