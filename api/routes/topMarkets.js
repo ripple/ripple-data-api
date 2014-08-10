@@ -119,7 +119,12 @@ function topMarkets(params, callback) {
       // Bitstamp BTC/USD
       base    : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
       counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-    },    
+    },      
+    {
+      // Bitstamp BTC/ Snapswap BTC
+      base    : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
+      counter : {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
+    },       
     {
       // Bitstamp USD/ Snapswap USD
       base    : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
@@ -138,8 +143,7 @@ function topMarkets(params, callback) {
     {
       // Bitstamp USD/ ripple trade japan JPY
       base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
-      
+      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}  
     }     
     
   ];
