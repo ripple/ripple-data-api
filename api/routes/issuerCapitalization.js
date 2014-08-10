@@ -84,7 +84,7 @@ function issuerCapitalization(params, callback) {
     
   } else return callback('please specify at least one issuer-currency pair');
   
-  if (currencies.length>10) return callback("Cannot retrieve more than 10 currencies");
+  if (currencies.length>15) return callback("Cannot retrieve more than 20 currencies");
   if (!params.startTime) params.startTime = "Jan 1 2013 12:00+0:00";
   
   //Parse start and end times
@@ -173,17 +173,45 @@ function issuerCapitalization(params, callback) {
       
       if (error) return callback("CouchDB - " + error);
       
-      if (!options.view.group_level && params.startTime === "Jan 1 2013 12:00+0:00") {
+      if (!options.view.group_level) {
         c.amount = 0 - trustlineRes.rows[0].value;
-        return callback (null, c);
+
+        if (c.hotwallets) {
+          getHotWalletBalances(c, options, function(err, balances) {
+            c.amount -= balances;
+            callback (null, c);  
+          });
+        } else {            
+          callback (null, c);
+        }
+        
+        return;
       }
       
       //if there are cached results, we can get the start capitalization from there
       if (options.cached && options.cached.length) {
-        startCapitalization = options.cached[options.cached.length-1][1];
-        c.results = prepareRows(options, startCapitalization, trustlineRes.rows);
-        callback(null, c);
-        
+        if (c.hotwallets) {
+          getHotWalletBalances(c, options, function(err, balances) {
+            if (err) {
+              return callback(err);
+            }
+            
+            startCapitalization = options.cached[options.cached.length-1][1];
+            
+            //a bit of a hack necessary so that the hot wallet is not subtracted twice
+            var time = moment.utc(options.subview.startkey.slice(1)).format();
+            if (balances[time]) {
+              startCapitalization += balances[time];
+            }
+            
+            c.results = prepareRows(options, startCapitalization, trustlineRes.rows, balances);
+            return callback(null, c);
+          });
+        } else {
+          startCapitalization = options.cached[options.cached.length-1][1];
+          c.results = prepareRows(options, startCapitalization, trustlineRes.rows);
+          return callback(null, c);
+        }
       //otherwise, we need to get the reduced result from the begining of
       //time to the start of our range.  
       } else {
@@ -212,9 +240,6 @@ function issuerCapitalization(params, callback) {
             
             return callback(null, c);  
           }
-          
-          //we have all the required pieces, now we can put together the results
-          c.results = prepareRows(options, startCapitalization, trustlineRes.rows);
           
           //if we have hot wallets, we need to factor in their balances 
           if (c.hotwallets) {
@@ -433,7 +458,7 @@ function issuerCapitalization(params, callback) {
 
   function getHotWalletBalances (c, options, callback) {
     var viewOptions = options.subview ? options.subview : options.view;
-    var balances    = {};
+    var balances    = viewOptions.group_level ? {} : 0;
           
     async.map(c.hotwallets, function(account, asyncCallback) {  
       var view = JSON.parse(JSON.stringify(viewOptions));
@@ -452,21 +477,26 @@ function issuerCapitalization(params, callback) {
          stale      : 'ok' 
       }
       
-      //get initial balance 
-      db.view('currencyBalances', 'v1', initial, function(err, resp) {
+      db.view('currencyBalances', 'v1', view, function(err, resp) {
         if (err) {
           return asyncCallback(err);
         }
         
-        if (resp.rows.length && resp.rows[0].value[0] === c.issuer) {
-          balance = resp.rows[0].value[1];
+        if (!view.group_level) {
+          if (resp.rows.length) balances += resp.rows[0].value;
+          return asyncCallback(null); 
         }
-        
-        db.view('currencyBalances', 'v1', view, function(err, resp) {
+          
+        //get initial balance 
+        db.view('currencyBalances', 'v1', initial, function(err, initial) {
           if (err) {
             return asyncCallback(err);
           }
-          
+        
+          if (initial.rows.length && initial.rows[0].value[0] === c.issuer) {
+            balance = initial.rows[0].value[1];
+          }
+        
           var time = moment.utc(view.startkey.slice(1)).format();
           balances[time] = balances[time] ? balances[time] + balance : balance;
           
