@@ -398,7 +398,11 @@ function offersExercised (params, callback, unlimit) {
  * 
  */  
   function handleResponse (rows) {
-     
+    
+    //this doesnt really belong here, it should have been calculated in 
+    //in the couchDB view, but until that day, this works pretty well.
+    rows = handleInterest(rows);
+    
     if (params.format === 'csv') {
 
       var csvStr = _.map(rows, function(row){
@@ -697,6 +701,52 @@ function offersExercised (params, callback, unlimit) {
     options.alignedFirst    = tools.getAlignedTime(options.startTime, options.increment, options.multiple);
     options.alignedLast     = tools.getAlignedTime(options.endTime, options.increment, options.multiple);
     return options;      
+  }
+  
+  /**
+   * apply interest to interest/demmurage currencies
+   * @param {Object} rows
+   */
+  function handleInterest (rows) {
+    var base    = ripple.Currency.from_json(params.base.currency);
+    var counter = ripple.Currency.from_json(params.counter.currency);
+    
+    if (base.has_interest()) {
+      rows.forEach(function(row, i){
+        if (!i) return;
+        
+        //apply interest to the base volume
+        value = ripple.Amount.from_human(row[1] + " " + params.base.currency).applyInterest(new Date(row[0])).to_human(); 
+        pct   = row[1]/value;
+        
+        //adjust the prices
+        rows[i][1] = value;
+        rows[i][4] *= pct;
+        rows[i][5] *= pct;
+        rows[i][6] *= pct;
+        rows[i][7] *= pct;
+        rows[i][8] *= pct;
+      });
+      
+    } else if (counter.has_interest()) {
+      rows.forEach(function(row, i){
+        if (!i) return;
+        
+        //apply interest to the counter volume
+        value = ripple.Amount.from_human(row[2] + " " + params.counter.currency).applyInterest(new Date(row[0])).to_human(); 
+        pct   = value/row[2];
+        
+        //adjust the prices
+        rows[i][2] = value;
+        rows[i][4] *= pct;
+        rows[i][5] *= pct;
+        rows[i][6] *= pct;
+        rows[i][7] *= pct;
+        rows[i][8] *= pct;
+      });
+    }      
+    
+    return rows;
   }
 }
 
