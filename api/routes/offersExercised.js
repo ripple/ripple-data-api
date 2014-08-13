@@ -26,14 +26,26 @@ var winston = require('winston'),
  *  
   
   curl -H "Content-Type: application/json" -X POST -d '{
-    "base"  : {"currency": "XRP"},
-    "counter" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-    "limit" : 1,
+    "counter"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "base" : {"currency": "0158415500000000C1F76FF6ECB0BAC600000000", "issuer" : "rrh7rf1gV2pXAoqA8oYbpHd8TKv5ZQeo67"},
+    "startTime" : "Mar 10, 2012 4:35 am",
+    "endTime"   : "Sept 11, 2014 5:10:30 am",
+    "limit" : 10,
     "reduce" : false,
+    "descending" : true,
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
-    
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "base"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "counter" : {"currency": "0158415500000000C1F76FF6ECB0BAC600000000", "issuer" : "rrh7rf1gV2pXAoqA8oYbpHd8TKv5ZQeo67"},
+    "startTime" : "Mar 10, 2014 4:35 am",
+    "endTime"   : "Sept 11, 2014 5:10:30 am",
+    "timeIncrement" : "day",
+    "format"        : "csv"
+      
+    }' http://localhost:5993/api/offersExercised    
 
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"  : {"currency": "XRP"},
@@ -711,40 +723,68 @@ function offersExercised (params, callback, unlimit) {
     var base    = ripple.Currency.from_json(params.base.currency);
     var counter = ripple.Currency.from_json(params.counter.currency);
     
+    
     if (base.has_interest()) {
-      rows.forEach(function(row, i){
-        if (!i) return;
+      if (options.view.reduce === false) {
+        rows.forEach(function(row, i){
+          if (!i) return;
         
-        //apply interest to the base volume
-        value = ripple.Amount.from_human(row[1] + " " + params.base.currency).applyInterest(new Date(row[0])).to_human(); 
-        pct   = row[1]/value;
+          //apply interest to the base amount
+          amount = ripple.Amount.from_human(row[2] + " " + params.base.currency).applyInterest(new Date(row[0])).to_human(); 
+          pct   = row[2]/amount; 
+          
+          rows[i][2]  = amount;
+          rows[i][1] *= pct;         
+        });
         
-        //adjust the prices
-        rows[i][1] = value;
-        rows[i][4] *= pct;
-        rows[i][5] *= pct;
-        rows[i][6] *= pct;
-        rows[i][7] *= pct;
-        rows[i][8] *= pct;
-      });
-      
+      } else {
+        rows.forEach(function(row, i){
+          if (!i) return;
+          
+          //apply interest to the base volume
+          value = ripple.Amount.from_human(row[1] + " " + params.base.currency).applyInterest(new Date(row[0])).to_human(); 
+          pct   = row[1]/value;
+          
+          //adjust the prices
+          rows[i][1] = value;
+          rows[i][4] *= pct;
+          rows[i][5] *= pct;
+          rows[i][6] *= pct;
+          rows[i][7] *= pct;
+          rows[i][8] *= pct;
+        });
+      }
     } else if (counter.has_interest()) {
-      rows.forEach(function(row, i){
-        if (!i) return;
+      if (options.view.reduce === false) {
+        rows.forEach(function(row, i){
+          if (!i) return;
+          
+          //apply interest to the counter amount
+          amount = ripple.Amount.from_human(row[3] + " " + params.counter.currency).applyInterest(new Date(row[0])).to_human(); 
+          pct   = amount/row[3]; 
+          
+          rows[i][3]  = amount;
+          rows[i][1] *= pct;         
+        });
         
-        //apply interest to the counter volume
-        value = ripple.Amount.from_human(row[2] + " " + params.counter.currency).applyInterest(new Date(row[0])).to_human(); 
-        pct   = value/row[2];
-        
-        //adjust the prices
-        rows[i][2] = value;
-        rows[i][4] *= pct;
-        rows[i][5] *= pct;
-        rows[i][6] *= pct;
-        rows[i][7] *= pct;
-        rows[i][8] *= pct;
-      });
-    }      
+      } else {         
+        rows.forEach(function(row, i){
+          if (!i) return;
+          
+          //apply interest to the counter volume
+          value = ripple.Amount.from_human(row[2] + " " + params.counter.currency).applyInterest(new Date(row[0])).to_human(); 
+          pct   = value/row[2];
+          
+          //adjust the prices
+          rows[i][2] = value;
+          rows[i][4] *= pct;
+          rows[i][5] *= pct;
+          rows[i][6] *= pct;
+          rows[i][7] *= pct;
+          rows[i][8] *= pct;
+        });
+      }      
+    }
     
     return rows;
   }
