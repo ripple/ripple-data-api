@@ -196,6 +196,16 @@
         "hotwallets": [
         ],
         "domain": "goldbullioninternational.com"
+    }, {
+        "name": "Lake BTC",
+        "accounts": [{
+            "address": "rpDMez6pm6dBve2TJsmDpv7Yae6V5Pyvy2",
+            "currencies": ["CNY","USD"]
+            }],
+        "hotwallets": [
+          "rP9gFJKqKGWdR4n6XjdsUPqmJfXkg4kSgZ"
+        ],
+        "domain": "lakebtc.com"
     }
     
 ]
