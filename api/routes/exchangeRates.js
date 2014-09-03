@@ -107,10 +107,10 @@ function exchangeRates (params, callback) {
     }
   });
   
-  if (pairs.length>20) return callback("Cannot retrieve more than 20 pairs");
+  if (pairs.length>50) return callback("Cannot retrieve more than 50 pairs");
   
 //call offersExercised for each asset pair
-  async.mapLimit(list, 10, function(pair, asyncCallbackPair){
+  async.mapLimit(list, 50, function(pair, asyncCallbackPair){
 
     var options = {
       base      : pair.base,
