@@ -463,9 +463,9 @@ function offersExercised (params, callback, unlimit) {
             counterVolume : row[2],
             count         : row[3],
             open          : row[4],
-            high          : row[6],
-            low           : row[7],
-            close         : row[5],
+            high          : row[5],
+            low           : row[6],
+            close         : row[7],
             vwap          : row[8],
             partial       : row[11],
           };
