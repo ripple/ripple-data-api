@@ -206,6 +206,14 @@
           "rP9gFJKqKGWdR4n6XjdsUPqmJfXkg4kSgZ"
         ],
         "domain": "lakebtc.com"
+    }, {
+        "name": "TokyoJPY",
+        "accounts": [{
+            "address": "r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN",
+            "currencies": ["JPY"]
+            }],
+        "hotwallets": [],
+        "domain": "tokyojpy.com"
     }
     
 ]
