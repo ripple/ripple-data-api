@@ -30,7 +30,7 @@ function Indexer () {
   *  couchdb's indexer process
   */
   this.pingCouchDB = function() {
-    
+    winston.info("indexing couchDB views");
     // list design docs
     db.list({ startkey:'_design/', endkey:'_e' }, function(err, res){
       if (err) return winston.error('problem getting design doc list: ' + err);
@@ -65,11 +65,14 @@ function Indexer () {
           }
         });
         
-                //display which views are being indexed
+        //display which views are being indexed
         if (DEBUG>2) {
           nano.request({path: '_active_tasks'}, function(err, res){
-            if (err) return asyncCallback(err);
-    
+            if (err) {
+              winston.error(err);
+              return;
+            }
+            
             res.forEach(function(process){
               if (process.design_document) { 
                 winston.info('triggered update of ' + process.design_document);

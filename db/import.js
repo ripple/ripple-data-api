@@ -15,6 +15,13 @@ var async   = require('async');
 var store   = require('node-persist');
 var Ledger  = require('../node_modules/ripple-lib/src/js/ripple/ledger').Ledger;
 var winston = require('winston');
+var http     = require('http');
+var https    = require('https');
+var maxSockets;
+  
+//this is the maximum number of concurrent requests to couchDB
+maxSockets = config.maxSockets || 100;
+http.globalAgent.maxSockets = https.globalAgent.maxSockets = maxSockets;
 var options = {
     
     trace   : false,
@@ -35,22 +42,41 @@ var reset = process.argv.indexOf('--reset') !== -1 ? true : false;
 store.initSync();
 var importer = { };
 
-importer.first = reset ? null : store.getItem('first');
-if (importer.first) {
-  importer.validated = store.getItem('validated');
+if (reset) {
+  importer.validated = null;
+  importer.last      = null;
+  store.setItem('first', null);
+  store.setItem('validated', null);
+  store.setItem('last', null);
 } else {
-  importer.first = {index : config.startIndex || 32570};
+  importer.validated = store.getItem('validated');
+  importer.last      = store.getItem('last');
 }
-importer.last   = store.getItem('last');
-importer.remote = new ripple.Remote(options);
 
-console.log(importer.first);
+importer.first   = {index : config.startIndex || 32570};
+importer.remote  = new ripple.Remote(options);
+
+winston.info("first ledger: ", importer.first ? importer.first.index : "");
+winston.info("last validated ledger: ", importer.validated ? importer.validated.index : "");
+winston.info("latest ledger: ", importer.last ? importer.last.index : "");
+
+
 
 importer.start = function () {
   importer.remote.connect();
   importer.remote.on('ledger_closed', function(resp){
     winston.info("ledger closed:", resp.ledger_index); 
-    importer.getLedger(resp.ledger_index);
+    importer.getLedger(resp.ledger_index, function(err, ledger) {
+      if (ledger) indexer.pingCouchDB();
+    });
+  });
+  
+  importer.remote.on('connect', function() {
+    importer.catchUp = true;
+  });
+  
+  importer.remote.on('disconnect', function() {
+    winston.info("disconnected");
   });  
 };
 
@@ -66,10 +92,10 @@ importer.getLedger = function (ledgerIndex, callback) {
     return;  
   }
   
-  importer.remote.request_ledger(ledgerIndex, options, function(err, resp) {
+  var request = importer.remote.request_ledger(ledgerIndex, options, function(err, resp) {
     var ledgerIndex = this.message.ledger;
     if (err || !resp || !resp.ledger) {
-      console.log("error:", err);  
+      winston.error("error:", err);  
       setTimeout(function(){
         importer.getLedger(ledgerIndex, callback);            
       }, 500);
@@ -77,7 +103,10 @@ importer.getLedger = function (ledgerIndex, callback) {
     }    
     
     importer.handleLedger(resp.ledger, ledgerIndex, callback);    
-  });    
+  }); 
+  
+  var info = request.server ? request.server._url + " " + request.server._hostid : "";
+  winston.info("requesting ledger:", ledgerIndex, info, '['+new Date().toISOString()+']');  
 };
 
 importer.handleLedger = function(remoteLedger, ledgerIndex, callback) {
@@ -86,13 +115,13 @@ importer.handleLedger = function(remoteLedger, ledgerIndex, callback) {
   try {
     ledger = formatRemoteLedger(remoteLedger);
   } catch (e) {
-    console.log(e);
+    winston.error(e);
     if (typeof callback === 'function') callback(e);
     return;  
   }
   
   if (!ledger || !ledger.ledger_index || !ledger.ledger_hash) {
-    console.log("malformed ledger");
+    winston.error("malformed ledger");
     setTimeout(function(){
       importer.getLedger(ledgerIndex, callback);            
     },500);
@@ -124,7 +153,7 @@ importer.handleLedger = function(remoteLedger, ledgerIndex, callback) {
     return;
   } 
   
-  winston.info('Got ledger: ' + ledger.ledger_index);  
+  winston.info('Got ledger: ' + ledger.ledger_index, '['+new Date().toISOString()+']');  
   importer.saveLedger(ledger, callback);
 }
 
@@ -216,37 +245,20 @@ importer.saveLedger = function(ledger, callback) {
     db.insert(ledger, function(err) {
       if (err) {
         //TODO: handle 409 error
-        winston.info("error saving ledger:", ledger.ledger_index, err);
+        winston.info("error saving ledger:", ledger.ledger_index, err.description ? err.description : err);
         if (typeof callback === 'function') callback(err);
         return;  
       } 
       
-      winston.info("saved ledger:", ledger.ledger_index, ledger.close_time_human, moment.utc().format());
-      indexer.pingCouchDB();
+      winston.info("saved ledger:", ledger.ledger_index, "close time:", ledger.close_time_human, '['+new Date().toISOString()+']');
 
-      if (importer.last && importer.last.index < ledger.ledger_index) {
+      if (!importer.last || importer.last.index < ledger.ledger_index) {
         importer.setMarker('last', ledger); 
       }
       
-      //if the last validated ledger is the one 
-      //previous to this, we can safely advance the
-      //last validated ledger    
-      if (importer.validated && 
-        importer.validated.index + 1 === ledger.ledger_index &&
-        importer.validated.hash      === ledger.parent_hash) {
-        
-        importer.setMarker('validated', ledger);
-      
-      //if we dont have a starting ledger, save this as the 
-      //start and last validated ledger.  
-      } else if (!importer.first) {
-        importer.setMarker('first', ledger);     
-        importer.setMarker('validated', ledger);
-      
-      //if we are here, there must be a gap between the
-      //last validated ledger and the latest one saved to 
-      //the db.  We must fill the gap with historical ledgers
-      } else {
+      if (importer.catchUp || !importer.validated || 
+        importer.last.index - importer.validated.index > 100) {
+        importer.catchUp = false;
         importer.fetchHistorical();
       }
 
@@ -278,10 +290,13 @@ importer.fetchHistorical = function () {
   
   var start = importer.validated.index + 1;
   var end   = importer.validated.index + 100;
-  if (end > importer.last.index) end = importer.last.index;
+  var ids   = [];
+  var count = 0;
+  var gotLedgers = false;
+  
+  if (importer.last && end > importer.last.index) end = importer.last.index;
   winston.info("fetching historical:", start, end);
   
-  var ids = [];
   for (i = start; i <= end; i++) {
     ids.push(importer.addLeadingZeros(i));
   }
@@ -304,14 +319,13 @@ importer.fetchHistorical = function () {
       parentHash = row.doc ? row.doc.ledger_hash : null;
     });
     
-    var count = 0;
     async.map(resp.rows, function(row, asyncCallback) {
     
       if (row.doc) {
         asyncCallback(null, row);
       } else {
         var ledgerIndex = parseInt(row.key, 10);
-
+        gotLedgers = true;
         getLedger(++count, ledgerIndex, function (err, resp) {
           if (err) {
             winston.error("fetch historical:", err);
@@ -330,7 +344,10 @@ importer.fetchHistorical = function () {
 
       for(var i=0; i<rows.length; i++) {
         var row = rows[i];
-        if ((validated.index + 1 === row.doc.ledger_index &&
+        if (!row) {
+          break; 
+          
+        } else if ((validated.index + 1 === row.doc.ledger_index &&
             validated.hash === row.doc.parent_hash) ||
             (importer.validated.index + 1 === importer.first.index)) {
           validated.index  = row.doc.ledger_index;
@@ -340,11 +357,12 @@ importer.fetchHistorical = function () {
           
         } else if (validated.index >= row.doc.ledger_index) {
           continue;
+          
         } else {
-          console.log("how did we get here?", validated.index, row.key);
+          winston.error("how did we get here?", validated.index, row.key);
           importer.getLedger(validated.index, function(err, ledger) {
             if (err) {
-              console.log(err);
+              winston.error(err);
               return;
             }
             
@@ -360,6 +378,7 @@ importer.fetchHistorical = function () {
         importer.setMarker('validated', validated.ledger);
       }
       
+      if (gotLedgers) indexer.pingCouchDB();
       importer.fetching = false;
       winston.info("validated to:", importer.validated.index);
       if (importer.last && importer.validated &&
