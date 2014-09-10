@@ -18,19 +18,21 @@ Accessing the historical data is not done by querying the database directly but 
 To reduce the load on CouchDB, the API server contains a cacheing layer.  The cache expects the data stored in couch to be accurate and up to date, thus it will be automatically disabled if the importer is unable to keep up to date for any reason, and will restart again when the data gets caught up.
 
 ## Setup
+  + install node.js
   + install couchDB or get hosted couchDB service and create new a database 
   + install redis (optional)
-  + $git clone https://github.com/ripple/ripple-data-api.git
-  + $cd ripple-data-api
-  + $npm install
-  + $cp db.config.json.example db.config.json
-  + $cp deployment.environments.json.example deployment.environments.json
+```  
+    git clone https://github.com/ripple/ripple-data-api.git
+    cd ripple-data-api
+    npm install
+    cp db.config.json.example db.config.json
+    cp deployment.environments.json.example deployment.environments.json
+```
   + update the config files to point to your couchdb and redis
-  + $grunt updateViews (pushes the design documents to couchDB, write permissions required)
-  + $grunt or grunt watch (starts the api service)
-  + $node db/importer live debug2 (starts the importer service, write permissions required)
-  + $node db/import (launch experimental websocket based importer)
-  
+  + `grunt updateViews` push the design documents to couchDB, write permissions required 
+  + `grunt` or `grunt watch` starts the API service   
+  + `node db/importer live debug2` starts the importer service, write permissions required
+  + `node db/import` starts the experimental websocket based importer, write permissions required
 
 ## group API Routes
 All API routes are post requests with parameters passed as a JSON object.  the specific endpoint is defined as `/[ROUTE]`, such as `/offersExercised`
