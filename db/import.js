@@ -53,8 +53,8 @@ if (reset) {
   importer.last      = store.getItem('last');
 }
 
-importer.first   = {index : config.startIndex || 32570};
-importer.remote  = new ripple.Remote(options);
+importer.first  = {index : config.startIndex || 32570};
+importer.remote = new ripple.Remote(options);
 
 winston.info("first ledger: ", importer.first ? importer.first.index : "");
 winston.info("last validated ledger: ", importer.validated ? importer.validated.index : "");
@@ -72,7 +72,9 @@ importer.start = function () {
   });
   
   importer.remote.on('connect', function() {
-    importer.catchUp = true;
+    winston.info("connected");
+    importer.catchUp  = true;
+    importer.fetching = false;
   });
   
   importer.remote.on('disconnect', function() {
@@ -363,10 +365,10 @@ importer.fetchHistorical = function () {
           importer.getLedger(validated.index, function(err, ledger) {
             if (err) {
               winston.error(err);
-              return;
+            } else {
+              importer.setMarker('validated', ledger);  
             }
             
-            importer.setMarker('validated', ledger);  
             importer.fetching = false;
           }); 
           
