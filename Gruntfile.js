@@ -1,9 +1,8 @@
 module.exports = function(grunt) {
   
 //var userConfig = require( './build.config.js' );
-  var env               = process.env.NODE_ENV || "development";
-  var deploymentConfig  = require('./deployment.config.js')(env);
-  var DBconfig          = require('./db.config.json')[env];
+  var env      = process.env.NODE_ENV || "development";
+  var DBconfig = require('./db.config.json')[env];
   var db = DBconfig.protocol +
     '://' + DBconfig.username + 
     ':'   + DBconfig.password + 
