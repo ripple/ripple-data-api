@@ -2,12 +2,14 @@ var ripple   = require('ripple-lib');
 var env      = process.env.NODE_ENV || "development";
 var config   = require('../deployment.environments.json')[env];
 var DBconfig = require('../db.config.json')[env];
-var db       = require('nano')(DBconfig.protocol+
+var db       = require('nano')({url:DBconfig.protocol+
     '://'  + DBconfig.username + 
     ':'    + DBconfig.password + 
     '@'    + DBconfig.host + 
     ':'    + DBconfig.port + 
-    '/'    + DBconfig.database);
+    '/'    + DBconfig.database,
+    request_defaults : {timeout :10 * 1000}, //30 seconds max for couchDB 
+    });
 var indexer = require('./indexer.js');
 var moment  = require('moment');
 var diff    = require('deep-diff');
@@ -64,17 +66,19 @@ winston.info("latest ledger: ", importer.last ? importer.last.index : "");
 
 importer.start = function () {
   importer.remote.connect();
+  
   importer.remote.on('ledger_closed', function(resp){
     winston.info("ledger closed:", resp.ledger_index); 
     importer.getLedger(resp.ledger_index, function(err, ledger) {
       if (ledger) indexer.pingCouchDB();
     });
   });
-  
+
   importer.remote.on('connect', function() {
     winston.info("connected");
     importer.catchUp  = true;
     importer.fetching = false;
+    importer.fetchHistorical();
   });
   
   importer.remote.on('disconnect', function() {
@@ -397,7 +401,7 @@ importer.fetchHistorical = function () {
   function getLedger(count, index, callback) {
     setTimeout(function() { 
       importer.getLedger(index, callback)
-    }, count * 100);
+    }, count * 200);
   }
 }
   
