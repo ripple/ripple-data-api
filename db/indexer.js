@@ -49,7 +49,7 @@ function Indexer () {
             view   = Object.keys(row.doc.views)[0];
   
           // query one view per design doc
-          db.view(ddoc, view, { limit:1, stale:'update_after'}, function(err, res) {
+          db.view(ddoc, view, { limit:1, reduce:false, stale:'update_after'}, function(err, res) {
             if (err) {
               winston.error("invalid response triggering design doc: " + ddoc);
               return asyncCallback(err); 
