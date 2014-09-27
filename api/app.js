@@ -66,6 +66,7 @@ var apiRoutes = {
   'accounttrust'            : require("./routes/accountTrust"),
   'transactionstats'        : require("./routes/transactionStats"),
   'ledgersclosed'           : require("./routes/ledgersClosed"),
+  'historicalmetrics'       : require("./routes/historicalMetrics")
 };
 
 
@@ -148,7 +149,8 @@ if (CACHE) {
     
   } else {
     redis = require("redis").createClient(config.redis.port, config.redis.host, config.redis.options);
-   
+    console.log(process.argv);
+    
     //reset cache if the arg is present
     if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb(); 
   
@@ -158,7 +160,7 @@ if (CACHE) {
     }); 
     
     //initialize historical metrics and associated cron jobs
-    //require('./library/history').init(); 
+    require('./library/history').init(); 
   } 
 }
 

@@ -206,8 +206,9 @@ function topMarkets(params, callback) {
     }
  
     redis.get(cacheKey, function(error, response){
-      if (error)    return callback("Redis - " + error);
-      if (response) return callback(null, JSON.parse(response));  
+      if (error)                      return callback("Redis - " + error);
+      if (response && params.history) return callback(null, true);
+      else if (response)              return callback(null, JSON.parse(response));  
       else fromCouch();
     });
     
@@ -318,7 +319,8 @@ function topMarkets(params, callback) {
           });
         } 
         
-        callback(null, response);    
+        if (params.history) callback(null, false);
+        else callback(null, response);    
       }  
     });
   }

@@ -5,6 +5,7 @@
 !*config.*.example
 *.DS_Store
 db/persist/*
+persist/*
 deployment.environments.json
 dump.rdb
 redis.conf

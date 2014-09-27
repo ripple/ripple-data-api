@@ -32,6 +32,7 @@
     "redis": "^0.10.1",
     "nano": "^5.8.0",
     "node-dogstatsd": "0.0.5",
-    "node-persist": "0.0.2"
+    "node-persist": "0.0.2",
+    "node-schedule": "^0.1.13"
   }
 }

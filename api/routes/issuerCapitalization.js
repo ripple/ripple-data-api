@@ -149,7 +149,7 @@ function issuerCapitalization(params, callback) {
 
   }, function(error, results){
     if (error) return callback(error);
-
+    
     return callback(null, results); //final results from API call
   });
   
@@ -174,8 +174,8 @@ function issuerCapitalization(params, callback) {
       if (error) return callback("CouchDB - " + error);
       
       if (!options.view.group_level) {
-        c.amount = 0 - trustlineRes.rows.length ? trustlineRes.rows[0].value : 0;
-
+        c.amount = 0 - (trustlineRes.rows.length ? trustlineRes.rows[0].value : 0);
+        
         if (c.hotwallets) {
           getHotWalletBalances(c, options, function(err, balances) {
             c.amount -= balances;
