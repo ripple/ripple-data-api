@@ -244,12 +244,7 @@ function totalNetworkValue(params, callback) {
           response.components   = currencies;
            
           if (CACHE) {
-
-            redis.set(cacheKey, JSON.stringify(response), function(error, res){
-              if (error) return callback("Redis - " + error);  
-              if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes  
-              if (DEBUG) winston.info(cacheKey+" cached");
-            });
+            cacheResponse (cacheKey, response);
           }
           
           if (params.history) callback(null, false);
@@ -335,7 +330,15 @@ function totalNetworkValue(params, callback) {
         return callback(null, res.total_coins / 1000000.0);  
       });
     });
-  }  
+  } 
+  
+  function cacheResponse (cacheKey, response) {
+    redis.set(cacheKey, JSON.stringify(response), function(error, res){
+      if (error) return callback("Redis - " + error);  
+      if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes  
+      if (DEBUG) winston.info(cacheKey+" cached");
+    });
+  } 
 }
 
 module.exports = totalNetworkValue;

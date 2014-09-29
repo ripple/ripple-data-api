@@ -312,12 +312,8 @@ function topMarkets(params, callback) {
         response.components   = pairs;
           
         if (CACHE) {
-          redis.set(cacheKey, JSON.stringify(response), function(error, res){
-            if (error) return callback("Redis - " + error);
-            if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes 
-            if (DEBUG) winston.info(cacheKey + " cached");
-          });
-        } 
+          cacheResponse (cacheKey, response);
+        }
         
         if (params.history) callback(null, false);
         else callback(null, response);    
@@ -349,5 +345,13 @@ function topMarkets(params, callback) {
       
     });    
   }
+  
+  function cacheResponse (cacheKey, response) {
+    redis.set(cacheKey, JSON.stringify(response), function(error, res){
+      if (error) return callback("Redis - " + error);
+      if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes 
+      if (DEBUG) winston.info(cacheKey + " cached");
+    });
+  } 
 }
 module.exports = topMarkets;

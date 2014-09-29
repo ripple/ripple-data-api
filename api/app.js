@@ -149,10 +149,9 @@ if (CACHE) {
     
   } else {
     redis = require("redis").createClient(config.redis.port, config.redis.host, config.redis.options);
-    console.log(process.argv);
     
     //reset cache if the arg is present
-    if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb(); 
+    if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb();
   
     redis.on("error", function (err) {
       winston.error("Redis - " + err);

@@ -208,8 +208,7 @@ function totalValueSent(params, callback) {
       endTime   : endTime.format(),
       exchange  : ex,  
     };
-   
-    
+        
     // Mimic calling valueSent for each asset pair
     async.map(currencies, function(assetPair, asyncCallbackPair){
   
@@ -291,11 +290,7 @@ function totalValueSent(params, callback) {
           response.components   = currencies;
           
           if (CACHE) {
-            redis.set(cacheKey, JSON.stringify(response), function(error, res){
-              if (error) return callback("Redis - "+ error);
-              if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes  
-              if (DEBUG) winston.info(cacheKey + " cached");
-            });
+            cacheResponse (cacheKey, response);
           }
           
           if (params.history) callback(null, false);
@@ -364,6 +359,14 @@ function totalValueSent(params, callback) {
       else callback("cannot determine exchange rate");
       
     });    
+  }
+  
+  function cacheResponse (cacheKey, response) {
+    redis.set(cacheKey, JSON.stringify(response), function(error, res){
+      if (error) return callback("Redis - "+ error);
+      if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes  
+      if (DEBUG) winston.info(cacheKey + " cached");
+    });
   }
 }
 
