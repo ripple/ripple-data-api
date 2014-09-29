@@ -457,8 +457,8 @@ function offersExercised (params, callback, unlimit) {
         apiRes.results = _.map(rows, function(row, index){
           return {
             startTime     : moment.utc(row[0]).format(),
-            openTime      : moment.utc(row[10]).format(),
-            closeTime     : moment.utc(row[9]).format(),
+            openTime      : moment.utc(row[9]).format(),
+            closeTime     : moment.utc(row[10]).format(),
             baseVolume    : row[1],
             counterVolume : row[2],
             count         : row[3],

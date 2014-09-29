@@ -60,7 +60,7 @@ var winston = require('winston'),
  
 function totalNetworkValue(params, callback) {
 
-  var cacheKey, live, viewOpts = {};
+  var cacheKey, viewOpts = {};
   var ex = params.exchange || {currency:"XRP"};
   
   if (typeof ex != 'object')               return callback('invalid exchange currency');
@@ -157,7 +157,7 @@ function totalNetworkValue(params, callback) {
     if (ex.issuer) cacheKey += "."+ex.issuer;
     if (time.unix()==moment.utc().unix()) { //live update request
       cacheKey += ":live";
-      live = true; //we will set an expiration on this key
+
     } else {
       cacheKey += ":hist:"+time.unix();
     }
@@ -335,7 +335,7 @@ function totalNetworkValue(params, callback) {
   function cacheResponse (cacheKey, response) {
     redis.set(cacheKey, JSON.stringify(response), function(error, res){
       if (error) return callback("Redis - " + error);  
-      if (live)  redis.expire(cacheKey, 240); //expire in 4 minutes  
+      if (cacheKey.indexOf(':live') !== -1) redis.expire(cacheKey, 240); //expire in 4 min
       if (DEBUG) winston.info(cacheKey+" cached");
     });
   } 

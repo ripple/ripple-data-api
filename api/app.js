@@ -152,7 +152,16 @@ if (CACHE) {
     
     //reset cache if the arg is present
     if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb();
-  
+/*    
+    redis.del("TVS:XRP:live:86400", function(err, res){
+    });
+    
+    redis.del("TM:XRP:live:86400", function(err, res){
+    });
+    
+    redis.del("TNV:XRP:live", function(err, res){
+    });    
+*/  
     redis.on("error", function (err) {
       winston.error("Redis - " + err);
       CACHE = false; //turn it off if its not working
