@@ -60,7 +60,7 @@ var winston = require('winston'),
 
 function totalValueSent(params, callback) {
 
-  var cacheKey, viewOpts = {};
+  var options = {};
   var ex = params.exchange || {currency:"XRP"};
   
   if (typeof ex != 'object')               return callback('invalid exchange currency');
@@ -71,9 +71,10 @@ function totalValueSent(params, callback) {
   else if (ex.currency == "XRP" && ex.issuer)
     return callback('XRP cannot have an issuer');
  
+  options.ex = ex;
  
   //all currencies we are going to check    
-  var currencies = [ 
+  options.currencies = [ 
     {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp USD
     {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
     {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap USD
@@ -88,7 +89,7 @@ function totalValueSent(params, callback) {
  
   
   //XRP conversion rates for each of the currencies - these must be in the same order as above  
-  var conversionPairs = [
+  options.conversionPairs = [
     {
       //XRP value of Bitstamp USD
       base    : {currency: 'XRP'},
@@ -136,29 +137,26 @@ function totalValueSent(params, callback) {
     }
   ];
   
-  
-  //parse startTime and endTime
-  var startTime, endTime;
 
   if (!params.startTime && !params.endTime) {
 
-    startTime = moment.utc().subtract('hours', 24);
-    endTime   = moment.utc();
+    options.startTime = moment.utc().subtract('hours', 24);
+    options.endTime   = moment.utc();
 
   } else if (params.startTime && params.endTime && moment(params.startTime).isValid() && moment(params.endTime).isValid()) {
 
     if (moment(params.startTime).isBefore(moment(params.endTime))) {
-      startTime = moment.utc(params.startTime);
-      endTime   = moment.utc(params.endTime);
+      options.startTime = moment.utc(params.startTime);
+      options.endTime   = moment.utc(params.endTime);
     } else {
-      endTime   = moment.utc(params.startTime);
-      startTime = moment.utc(params.endTime);
+      options.endTime   = moment.utc(params.startTime);
+      options.startTime = moment.utc(params.endTime);
     }
 
   } else if (params.endTime && moment(params.endTime).isValid()) {
     
-    endTime   = moment.utc(params.endTime);
-    startTime = moment.utc(params.endTime).subtract('hours', 24);
+    options.endTime   = moment.utc(params.endTime);
+    options.startTime = moment.utc(params.endTime).subtract('hours', 24);
     
   } else {
 
@@ -173,49 +171,53 @@ function totalValueSent(params, callback) {
     return;
   }  
    
-  if (endTime.isBefore(startTime)) { //swap times
-    tempTime  = startTime;
-    startTime = endTime;
-    endTime   = tempTime;
-  } else if (endTime.isSame(startTime)) {
+  if (options.endTime.isBefore(options.startTime)) { //swap times
+    tempTime          = options.startTime;
+    options.startTime = options.endTime;
+    options.endTime   = tempTime;
+  } else if (options.endTime.isSame(options.startTime)) {
     return callback('please provide 2 distinct times');
   }
     
-  if (CACHE) {
-    cacheKey = "TVS:" + ex.currency;
-    if (ex.issuer) cacheKey += "."+ex.issuer;
-    if (endTime.unix()==moment.utc().unix()) { //live update request
-      cacheKey += ":live:"+endTime.diff(startTime, "seconds");
+  if (CACHE) fromCache(options);
+  else fromCouch(options);
+  
+  function fromCache(options) {
+    options.cacheKey = "TVS:" + ex.currency;
+    if (options.ex.issuer) options.cacheKey += "."+options.ex.issuer;
+    if (options.endTime.unix()==moment.utc().unix()) { //live update request
+      options.cacheKey += ":live:"+options.endTime.diff(options.startTime, "seconds");
 
     } else {
-      cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
+      options.cacheKey += ":hist:"+options.startTime.unix()+":"+options.endTime.unix();
     }
  
-    redis.get(cacheKey, function(error, response){
+    redis.get(options.cacheKey, function(error, response){
       if (error)                      return callback("Redis - " + error);
       if (response && params.history) return callback(null, true);
       else if (response)              return callback(null, JSON.parse(response));  
-      else fromCouch();
-    });
-    
-  } else fromCouch();
+      else fromCouch(options);
+    });    
+  }
   
-  function fromCouch() {  
+  function fromCouch(options) {  
     //prepare results to send back
     var response = {
-      startTime : startTime.format(),
-      endTime   : endTime.format(),
-      exchange  : ex,  
+      startTime : options.startTime.format(),
+      endTime   : options.endTime.format(),
+      exchange  : options.ex,  
     };
-        
+    
+    var finalRate;
+       
     // Mimic calling valueSent for each asset pair
-    async.map(currencies, function(assetPair, asyncCallbackPair){
+    async.map(options.currencies, function(assetPair, asyncCallbackPair){
   
       require("./valueSent")({
         currency  : assetPair.currency,
         issuer    : assetPair.issuer,
-        startTime : startTime,
-        endTime   : endTime
+        startTime : options.startTime,
+        endTime   : options.endTime
         
       }, function(error, data) {
 
@@ -237,10 +239,10 @@ function totalValueSent(params, callback) {
 
       if (error) return callback(error);
   
-      getExchangeRates(startTime, endTime, conversionPairs, function(error, rates){
+      getExchangeRates(options, function(error, rates){
         if (error) return callback(error);
         
-        var finalRate = ex.currency == "XRP" ? 1 : null;
+        var finalRate = options.ex.currency == "XRP" ? 1 : null;
         
         rates.forEach(function(pair, index){
           currencies[index].rate            = pair.rate || 0; 
@@ -248,18 +250,18 @@ function totalValueSent(params, callback) {
         
           //check to see if the pair happens to be the
           //final conversion currency we are looking for
-          if (pair.counter.currency == ex.currency &&
-              pair.counter.issuer   == ex.issuer) finalRate = pair.rate;
+          if (pair.counter.currency == options.ex.currency &&
+              pair.counter.issuer   == options.ex.issuer) finalRate = pair.rate;
         });
         
         
-        if (finalRate) finalize();
+        if (finalRate) finalize(options);
         else {
           getConversion({
-            startTime : startTime,
-            endTime   : endTime,
-            currency  : ex.currency,
-            issuer    : ex.issuer
+            startTime : options.startTime,
+            endTime   : options.endTime,
+            currency  : options.ex.currency,
+            issuer    : options.ex.issuer
             
           }, function(error, rate) {
             if (error) return callback (error);
@@ -289,7 +291,7 @@ function totalValueSent(params, callback) {
           response.components   = currencies;
           
           if (CACHE) {
-            cacheResponse (cacheKey, response);
+            cacheResponse (options.cacheKey, response);
           }
           
           if (params.history) callback(null, false);
@@ -305,16 +307,16 @@ function totalValueSent(params, callback) {
    * get exchange rates for the listed currencies
    * 
    */
-  function getExchangeRates (startTime, endTime, pairs, callback) {
+  function getExchangeRates (options, callback) {
     
     // Mimic calling offersExercised for each asset pair
-    async.mapLimit(pairs, 10, function(assetPair, asyncCallbackPair){
+    async.map(options.conversionPairs, function(assetPair, asyncCallbackPair){
   
       require("./offersExercised")({
         base      : assetPair.base,
         counter   : assetPair.counter,
-        startTime : startTime,
-        endTime   : endTime,
+        startTime : options.startTime,
+        endTime   : options.endTime,
         timeIncrement: 'all'
        
       }, function(error, data) {
