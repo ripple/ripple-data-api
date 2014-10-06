@@ -222,6 +222,14 @@
             }],
         "hotwallets": ["r37FUji17jCgCZvAUc8m5YqXquwHpgwa9q"],
         "domain": "rippex.net"
+    }, {
+        "name": "Ripple Market Japan",
+        "accounts": [{
+            "address": "rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg",
+            "currencies": ["JPY"]
+            }],
+        "hotwallets": [],
+        "domain": "ripple-market.jp"
     }
     
 ]
