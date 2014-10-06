@@ -397,9 +397,9 @@ function valueSent(params, callback) {
       
         } else {
           response.results.push({
-            time   : row.key ? moment.utc(row.key.slice(2)).format() : undefined,
-            amount : row.value[0],
-            count  : row.value[1]
+            time   : row[0] ? moment.utc(row[0]).format() : null,
+            amount : row[1],
+            count  : row[2]
           });         
         } 
       });
