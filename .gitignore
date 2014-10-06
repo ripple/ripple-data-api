@@ -6,6 +6,7 @@
 *.DS_Store
 db/persist/*
 persist/*
+metrics/results/*
 deployment.environments.json
 dump.rdb
 redis.conf
