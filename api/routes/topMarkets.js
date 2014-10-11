@@ -96,10 +96,20 @@ function topMarkets(params, callback) {
       counter: {currency: 'XRP'}
     },
     {
+      // RippleFox CNY market
+      base: {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+      counter: {currency: 'XRP'}
+    },    
+    {
       // SnapSwap USD market
       base: {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
       counter: {currency: 'XRP'}
     },
+    {
+      // SnapSwap USD market
+      base: {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
+      counter: {currency: 'XRP'}
+    },    
     {
       // SnapSwap BTC market
       base: {currency:'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
@@ -114,7 +124,17 @@ function topMarkets(params, callback) {
       // Ripple Trade Japan JPY
       base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
       counter: {currency:'XRP'}
-    },    
+    },  
+    {
+      // TokyoJPU JPY
+      base: {currency:'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
+      counter: {currency:'XRP'}
+    },
+    {
+      // Snapswap USD/ ripple trade japan JPY
+      base    : {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
+      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}  
+    }, 
     {
       // Bitstamp BTC/USD
       base    : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
@@ -144,7 +164,12 @@ function topMarkets(params, callback) {
       // Bitstamp USD/ ripple trade japan JPY
       base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
       counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}  
-    }     
+    },
+    {
+      // Snapswap USD/ ripple trade japan JPY
+      base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
+      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}  
+    } 
     
   ];
 

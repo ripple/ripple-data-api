@@ -75,70 +75,32 @@ function totalNetworkValue(params, callback) {
   //all currencies we are going to check    
   var currencies = [ 
     {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp USD
-    {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
     {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap USD
+    {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
     {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap BTC
+    {currency: 'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}, //Justcoin BTC
     {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap EUR
     {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //RippleCN CNY
     {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}, //RippleChina CNY
+    {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}, //RippleFox CNY
     {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}, //RippleTradeJapan JPY
-    {currency: 'ILS', issuer: 'rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9'}, //PayRoutes ILS
+    {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'}, //TokyoJPY JPY
     {currency: 'XAU', issuer: 'r9Dr5xwkeLegBeXq6ujinjSBLQzQ1zQGjH'}, //Ripple Singapore XAU
+    {currency: 'XAU', issuer: 'rrh7rf1gV2pXAoqA8oYbpHd8TKv5ZQeo67'}, //GBI XAU
   ];
   
-  //XRP conversion rates for each of the currencies - these must be in the same order as above  
-  var conversionPairs = [
-    {
-      //XRP value of Bitstamp USD
-      base    : {currency: 'XRP'},
-      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
-    },
-    {
-      //XRP value of Bitstamp BTC
-      base    : {currency: 'XRP'},
-      counter : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
-    },
-    {
-      //XRP value of Snapswap USD
-      base    : {currency: 'XRP'},
-      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
-    },
-    {
-      //XRP value of Snapswap BTC
-      base    : {currency: 'XRP'},
-      counter : {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
-    }, 
-    {
-      //XRP value of Snapswap EUR
-      base    : {currency: 'XRP'},
-      counter : {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
-    },      
-    {
-      //XRP value of RippleCN CNY
-      base    : {currency: 'XRP'},
-      counter : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}
-    },
-    {
-      //XRP value of RippleChina CNY
-      base    : {currency: 'XRP'},
-      counter : {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}
-    },
-    {
-      //XRP value of RippleTradeJapan JPY
-      base    : {currency: 'XRP'},
-      counter : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}
-    },
-    {
-      // Payroutes ILS market
-      base    : {currency:'XRP'},
-      counter : {currency:'ILS', issuer: 'rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9'}
-    },
-    {
-      // Ripple Singapore XAU market
-      base    : {currency:'XRP'},
-      counter : {currency:'XAU', issuer: 'r9Dr5xwkeLegBeXq6ujinjSBLQzQ1zQGjH'}
+  var conversionPairs = [];
+  currencies.forEach(function(currency) {
+    
+    if (currency.currency == 'XRP') {
+      return;
     }
-  ];
+
+    conversionPairs.push({
+      base    : {currency: 'XRP'},
+      counter : currency
+    });
+  });
   
   
   //parse startTime and endTime
@@ -190,7 +152,6 @@ function totalNetworkValue(params, callback) {
         var finalRate = ex.currency == "XRP" ? 1 : null;
         
         rates.forEach(function(pair, index){
-  
           currencies[index].rate            = pair.rate; 
           currencies[index].convertedAmount = pair.rate ? currencies[index].amount / pair.rate : 0;
         
