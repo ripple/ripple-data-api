@@ -1,4 +1,4 @@
-var env    = process.env.NODE_ENV || "staging",
+var env    = process.env.NODE_ENV || "production",
   DBconfig = require('../db.config.json')[env],
   config   = require('../deployment.environments.json')[env];
 
@@ -32,7 +32,7 @@ db = require('../api/library/couchClient')({
 
 var getOffers  = require("../api/routes/accountOffersExercised");
 var rows     = [];
-var account  = process.argv[2];
+var account  = process.argv[3] || process.argv[2];
 
 if (!account) {
   console.log("please specify an account");  

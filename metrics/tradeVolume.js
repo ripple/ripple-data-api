@@ -36,7 +36,7 @@ var topMarkets = require("../api/routes/topMarkets");
 var rows = [];
 
 var end    = moment.utc().startOf("day");
-var start  = moment.utc(end).subtract(31, "day"); 
+var start  = moment.utc(end).startOf("year"); 
 var time   = moment.utc(end).subtract(1, "day");
 
 var length = 0; 
