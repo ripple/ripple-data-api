@@ -18,7 +18,9 @@ function saveHistory (metric, interval, done) {
   else if (metric === 'totalNetworkValue') fn = require("../routes/totalNetworkValue");
   else return winston.error("invalid metric");
 
-  if (interval != 'month' && interval != 'day') return winston.error('invalid interval');
+  if (interval != 'month' && 
+      interval != 'week' &&
+      interval != 'day') return winston.error('invalid interval');
   
   next(); //start
   
@@ -58,14 +60,19 @@ function saveHistory (metric, interval, done) {
 
 module.exports.init = function () {
   var offset      = Math.ceil(new Date().getTimezoneOffset()/60); 
-  var dailyRule   = new schedule.RecurrenceRule(null, null, null, null, offset, 5, 0);
-  var monthlyRule = new schedule.RecurrenceRule(null, null, 1, null, offset, 10, 0);
+  var dailyRule   = new schedule.RecurrenceRule(null, null, null, null, offset, 15, 0);
+  var weeklyRule  = new schedule.RecurrenceRule(null, null, null, 1, offset, 10, 0);
+  var monthlyRule = new schedule.RecurrenceRule(null, null, 1, null, offset, 5, 0);
   
-  var daily = schedule.scheduleJob(dailyRule, function(){
+  schedule.scheduleJob(dailyRule, function(){
     saveDailyHistory();
   });
   
-  var monthly = schedule.scheduleJob(monthlyRule, function(){
+  schedule.scheduleJob(weeklyRule, function(){
+    saveWeeklyHistory();
+  });
+  
+  schedule.scheduleJob(monthlyRule, function(){
     saveDailyHistory();
   });  
   
@@ -80,6 +87,17 @@ module.exports.init = function () {
     });  
   };
   
+  var saveWeeklyHistory = function (done) {
+    saveHistory('topMarkets', "week", function() {
+      saveHistory('totalValueSent', "week", function() {
+        saveHistory('totalNetworkValue', "week", function() {  
+          winston.info("finished cacheing daily historical metrics"); 
+          if (done) done();    
+        });    
+      });
+    });
+  }
+  
   var saveDailyHistory = function (done) {
     saveHistory('topMarkets', "day", function() {
       saveHistory('totalValueSent', "day", function() {
@@ -92,8 +110,10 @@ module.exports.init = function () {
   }
   
   saveMonthlyHistory(function(){
-    saveDailyHistory(function(){
-      winston.info("finished cacheing historical metrics");  
+    saveWeeklyHistory(function(){
+      saveDailyHistory(function(){
+        winston.info("finished cacheing historical metrics");  
+      });
     });
   });
-}
+};

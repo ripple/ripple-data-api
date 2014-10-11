@@ -13,7 +13,7 @@ var moment = require('moment');
   curl -H "Content-Type: application/json" -X POST -d '{
     "exchange" : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}, 
     "startTime" : "june 1, 2014 4:44:00 am",
-    "timeIncrement" : "month",
+    "timeIncrement" : "week",
     "metric" : "totalnetworkvalue"
     
     }' http://localhost:5993/api/historicalMetrics
@@ -59,8 +59,10 @@ var getMetric = function (params, callback) {
   else if (ex.currency == "XRP" && ex.issuer)
     return callback('XRP cannot have an issuer');
       
-  if (increment !== 'day' && increment !== 'month') {
-   return callback('invalid time increment: use "day" or "month"');
+  if (increment !== 'day' && 
+      increment !== 'week' &&
+      increment !== 'month' ) {
+   return callback('invalid time increment: use "day", "week", or "month"');
   }
   
   if (result.end.diff(Date.now())>0) {

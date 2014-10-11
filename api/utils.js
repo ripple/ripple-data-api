@@ -177,7 +177,7 @@ exports.parseTimeIncrement = function (inc) {
       
     } else if (inc === 'we') {
 
-      results.group_multiple = group_multiple * 7; // multiply by days in a week
+      results.group_multiple = 7; // multiply by days in a week
       results.group_level    = 2; // set group_level to day
       results.name = "week";
       
