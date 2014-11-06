@@ -2,7 +2,9 @@ var moment = require('moment'),
   ripple   = require('ripple-lib'),
   async    = require('async'),
   _        = require('lodash'),
-  utils    = require('../utils');
+  utils    = require('../utils'),
+  request = require('request');
+
 
 /**
  *  exchangeRates returns the exchange rate(s) between two or more currencies
@@ -72,88 +74,139 @@ var moment = require('moment'),
  */
 
 function exchangeRates (params, callback) {
-  var pairs, list = [];
-  var endTime = moment.utc();
-  var range   = params.range || "day"; 
-  
-  if (params.last)         startTime = moment.utc("Jan 1 2013 z");
-  else if (range=="hour")  startTime = moment.utc().subtract("hours", 1);
-  else if (range=="day")   startTime = moment.utc().subtract("days", 1);
-  else if (range=="week")  startTime = moment.utc().subtract("weeks", 1);
-  else if (range=="month") startTime = moment.utc().subtract("months", 1);
-  else if (range=="year")  startTime = moment.utc().subtract("years", 1);
-  else { 
-    
-    //invalid range
-    return callback('invalid time range'); 
-  }
-  
+  console.log('Starting ER.');
+  var list;
   if (params.pairs && Array.isArray(params.pairs)) 
-    pairs = params.pairs;
+    list = params.pairs;
   else if (params.base && params.counter) 
-    pairs = [{base:params.base,counter:params.counter}];
-  else {
-    //pairs or base and counter required
+    list = [{base:params.base,counter:params.counter}];
+  else 
     return callback('please specify a list of currency pairs or a base and counter currency');
-  }
-  
-  pairs.forEach(function(pair){
-    var currencyPair = parseCurrencyPair(pair);
-    
-    if (currencyPair) list.push(currencyPair);
-    else { 
-      //invalid currency pair
-      return callback('invalid currency pair: ' + JSON.stringify(pair));
-    }
-  });
-  
-  if (pairs.length>50) return callback("Cannot retrieve more than 50 pairs");
-  
-//call offersExercised for each asset pair
+
+  if (list.length>50) return callback("Cannot retrieve more than 50 pairs");
+
+  if (params.depth) depth = params.depth;
+  //else return callback('please specify a depth');
+  else depth = 1;
+
   async.mapLimit(list, 50, function(pair, asyncCallbackPair){
-
-    var options = {
-      base      : pair.base,
-      counter   : pair.counter,
-      startTime : startTime,
-      endTime   : endTime,      
-    }
-    
-    if (params.last) {
-      options.reduce     = false;
-      options.limit      = 1,
-      options.descending = true;
-    } else {
-      options.timeIncrement = 'all';  
-    }
-    
-    require("./offersExercised")(options, function(error, data) {
-
-      if (error) return asyncCallbackPair(error);
-
-      if (params.last) {
-          pair.last = data && data.length > 1 ? data[1][1] : 0;
-        
-      } else {
-        if (data && data.length > 1) {
-          pair.rate = data[1][8]; // volume weighted average price
-          pair.last = data[1][7]; // close price
-        } else {
-          pair.rate = 0;
-        }
-      }
+    console.log('Checking next pair....');
+    midpoint_rate(pair, depth, function(er){
+      pair.rate = er;
       asyncCallbackPair(null, pair);
     });
-
-  }, function(error, results){
-    if (error) return callback(error);
-
-    var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
-    return callback (null, finalResults);
+    }, function(error, results){
+      console.log('Got response.');
+      if (error) return callback(error);
+      var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
+      console.log('Got results:', finalResults);
+      return callback (null, finalResults);
   });
 }
 
 /* HELPER FUNCTIONS */
+
+function midpoint_rate(pair, depth, mpCallback){
+  var results = {};   
+
+  bid = call_builder('bid', depth, pair);
+  ask = call_builder('ask', depth, pair);
+  
+  async.parallel({
+      br: function(callback){
+        get_offers(bid, 'bid', depth, function(br){
+          callback(null, br);
+        })
+      },
+      ar: function(callback){
+        get_offers(ask, 'ask', depth, function(ar){
+          callback(null, ar);
+        })
+      }
+  },
+  function(err, results) {
+    console.log('Call success.');
+    er = (results.br+results.ar)/2;
+    mpCallback(er)
+  });
+}
+
+//Make api call to rippled to get orderbooks
+function get_offers(json, ba, depth, callback){
+  console.log('Making call.');
+  request.post(
+    'http://s1.ripple.com:51234/',
+    {json: json},
+    function (error, response, body) {
+      if (!error) {
+          br = weighted_average(body.result.offers, ba, depth);
+          callback(br);
+      }
+      else{
+        callback(error);
+      }
+    }
+  );
+}
+
+//Find weighted average given offers
+function weighted_average(offers, ba, depth){
+    console.log('Taking averages.');
+    var rates = [];
+    var total = 0;
+    var waverage = 0;
+    for(var index in offers) {
+      //Check whether TakerGets and TakerPays are objects or integers
+      if (typeof(offers[index].TakerGets)==='object') taker_gets = offers[index].TakerGets.value;
+      else taker_gets = offers[index].TakerGets/1000000;
+      if (typeof(offers[index].TakerPays)==='object') taker_pays =  offers[index].TakerPays.value;
+      else taker_pays =  offers[index].TakerPays/1000000;
+      //Bid or Ask
+      if (ba === "ask"){
+        exchange = taker_gets/taker_pays;
+        value = taker_pays;
+      }
+      else {
+        exchange = taker_pays/taker_gets;
+        value = taker_gets;
+      }
+      //Add rate to rates array
+      rates.push([exchange,value]);
+      //Increase total
+      total += parseFloat(value);
+    }
+    //Calculate weighted average
+    for (var i=0; i<rates.length; i++){
+      var percent = rates[i][1]/total;
+      waverage += rates[i][0]*percent;
+    }
+    return waverage;
+}
+
+//Builds API call based on currencies provided (xrp has no issuer)
+function call_builder(ba, depth, pair){
+  var currencyPair = parseCurrencyPair(pair);
+  if (ba === 'bid'){
+    tg = currencyPair.base;
+    tp = currencyPair.counter;
+  }
+  else {
+    tg = currencyPair.counter;
+    tp = currencyPair.base;
+  }
+  call = {
+    "method": "book_offers",
+    "params": 
+    [
+      {
+        "taker_gets": tg,
+        "taker_pays": tp,
+        //"limit": depth
+      }
+    ]
+  }
+  return call
+}
 
 //format valid currency pairs, reject invalid
 function parseCurrencyPair (pair) {
@@ -197,7 +250,5 @@ function parseCurrency (c) {
   
   return {currency:currency, issuer:issuer, name:name}; 
 }
-
-
 
 module.exports = exchangeRates;
