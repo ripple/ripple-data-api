@@ -9,8 +9,9 @@ var moment = require('moment'),
 /**
  *  exchangeRates returns the exchange rate(s) between two or more currencies
  *  for a given time range, returning both a volume weighted average and last price
+ *  or the midpoint of the weighted averages of the bid and ask for the given pair
  *
- *  expects params to have:
+ *  expects params to have with live = false:
  *  {
  *    pairs    : [
  *      {
@@ -21,12 +22,14 @@ var moment = require('moment'),
  *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
  *        counter : {currency:"XRP"}
  *      }
- *    ]
+ *    ],
+ *    live: false
  *  
  *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
  *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
  *    range   : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
- *    last    : (boolean) retreive the last traded price only (faster query)  
+ *    last    : (boolean) retreive the last traded price only (faster query)
+ *    live    : (boolean) decides whether to check for depth or not
  *  }
  * 
  *  response :
@@ -43,25 +46,84 @@ var moment = require('moment'),
  *      ....
  *    ] 
  *  }
+ *  
+ *  expects params to have with live = true:
+ *  if depth is not given but live == true, the midpoint of the best bid and ask will be returned
+ *  {
+ *    pairs    : [
+ *      {
+ *        base    : {currency:"USD","issuer":"bitstamp"},
+ *        counter : {currency:"BTC","issuer":"bitstamp"}
+ *        depth   : 10
+ *      },
+ *      {
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
+ *        counter : {currency:"XRP"},
+ *        depth   : 100
+ *      }
+ *    ],
+ *    live: true
+ *  
+ *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
+ *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
+ *    live    : (boolean) decides whether to check for depth or not
+ *  }
  * 
+ *  response :
+ *  {
+ *    pairs : [
+ *      {
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK","name":"rippleCN"},
+ *        counter : {currency:"XRP"},
+ *        rate    : //midpoint weighted average price of bid and ask
+ *        depth   : //amount of currency the exchange rate is being checked for
+ *      },
+ * 
+ *      ....
+ *    ] 
+ *  }
 	curl -H "Content-Type: application/json" -X POST -d '{
 		"pairs" : [{
 			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-			"counter":{"currency":"XRP"}
+			"counter":{"currency":"XRP"},
+			"depth":1
 		},
 		{
 			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-			"counter":{"currency":"XRP"}
+			"counter":{"currency":"XRP"},
+			"depth":10
 		},
 		{
 			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-			"counter":{"currency":"XRP"}
+			"counter":{"currency":"XRP"},
+			"depth":50
 		},
 		{
 			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-			"counter":{"currency":"XRP"}
-		}] 
+			"counter":{"currency":"XRP"},
+			"depth":100
+		}],
+		"live":true 
 	}' http://localhost:5993/api/exchangerates
+
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "pairs" : [{
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    }] 
+  }' http://localhost:5993/api/exchangerates
 
 	curl -H "Content-Type: application/json" -X POST -d '{
 
@@ -74,34 +136,103 @@ var moment = require('moment'),
  */
 
 function exchangeRates (params, callback) {
-	var list;
+	var pairs, list = [];
+	var endTime = moment.utc();
+	var range   = params.range || "day";
+
+	var live = params.live; 
+	
+	if (params.last)         startTime = moment.utc("Jan 1 2013 z");
+	else if (range=="hour")  startTime = moment.utc().subtract("hours", 1);
+	else if (range=="day")   startTime = moment.utc().subtract("days", 1);
+	else if (range=="week")  startTime = moment.utc().subtract("weeks", 1);
+	else if (range=="month") startTime = moment.utc().subtract("months", 1);
+	else if (range=="year")  startTime = moment.utc().subtract("years", 1);
+	else { 
+		
+		//invalid range
+		return callback('invalid time range'); 
+	}
+	
 	if (params.pairs && Array.isArray(params.pairs)) 
-		list = params.pairs;
+		pairs = params.pairs;
 	else if (params.base && params.counter) 
-		list = [{base:params.base,counter:params.counter}];
+		pairs = [{base:params.base,counter:params.counter, depth:params.depth}];
 	else 
 		return callback('please specify a list of currency pairs or a base and counter currency');
 
 	if (list.length>50) return callback("cannot retrieve more than 50 pairs");
 
-	if (params.depth){
-		depth = params.depth;
-		if (depth < 0) return callback("invalid depth");
-	}
-	else depth = 0;
+	pairs.forEach(function(pair){
+		var depth;
+		var currencyPair = parseCurrencyPair(pair);
+
+		if (currencyPair){
+			if (live){
+				if (pair.depth){
+					depth = pair.depth;
+					if (depth < 0) return callback("invalid depth");
+				}
+				else depth = 0;
+				currencyPair.depth = depth;
+			}
+			list.push(currencyPair);
+		}
+		else { 
+			//invalid currency pair
+			return callback('invalid currency pair: ' + JSON.stringify(pair));
+		}
+	});
 
 	async.mapLimit(list, 50, function(pair, asyncCallbackPair){
-		midpoint_rate(pair, depth, function(error, avg){
-			if (error) return asyncCallbackPair(error);
-			else{
-				pair.rate = avg;
-				asyncCallbackPair(null, pair);
+		if (live){
+			console.log("depth", pair);
+			midpoint_rate(pair, pair.depth, function(error, avg){
+				if (error) return asyncCallbackPair(error);
+				else{
+					pair.rate = avg;
+					asyncCallbackPair(null, pair);
+				}
+			});
+		}
+		else{
+			var options = {
+			base      : pair.base,
+			counter   : pair.counter,
+			startTime : startTime,
+			endTime   : endTime,      
 			}
-		});
-		}, function(error, results){
-			if (error) return callback(error);
-			var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
-			return callback (null, finalResults);
+		
+			if (params.last) {
+				options.reduce     = false;
+				options.limit      = 1,
+				options.descending = true;
+			} else {
+				options.timeIncrement = 'all';  
+			}
+			
+			require("./offersExercised")(options, function(error, data) {
+
+				if (error) return asyncCallbackPair(error);
+
+				if (params.last) {
+						pair.last = data && data.length > 1 ? data[1][1] : 0;
+					
+				} else {
+					if (data && data.length > 1) {
+						pair.rate = data[1][8]; // volume weighted average price
+						pair.last = data[1][7]; // close price
+					} else {
+						pair.rate = 0;
+					}
+				}
+				asyncCallbackPair(null, pair);
+			});
+		}
+	}, function(error, results){
+		if (error) return callback(error);
+		var finalResults = _.filter(results, function(result){ return result.rate !== 0; });
+		return callback (null, finalResults);
 	});
 }
 
@@ -145,7 +276,8 @@ function process_offers(json, ba, depth, callback){
 		{json: json},
 		function (error, response, body) {
 			if (!error) {
-				weighted_average(body.result.offers, ba, depth, function(error, wavg){
+				var offers = body.result.offers;
+				weighted_average(offers, ba, depth, function(error, wavg){
 					if(!error) callback(null, wavg);
 					else callback(error);
 				});
@@ -225,7 +357,6 @@ function call_builder(ba, depth, pair){
 			{
 				"taker_gets": tg,
 				"taker_pays": tp,
-				//"limit": depth
 			}
 		]
 	}
