@@ -84,7 +84,10 @@ function exchangeRates (params, callback) {
 
 	if (list.length>50) return callback("cannot retrieve more than 50 pairs");
 
-	if (params.depth) depth = params.depth;
+	if (params.depth){
+		depth = params.depth;
+		if (depth < 0) return callback("invalid depth");
+	}
 	else depth = 0;
 
 	async.mapLimit(list, 50, function(pair, asyncCallbackPair){
@@ -110,31 +113,33 @@ function midpoint_rate(pair, depth, mpCallback){
 	bid = call_builder('bid', depth, pair);
 	ask = call_builder('ask', depth, pair);
 	
+	//Make both bid and ask api calls in parallel and process the results
 	async.parallel({
-			br: function(callback){
-				get_offers(bid, 'bid', depth, function(error, br){
+			bid_avg: function(callback){
+				process_offers(bid, 'bid', depth, function(error, br){
 					if (!error) callback(null, br);
 					else callback(error);
 				})
 			},
-			ar: function(callback){
-				get_offers(ask, 'ask', depth, function(error, ar){
+			ask_avg: function(callback){
+				process_offers(ask, 'ask', depth, function(error, ar){
 					if (!error) callback(null, ar);
 					else callback(error);
 				})
 			}
 	},
-	function(err, results) {
-		if (err) mpCallback(err);
+	//Return results
+	function(error, results) {
+		if (error) mpCallback(error);
 		else{
-			avg = (results.br+results.ar)/2;
-			mpCallback(null, avg)
+			midpoint = (results.bid_avg+results.ask_avg)/2;
+			mpCallback(null, midpoint)
 		}
 	});
 }
 
 //Make api call to rippled to get orderbooks
-function get_offers(json, ba, depth, callback){
+function process_offers(json, ba, depth, callback){
 	request.post(
 		'http://s1.ripple.com:51234/',
 		{json: json},
@@ -190,9 +195,11 @@ function weighted_average(offers, ba, depth, callback){
 			break;
 		}
 	}
+	//If limit of offers is reached and depth hasnt been reached, return error
 	if (total < depth && offers.length > 299){
 		return callback('cannot retrieve more than 300 orders');
 	}
+	//If the given depth cannot be reached, return error
 	else if (total < depth){
 		return callback('cannot retrieve offers with such a high depth');
 	}
