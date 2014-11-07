@@ -171,10 +171,9 @@ function exchangeRates (params, callback) {
 			if (live){
 				if (pair.depth){
 					depth = pair.depth;
-					if (depth < 0) return callback("invalid depth");
+					if (depth <= 0) return callback("invalid depth");
+					currencyPair.depth = depth;
 				}
-				else depth = 0;
-				currencyPair.depth = depth;
 			}
 			list.push(currencyPair);
 		}
@@ -310,7 +309,7 @@ function weighted_average(offers, ba, depth, callback){
 			value = parseFloat(taker_gets);
 		}
 		//If depth is 0, then we only need first offer
-		if(depth === 0){
+		if(!depth){
 			console.log("taking only 1");
 			return callback(null, exchange)
 		}
