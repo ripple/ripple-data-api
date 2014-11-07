@@ -185,7 +185,6 @@ function exchangeRates (params, callback) {
 
 	async.mapLimit(list, 50, function(pair, asyncCallbackPair){
 		if (live){
-			console.log("depth", pair);
 			midpoint_rate(pair, pair.depth, function(error, avg){
 				if (error) return asyncCallbackPair(error);
 				else{
@@ -310,7 +309,6 @@ function weighted_average(offers, ba, depth, callback){
 		}
 		//If depth is 0, then we only need first offer
 		if(!depth){
-			console.log("taking only 1");
 			return callback(null, exchange)
 		}
 		//Check if you're going to go over the depth.
