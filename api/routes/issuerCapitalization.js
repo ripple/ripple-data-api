@@ -137,7 +137,7 @@ function issuerCapitalization(params, callback) {
  
     //get cached results first.  if there are any,
     //the view will be adjusted so that couch is queried for everything else
-    if (0 && CACHE) getCached(options, function(error) {
+    if (CACHE) getCached(options, function(error) {
       
       if (error) return callback (error);
       return fromCouch(options, c, asyncCallbackPair)
