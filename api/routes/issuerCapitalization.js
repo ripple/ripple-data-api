@@ -137,7 +137,7 @@ function issuerCapitalization(params, callback) {
  
     //get cached results first.  if there are any,
     //the view will be adjusted so that couch is queried for everything else
-    if (CACHE) getCached(options, function(error) {
+    if (0 && CACHE) getCached(options, function(error) {
       
       if (error) return callback (error);
       return fromCouch(options, c, asyncCallbackPair)
@@ -189,7 +189,8 @@ function issuerCapitalization(params, callback) {
       }
       
       //if there are cached results, we can get the start capitalization from there
-      if (options.cached && options.cached.length) {
+      //NOTE: disrgarding this for now, might be contributing to bad results
+      if (0 && options.cached && options.cached.length) {
         if (c.hotwallets) {
           getHotWalletBalances(c, options, function(err, balances) {
             if (err) {
@@ -212,6 +213,7 @@ function issuerCapitalization(params, callback) {
           c.results = prepareRows(options, startCapitalization, trustlineRes.rows);
           return callback(null, c);
         }
+        
       //otherwise, we need to get the reduced result from the begining of
       //time to the start of our range.  
       } else {
@@ -265,7 +267,7 @@ function issuerCapitalization(params, callback) {
    * and options to finalize a result.
    */
   function prepareRows (options, startCapitalization, rows, balances) {
-    
+
     var viewOptions = options.subview ? options.subview : options.view;
     
     // Format and add startCapitalization data to each row
@@ -468,7 +470,7 @@ function issuerCapitalization(params, callback) {
       view.startkey[0] = key;
       view.endkey[0]   = key;
     
-      initial = {
+      var initialOpts = {
          startkey   : view.startkey,
          endkey     : [key],
          reduce     : false,
@@ -488,7 +490,7 @@ function issuerCapitalization(params, callback) {
         }
           
         //get initial balance 
-        db.view('currencyBalances', 'v1', initial, function(err, initial) {
+        db.view('currencyBalances', 'v1', initialOpts, function(err, initial) {
           if (err) {
             return asyncCallback(err);
           }
@@ -513,6 +515,7 @@ function issuerCapitalization(params, callback) {
       });              
     
     }, function(err, results) {
+      
       return callback(err, balances); 
     });    
   }
