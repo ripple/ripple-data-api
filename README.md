@@ -497,10 +497,10 @@ Breakdown of valid transactions by type on the ripple network over time.
         ...
         ...
 
-### exchange_rates [/exchange_rates{pairs}{base}{counter}{range}{last}]
-The exchange rates between two currencies for a given time period.  Returns the volume weighted average price for the specified range, as well as the last traded price.
+### exchange_rates [/exchange_rates{pairs}{base}{counter}{range}{last}{live}]
+The exchange rates between two currencies for a given time period.  Returns the volume weighted average price for the specified range, as well as the last traded price or the midpoint of the weighted averages of the bid and ask for the given pair and depth.
 
-+ Max returned results : 20
++ Max returned results : 50
 
 #### POST  
 
@@ -508,10 +508,12 @@ The exchange rates between two currencies for a given time period.  Returns the 
     + pairs (JSON, optional) ... Array of currency pairs for retreival.  Required if base and counter are absent
     + base (JSON, optional) ... base currency of the trading pair, in the form {currency,issuer}.  Required if `pairs` is absent
     + counter (JSON, optional) ... counter currency of the trading pair, in the form {currency, issuer}.  Required if `pairs` is absent
+    + depth (integer, optional) ... depth of the sum of total base currency in the orderbook that should be weighted to calculate exchange rate. If 'live' is true and 'depth' is absent, the midpoint of the best ask and bid will be returned 
     + range (string, optional) ... "hour", "day", "week", "month", "year".  Time range to average the price over, defaults to `day`
     + last (boolean, optional) ... true returns the last price only (faster response time)
+    + live (boolean, optional) ... true returns the weigthed averages of the bid and ask for given pairs and depths
  
-+ Request (json)
++ Request with live = false (json)
     
         {
             pairs : [
@@ -520,7 +522,8 @@ The exchange rates between two currencies for a given time period.  Returns the 
                     counter : {currency:"XRP"}
                 }
             ],
-            range : "day"
+            range : "day",
+            live : false
         }
 
 
@@ -546,6 +549,44 @@ The exchange rates between two currencies for a given time period.  Returns the 
                     rate    : .5412
                     last    : .5405
                     range   : "day"
+                  },
+                    ....
+                ] 
+            }
+
++ Request with live = true (json)
+    
+        {
+            pairs : [
+                {
+                    base    : {currency:"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+                    counter : {currency:"XRP"}
+                    depth   : 1
+                }
+            ],
+            live : true
+        }
+
+
++ Response 200 (json)
+
+    + Pairs - array of results as json for each trading pair requested
+        + depth - depth of the sum of total base currency in the orderbook
+    
+    + Body       
+    
+            {
+                pairs : [
+                  {
+                    base    : {
+                        currency : "BTC", 
+                        issuer   : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
+                        name     : "Bitstamp"
+                    },
+                    counter : {
+                        currency : "XRP"
+                    },
+                    rate    : 76224.0826462369
                   },
                     ....
                 ] 

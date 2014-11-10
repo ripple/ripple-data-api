@@ -29,7 +29,6 @@ var moment   = require('moment'),
  *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
  *    range   : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
  *    last    : (boolean) retreive the last traded price only (faster query)
- *    live    : (boolean) decides whether to check for depth or not
  *  }
  * 
  *  response :
@@ -66,7 +65,6 @@ var moment   = require('moment'),
  *  
  *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
  *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
- *    live    : (boolean) decides whether to check for depth or not
  *  }
  * 
  *  response :
@@ -82,6 +80,9 @@ var moment   = require('moment'),
  *      ....
  *    ] 
  *  }
+
+	Call with live = true:
+
 	curl -H "Content-Type: application/json" -X POST -d '{
 		"pairs" : [{
 			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
@@ -105,6 +106,8 @@ var moment   = require('moment'),
 		}],
 		"live":true 
 	}' http://localhost:5993/api/exchangerates
+  
+  Calls with live = false:
 
 	curl -H "Content-Type: application/json" -X POST -d '{
 		"pairs" : [{
@@ -124,6 +127,7 @@ var moment   = require('moment'),
 			"counter":{"currency":"XRP"}
 		}] 
 	}' http://localhost:5993/api/exchangerates
+
 	curl -H "Content-Type: application/json" -X POST -d '{
 		"base"    : {"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
 		"counter" : {"currency":"XRP"},
