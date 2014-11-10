@@ -15,19 +15,19 @@ var moment   = require('moment'),
  *  {
  *    pairs    : [
  *      {
- *        base    : {currency:'USD','issuer':'bitstamp'},
- *        counter : {currency:'BTC','issuer':'bitstamp'}
+ *        base    : {currency:"USD","issuer":"bitstamp"},
+ *        counter : {currency:"BTC","issuer":"bitstamp"}
  *      },
  *      {
- *        base    : {currency:'CNY','issuer':'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'},
- *        counter : {currency:'XRP'}
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
+ *        counter : {currency:"XRP"}
  *      }
  *    ],
  *    live: false
  *  
- *    base    : {currency:'CNY','issuer':'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //required if 'pairs' not present, for a single currency pair exchange rate
- *    counter : {currency:'XRP'}, //require if 'pairs' not present, for a single currency pair exchange rate
- *    range   : 'hour', 'day', 'week', 'month', year',  //time range to average the price over, defaults to 'day'
+ *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
+ *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
+ *    range   : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
  *    last    : (boolean) retreive the last traded price only (faster query)
  *    live    : (boolean) decides whether to check for depth or not
  *  }
@@ -36,11 +36,11 @@ var moment   = require('moment'),
  *  {
  *    pairs : [
  *      {
- *        base    : {currency:'CNY','issuer':'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK','name':'rippleCN'},
- *        counter : {currency:'XRP'},
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK","name":"rippleCN"},
+ *        counter : {currency:"XRP"},
  *        rate    : //volume weighted average price
  *        last    : //last trade price
- *        range   : 'hour', 'day', 'month', year' - from request
+ *        range   : "hour", "day", "month", year" - from request
  *      },
  * 
  *      ....
@@ -52,20 +52,20 @@ var moment   = require('moment'),
  *  {
  *    pairs    : [
  *      {
- *        base    : {currency:'USD','issuer':'bitstamp'},
- *        counter : {currency:'BTC','issuer':'bitstamp'}
+ *        base    : {currency:"USD","issuer":"bitstamp"},
+ *        counter : {currency:"BTC","issuer":"bitstamp"}
  *        depth   : 10
  *      },
  *      {
- *        base    : {currency:'CNY','issuer':'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'},
- *        counter : {currency:'XRP'},
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
+ *        counter : {currency:"XRP"},
  *        depth   : 100
  *      }
  *    ],
  *    live: true
  *  
- *    base    : {currency:'CNY','issuer':'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //required if 'pairs' not present, for a single currency pair exchange rate
- *    counter : {currency:'XRP'}, //require if 'pairs' not present, for a single currency pair exchange rate
+ *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
+ *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
  *    live    : (boolean) decides whether to check for depth or not
  *  }
  * 
@@ -73,8 +73,8 @@ var moment   = require('moment'),
  *  {
  *    pairs : [
  *      {
- *        base    : {currency:'CNY','issuer':'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK','name':'rippleCN'},
- *        counter : {currency:'XRP'},
+ *        base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK","name":"rippleCN"},
+ *        counter : {currency:"XRP"},
  *        rate    : //midpoint weighted average price of bid and ask
  *        depth   : //amount of currency the exchange rate is being checked for
  *      },
@@ -82,54 +82,52 @@ var moment   = require('moment'),
  *      ....
  *    ] 
  *  }
-	curl -H 'Content-Type: application/json' -X POST -d '{
-		'pairs' : [{
-			'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-			'counter':{'currency':'XRP'},
-			'depth':1
+	curl -H "Content-Type: application/json" -X POST -d '{
+		"pairs" : [{
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"},
+			"depth":1
 		},
 		{
-			'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-			'counter':{'currency':'XRP'},
-			'depth':10
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"},
+			"depth":10
 		},
 		{
-			'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-			'counter':{'currency':'XRP'},
-			'depth':50
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"},
+			"depth":50
 		},
 		{
-			'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-			'counter':{'currency':'XRP'},
-			'depth':100
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"},
+			"depth":100
 		}],
-		'live':true 
+		"live":true 
 	}' http://localhost:5993/api/exchangerates
 
-  curl -H 'Content-Type: application/json' -X POST -d '{
-    'pairs' : [{
-      'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      'counter':{'currency':'XRP'}
+  curl -H "Content-Type: application/json" -X POST -d '{
+    "pairs" : [{
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
     },
     {
-      'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      'counter':{'currency':'XRP'}
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
     },
     {
-      'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      'counter':{'currency':'XRP'}
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
     },
     {
-      'base':{'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      'counter':{'currency':'XRP'}
+      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
     }] 
   }' http://localhost:5993/api/exchangerates
-
-	curl -H 'Content-Type: application/json' -X POST -d '{
-
-		'base'    : {'currency':'BTC','issuer':'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-		'counter' : {'currency':'XRP'},
-		'last'    : true
+	curl -H "Content-Type: application/json" -X POST -d '{
+		"base"    : {"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+		"counter" : {"currency":"XRP"},
+		"last"    : true
  
 	}' http://localhost:5993/api/exchangerates
 		
@@ -294,13 +292,14 @@ function weighted_average(offers, ba, depth, callback) {
 			waverage = 0;
 	//Iterate through offers
 	for (var index in offers) {
-		var exchange, 
+		var offer = offers[index],
+				exchange, 
 				value;
 		//Check whether TakerGets and TakerPays are objects or integers
-		if (typeof(offers[index].TakerGets)==='object') taker_gets = offers[index].TakerGets.value;
-		else taker_gets = offers[index].TakerGets/1000000;
-		if (typeof(offers[index].TakerPays)==='object') taker_pays =  offers[index].TakerPays.value;
-		else taker_pays =  offers[index].TakerPays/1000000;
+		if (offer.TakerGets.value) taker_gets = offer.TakerGets.value;
+		else taker_gets = offer.TakerGets/1000000;
+		if (offer.TakerPays.value) taker_pays =  offer.TakerPays.value;
+		else taker_pays =  offer.TakerPays/1000000;
 		//Bid or Ask
 		if (ba === 'bid') {
 			exchange = taker_gets/taker_pays;
@@ -339,6 +338,9 @@ function weighted_average(offers, ba, depth, callback) {
 	return callback(null, waverage);
 }
 
+
+/* HELPER FUNCTIONS */
+
 //Builds API call based on currencies provided (xrp has no issuer)
 function call_builder(ba, pair) {
 	var currencyPair = parseCurrencyPair(pair),
@@ -365,8 +367,6 @@ function call_builder(ba, pair) {
 	};
 	return call;
 }
-
-/* HELPER FUNCTIONS */
 
 //format valid currency pairs, reject invalid
 function parseCurrencyPair (pair) {
