@@ -11,7 +11,7 @@ var moment   = require('moment'),
  *  for a given time range, returning both a volume weighted average and last price
  *  or the midpoint of the weighted averages of the bid and ask for the given pair
  *
- *  expects params to have with live = false:
+ *  expects params to have with live != true:
  *  {
  *    pairs    : [
  *      {
@@ -134,12 +134,12 @@ var moment   = require('moment'),
  */
 
 function exchangeRates (params, callback) {
-	var pairs, 
-			startTime, 
-			list = [],
+	var range   = params.range || 'day',
 			endTime = moment.utc(),
-			range   = params.range || 'day',
-			live = params.live; 
+			live    = params.live,
+			list    = [],
+			pairs, 
+			startTime;
 	
 	if (params.last)         startTime = moment.utc('Jan 1 2013 z');
 	else if (range == 'hour')  startTime = moment.utc().subtract('hours', 1);
@@ -148,7 +148,6 @@ function exchangeRates (params, callback) {
 	else if (range == 'month') startTime = moment.utc().subtract('months', 1);
 	else if (range == 'year')  startTime = moment.utc().subtract('years', 1);
 	else { 
-		
 		//invalid range
 		return callback('invalid time range'); 
 	}
@@ -164,8 +163,8 @@ function exchangeRates (params, callback) {
 	if (list.length > 50) return callback('cannot retrieve more than 50 pairs');
 
 	pairs.forEach(function(pair) {
-		var depth,
-				currencyPair = parseCurrencyPair(pair);
+		var currencyPair = parseCurrencyPair(pair),
+				depth;
 
 		if (currencyPair) {
 			if (live) {
@@ -286,16 +285,16 @@ function process_offers(json, ba, depth, callback) {
 
 //Find weighted average given offers
 function weighted_average(offers, ba, depth, callback) {
-	var taker_gets, 
-			taker_pays,
-			total = 0,
-			waverage = 0;
-	//Iterate through offers
+	var waverage = 0,
+			total    = 0,
+			taker_gets, 
+			taker_pays;
+	//Iterate through offers until depth is reached.
 	for (var index in offers) {
 		var offer = offers[index],
 				exchange, 
 				value;
-		//Check whether TakerGets and TakerPays are objects or integers
+		//Check whether TakerGets.value and TakerPays.value exist.
 		if (offer.TakerGets.value) taker_gets = offer.TakerGets.value;
 		else taker_gets = offer.TakerGets/1000000;
 		if (offer.TakerPays.value) taker_pays =  offer.TakerPays.value;
@@ -309,16 +308,15 @@ function weighted_average(offers, ba, depth, callback) {
 			exchange = taker_pays/taker_gets;
 			value = Number(taker_gets);
 		}
-		//If depth is 0, then we only need first offer
+		//If depth is 0, return exchange rate of first offer.
 		if(!depth) {
 			return callback(null, exchange);
 		}
-		//Check if you're going to go over the depth.
+		//If over depth, find difference.
 		if (total+value > depth) {
-			//If you are, find out how much you need to get to depth.
 			value = depth-total;
 		}
-		//Add weighted exchange rate
+		//Add weighted exchange rate.
 		waverage += exchange * (value/depth);
 		total += value;
 		//If depth has been reached, break.
@@ -326,13 +324,13 @@ function weighted_average(offers, ba, depth, callback) {
 			break;
 		}
 	}
-	//If limit of offers is reached and depth hasnt been reached, return error
+	//If limit of offers is reached and depth hasn't been reached, return error.
 	if (total < depth && offers.length > 299) {
-		return callback('cannot retrieve more than 300 orders');
+		return callback('cannot retrieve more than 300 orders, try lowering the depth');
 	}
-	//If the given depth cannot be reached, return error
+	//If the given depth cannot be reached, return error.
 	else if (total < depth) {
-		return callback('cannot retrieve offers with such a high depth');
+		return callback('cannot retrieve offers with such a high depth, try lowering the depth');
 	}
 
 	return callback(null, waverage);
@@ -341,7 +339,7 @@ function weighted_average(offers, ba, depth, callback) {
 
 /* HELPER FUNCTIONS */
 
-//Builds API call based on currencies provided (xrp has no issuer)
+//Builds API call based on currencies provided and (xrp has no issuer).
 function call_builder(ba, pair) {
 	var currencyPair = parseCurrencyPair(pair),
 			tg, 
