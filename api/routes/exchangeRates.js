@@ -106,24 +106,24 @@ var moment   = require('moment'),
 		"live":true 
 	}' http://localhost:5993/api/exchangerates
 
-  curl -H "Content-Type: application/json" -X POST -d '{
-    "pairs" : [{
-      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      "counter":{"currency":"XRP"}
-    },
-    {
-      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      "counter":{"currency":"XRP"}
-    },
-    {
-      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      "counter":{"currency":"XRP"}
-    },
-    {
-      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      "counter":{"currency":"XRP"}
-    }] 
-  }' http://localhost:5993/api/exchangerates
+	curl -H "Content-Type: application/json" -X POST -d '{
+		"pairs" : [{
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"}
+		},
+		{
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"}
+		},
+		{
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"}
+		},
+		{
+			"base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+			"counter":{"currency":"XRP"}
+		}] 
+	}' http://localhost:5993/api/exchangerates
 	curl -H "Content-Type: application/json" -X POST -d '{
 		"base"    : {"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
 		"counter" : {"currency":"XRP"},
