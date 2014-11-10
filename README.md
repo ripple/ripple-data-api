@@ -513,7 +513,7 @@ The exchange rates between two currencies for a given time period.  Returns the 
     + last (boolean, optional) ... true returns the last price only (faster response time)
     + live (boolean, optional) ... true returns the weigthed averages of the bid and ask for given pairs and depths
  
-+ Request with live = false (json)
++ Request with live set to false (json)
     
         {
             pairs : [
@@ -554,7 +554,7 @@ The exchange rates between two currencies for a given time period.  Returns the 
                 ] 
             }
 
-+ Request with live = true (json)
++ Request with live set to true (json)
     
         {
             pairs : [
@@ -586,6 +586,7 @@ The exchange rates between two currencies for a given time period.  Returns the 
                     counter : {
                         currency : "XRP"
                     },
+                    depth   : 1,
                     rate    : 76224.0826462369
                   },
                     ....
