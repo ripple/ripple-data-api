@@ -53,8 +53,12 @@ function(doc) {
         exchangeRate = exchangeRate * 1000000.0;
       }
       
-      emit([payCurr+":"+getCurr].concat(timestamp), [payAmnt, getAmnt, exchangeRate, counterparty, tx.Account, unix, tx.hash]);
-      emit([getCurr+":"+payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate, tx.Account, counterparty, unix, tx.hash]);
+      if (payCurr < getCurr) {
+        emit([payCurr+":"+getCurr].concat(timestamp), [payAmnt, getAmnt, exchangeRate, counterparty, tx.Account, unix, tx.hash]);
+      } else {
+        emit([getCurr+":"+payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate, tx.Account, counterparty, unix, tx.hash]);
+      }
+      
     } );
   } );
 }

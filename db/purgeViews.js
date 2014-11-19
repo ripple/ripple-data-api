@@ -25,7 +25,7 @@ db.list({ startkey:'_design/', endkey:'_e' }, function(err, res){
     if (!docs.length) return winston.info('no exising design docs found');
     
     //compile new docs
-    compile("./design", function(err, design) {
+    compile(__dirname + "/design", function(err, design) {
       if (err) return winston.error('problem compiling design docs: ' + err); 
       var ids = {}, purge = [];
       for (var name in design) ids[design[name]._id] = name;
