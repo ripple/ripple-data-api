@@ -297,6 +297,7 @@ function offersExercised (params, callback, unlimit) {
         options.cached           = cached;
         options.subview          = JSON.parse(JSON.stringify(options.view)); //shallow copy
         options.subview.startkey = key.concat(last.toArray().slice(0,6));
+        
         //options.alignedFirst     = last;
         callback(); //continue from the last cached point       
       });
@@ -359,7 +360,7 @@ function offersExercised (params, callback, unlimit) {
   function prepareRows(keyBase, rows, start) {
     
     var time = moment.utc(start);
-    var max  = moment.utc(); //now
+    var max  = moment.utc().subtract(15, 'minutes'); //now
     var temp = {}, timestamp, key, results = [];
     
     //use the lesser of current time or endTime    
@@ -396,7 +397,7 @@ function offersExercised (params, callback, unlimit) {
         results.push(JSON.stringify([time.format()]));        
       
       } else break;
-      
+
       //increment to the next candle
       time.add(options.increment, options.multiple);
     } 
