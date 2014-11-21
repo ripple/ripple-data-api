@@ -13,7 +13,7 @@ function saveHistory (metric, interval, done) {
   var fn;
   var params;
   
-  if (metric === 'topMarkets')             fn = require("../routes/topMarkets");
+  if (metric === 'totalTradeVolume')       fn = require("../routes/totalTradeVolume");
   else if (metric === 'totalValueSent')    fn = require("../routes/totalValueSent");
   else if (metric === 'totalNetworkValue') fn = require("../routes/totalNetworkValue");
   else return winston.error("invalid metric");
@@ -77,7 +77,7 @@ module.exports.init = function () {
   });  
   
   var saveMonthlyHistory = function (done) {
-    saveHistory('topMarkets', "month", function() {
+    saveHistory('totalTradeVolume', "month", function() {
       saveHistory('totalValueSent', "month", function() {
         saveHistory('totalNetworkValue', "month", function() {  
           winston.info("finished cacheing monthly historical metrics");  
@@ -88,7 +88,7 @@ module.exports.init = function () {
   };
   
   var saveWeeklyHistory = function (done) {
-    saveHistory('topMarkets', "week", function() {
+    saveHistory('totalTradeVolume', "week", function() {
       saveHistory('totalValueSent', "week", function() {
         saveHistory('totalNetworkValue', "week", function() {  
           winston.info("finished cacheing daily historical metrics"); 
@@ -99,7 +99,7 @@ module.exports.init = function () {
   }
   
   var saveDailyHistory = function (done) {
-    saveHistory('topMarkets', "day", function() {
+    saveHistory('totalTradeVolume', "day", function() {
       saveHistory('totalValueSent', "day", function() {
         saveHistory('totalNetworkValue', "day", function() {  
           winston.info("finished cacheing daily historical metrics"); 

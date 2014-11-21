@@ -2,9 +2,10 @@ var env    = process.env.NODE_ENV || "production",
   DBconfig = require('../db.config.json')[env],
   config   = require('../deployment.environments.json')[env];
 
-var fs   = require('fs'),
-  _      = require('lodash'),
-  moment = require('moment');
+var fs     = require('fs');
+var _      = require('lodash');
+var moment = require('moment');
+var tools  = require('../api/utils');
 
 datadog = {
   increment : function(){},
@@ -32,11 +33,11 @@ db = require('../api/library/couchClient')({
     '/'   + DBconfig.database,
 });
 
-var topMarkets = require("../api/routes/topMarkets");
+var topMarkets = require("../api/routes/totalTradeVolume");
 var rows = [];
 
 var end    = moment.utc().startOf("day");
-var start  = moment.utc(end).startOf("year"); 
+var start  = moment.utc(end).subtract(91, "day");
 var time   = moment.utc(end).subtract(1, "day");
 
 var length = 0; 
@@ -66,9 +67,11 @@ function getStats (start, end, index) {
       if (!rows[0]) {
         var header = ["startTime", "totalVolume", "count", "XRPrate"];
         res.components.forEach(function(c){
-          header.push(c.base.currency+"/"+c.counter.currency+"-volume");
-          header.push(c.base.currency+"/"+c.counter.currency+"-count");
-          header.push(c.base.currency+"/"+c.counter.currency+"-rate");
+          var prefix = getHeaderPrefix(c);
+          console.log(prefix);
+          header.push(prefix + "-volume");
+          header.push(prefix + "-count");
+          header.push(prefix + "-rate");
         });
         rows[0] = header;
       }
@@ -103,6 +106,15 @@ function getStats (start, end, index) {
 }
 
 
-
+function getHeaderPrefix (c) {
+  var baseIssuer    = tools.getGatewayName(c.base.issuer);
+  var counterIssuer = tools.getGatewayName(c.counter.issuer); 
+  
+  if (c.base.issuer    && !baseIssuer)    baseIssuer    = c.base.issuer;
+  if (c.counter.issuer && !counterIssuer) counterIssuer = c.counter.issuer;
+  
+  return c.base.currency + (baseIssuer ? '.' + baseIssuer : '') + '/' +
+    c.counter.currency + (counterIssuer ? '.' + counterIssuer : '');
+}
 
 
