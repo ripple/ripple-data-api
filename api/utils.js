@@ -1,6 +1,6 @@
-var  _   = require('lodash'),
-  moment = require('moment');
- 
+var  _     = require('lodash');
+var moment = require('moment');
+var gatewayList = require('./gateways.json'); 
  
 /**
  *  gatewayNameToAddress translates a given name and, 
