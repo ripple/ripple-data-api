@@ -297,6 +297,7 @@ function offersExercised (params, callback, unlimit) {
         options.cached           = cached;
         options.subview          = JSON.parse(JSON.stringify(options.view)); //shallow copy
         options.subview.startkey = key.concat(last.toArray().slice(0,6));
+        
         //options.alignedFirst     = last;
         callback(); //continue from the last cached point       
       });
@@ -359,18 +360,18 @@ function offersExercised (params, callback, unlimit) {
   function prepareRows(keyBase, rows, start) {
     
     var time = moment.utc(start);
-    var max  = moment.utc(); //now
+    var max  = moment.utc().subtract(16, 'minutes');
     var temp = {}, timestamp, key, results = [];
     
     //use the lesser of current time or endTime    
     if (max.diff(options.endTime)>0) max = moment.utc(options.endTime);
     max.subtract(options.increment, options.multiple);
-    
+
     rows.forEach(function(row){
       temp[moment.utc(row[0]).unix()] = row;
     });
-    
-    while (options.endTime.diff(time)>0) {
+
+    while (max.diff(time)>0) {
       timestamp = time.unix();
       key       = keyBase+":"+timestamp;
      
@@ -396,7 +397,7 @@ function offersExercised (params, callback, unlimit) {
         results.push(JSON.stringify([time.format()]));        
       
       } else break;
-      
+
       //increment to the next candle
       time.add(options.increment, options.multiple);
     } 
@@ -722,7 +723,6 @@ function offersExercised (params, callback, unlimit) {
   function handleInterest (rows) {
     var base    = ripple.Currency.from_json(params.base.currency);
     var counter = ripple.Currency.from_json(params.counter.currency);
-    
     
     if (base.has_interest()) {
       if (options.view.reduce === false) {
