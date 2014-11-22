@@ -365,7 +365,7 @@ function issuerCapitalization(params, callback) {
     
     var keyBase  = parseKey(options.view);
     var time     = moment.utc(options.alignedTime);
-    var end      = tools.getAlignedTime(endTime);
+    var end      = tools.getAlignedTime(endTime, options.increment);
     var cached   = [], keys = [];
     
     //skip the first unless it happens to be properly aligned
@@ -379,7 +379,6 @@ function issuerCapitalization(params, callback) {
     
     //get cached points for the range
     redis.mget(keys, function(error, res){
-       
       if (error)       return callback(error);
       if (!res.length) return callback();
       var last;
@@ -411,6 +410,7 @@ function issuerCapitalization(params, callback) {
   /*
    * create the key used for the cache from the options
    */
+  
   function parseKey(options) {    
     return "CB:"+options.startkey[0]+":"+options.group_level; 
   }
@@ -418,12 +418,16 @@ function issuerCapitalization(params, callback) {
   /*
    * Save results into the cache for future use
    */
+  
   function cacheResults(options, rows) {
-    
+
     var keyBase = parseKey(options.view);
     var time    = moment.utc(options.alignedTime);
-    var end     = moment.utc(endTime);
+    var max     = moment.utc().subtract(4, 'hours');
     var points  = [];
+    
+    //use the lesser of current time or endTime    
+    if (max.diff(endTime)>0) max = moment.utc(endTime);
     
     if (options.increment=="all") return; //ignore these
     if (options.view.reduce===false || !options.view.group_level) return; //ignore these too
@@ -437,11 +441,11 @@ function issuerCapitalization(params, callback) {
       //this should be the first and last unless the
       //client aligned them properly beforehand
       if (time.diff(aligned)) return; 
+      if (time.diff(max) >= 0) return;
       
       points.push(key);
       points.push(JSON.stringify(row));
     });
-    
     
     if (points.length) {
       redis.mset(points, function(error, res){
