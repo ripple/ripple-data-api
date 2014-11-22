@@ -166,11 +166,13 @@ function offersExercised (params, callback, unlimit) {
       });
    
     } else {
+
       // data structure for grouping results 
       if (options.multiple > 1) rows = applyGroupMultiple(resRows); 
       else {
           
         resRows.forEach(function(row){
+
           //row.key will be null if this is reduced to a single row
           var startTime = row.key ? row.key.slice(1) : options.startTime;
 
@@ -492,8 +494,10 @@ function offersExercised (params, callback, unlimit) {
     if (!rows.length) return [];
 
     //get initial epoch end time as aligned from the first row
-    var time  = tools.getAlignedTime(rows[0].value.openTime, options.increment, options.multiple),
-      results = [], reduced, now;
+    var time    = tools.getAlignedTime(rows[0].key.slice(1), options.increment, options.multiple);
+    var results = [];
+    var reduced;
+    var now;
 
     var addResult = function addResult (reduced) {
       reduced.volumeWeightedAvg = reduced.curr1VwavNumerator / reduced.curr1Volume;

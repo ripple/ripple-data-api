@@ -225,7 +225,7 @@ exports.getAlignedTime = function (original, increment, multiple) {
     });   
            
   } else if (increment=='days') {
-    var days = moment().diff(moment([2013,1,1]), 'days')%multiple;
+    var days = time.diff(moment([2013,1,1]), 'days')%multiple;
     time.subtract({
       seconds : time.seconds(), 
       minutes : time.minutes(),
