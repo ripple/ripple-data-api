@@ -360,7 +360,7 @@ function offersExercised (params, callback, unlimit) {
   function prepareRows(keyBase, rows, start) {
     
     var time = moment.utc(start);
-    var max  = moment.utc().subtract(16, 'minutes'); //now
+    var max  = moment.utc().subtract(16, 'minutes');
     var temp = {}, timestamp, key, results = [];
     
     //use the lesser of current time or endTime    
