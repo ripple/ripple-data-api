@@ -32,7 +32,7 @@ db      = require('./library/couchClient')({
     if (!args[0]) 
       console.log(id, args);
     if (args[0].err) 
-      console.log(id, args[0].err, args[0].headers ? args[0].headers.uri : null);
+      console.log(id, args[0].err, args[0].headers);
 
   },
   request_defaults : {timeout :45 * 1000}, //30 seconds max for couchDB 
@@ -93,13 +93,12 @@ app.post('/api/*', requestHandler);
 app.listen(config.port);
 winston.info('Listening on port ' + config.port);
 
-
 //function to handle all incoming requests
 function requestHandler(req, res) {
   var path = req.path.slice(5),
     time   = Date.now(),
     ip     = req.connection.remoteAddress,
-    apiRoute, nSockets;
+    apiRoute, nSockets, code;
   
   if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
   
@@ -111,7 +110,7 @@ function requestHandler(req, res) {
     nSockets = countSockets();
     monitor.logRequest(apiRoute, nSockets);
     
-    if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
+    //if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
     
     apiRoutes[apiRoute](req.body, function(err, response){
       
@@ -122,8 +121,16 @@ function requestHandler(req, res) {
       }
       
       if (err) {
-        winston.error(err, " - "+path, "(Server Error) 500");
-        res.send(500, { error: err });
+        if (err === 'Service Unavailable') {
+          code = 503;
+        } else if (err === 'Request Timeout') {
+          code = 408;
+        } else {
+          code = 500;
+        }
+
+        winston.error(err, " - "+path, "(Server Error) " + code);
+        res.send(code, { error: err });
         return;
       }
       
@@ -141,11 +148,7 @@ function requestHandler(req, res) {
       Object.keys(apiRoutes).join(', ') + '\n');
   }
 
-  res.setTimeout(45 * 1000); //max 45s
-  res.on("timeout", function(){
-    winston.error("Response 408 Request Timeout - ", path);
-    res.send(408, {error: "Request Timeout"});
-  }); 
+  //res.setTimeout(15 * 1000); //max 45s
 }
 
 //initialize ledger monitor

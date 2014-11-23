@@ -16,6 +16,12 @@ function init (url) {
     tags = ["view:"+doc+"/"+view, "node_env:"+env];
     datadog.increment('ripple_data_api.couchDB_requests', null, tags);
     return client.parentView(doc, view, options, function(error, response){
+      if (error && error.code === 'ECONNRESET') {
+        error = 'Service Unavailable';
+      } else if (error && (error.code === 'ETIMEDOUT' || error.code === 'ESOCKETTIMEDOUT')) {
+        error = 'Request Timeout';
+      }
+      
       d = (Date.now()-d)/1000;
       if (DEBUG) winston.info("CouchDB - "+doc+"/"+view, label, d+"s");
       
