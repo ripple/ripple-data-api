@@ -111,12 +111,6 @@ function requestHandler(req, res) {
     
     apiRoutes[apiRoute](req.body, function(err, response){
       
-      //dont send headers if they were already sent
-      if(res._header) {
-        console.log("header allready set!");
-        return;
-      }
-      
       if (err) {
         winston.error(err, " - "+path, "(Server Error) 500");
         res.send(500, { error: err });
@@ -174,7 +168,7 @@ if (CACHE) {
     }); 
     
     //initialize historical metrics and associated cron jobs
-    require('./library/history').init(); 
+    //require('./library/history').init(); 
   } 
 }
 
