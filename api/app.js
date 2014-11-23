@@ -5,7 +5,13 @@ var env    = process.env.NODE_ENV || "development",
   http     = require('http'),
   https    = require('https'),
   maxSockets;
-  
+
+var posix = require('posix');
+
+posix.setrlimit('nofile', {soft:100});
+console.log(posix.getrlimit('nofile'));
+
+            
 //this is the maximum number of concurrent requests to couchDB
 maxSockets = config.maxSockets || 100;
 http.globalAgent.maxSockets = https.globalAgent.maxSockets = maxSockets;
@@ -121,9 +127,9 @@ function requestHandler(req, res) {
       }
       
       if (err) {
-        if (err === 'Service Unavailable') {
+        if (err === 'CouchDB - Service Unavailable' || err === 'CouchDB - Too Many Connections') {
           code = 503;
-        } else if (err === 'Request Timeout') {
+        } else if (err === 'CouchDB - Request Timeout') {
           code = 408;
         } else {
           code = 500;
