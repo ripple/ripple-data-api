@@ -31,7 +31,7 @@ db      = require('./library/couchClient')({
   //log : function (id, args) {
   //  console.log(id, args);
   //},
-  request_defaults : {timeout :30 * 1000}, //30 seconds max for couchDB 
+  //request_defaults : {timeout :45 * 1000}, //30 seconds max for couchDB 
 });
 
 //set up global debug and cache variables
@@ -111,6 +111,11 @@ function requestHandler(req, res) {
     
     apiRoutes[apiRoute](req.body, function(err, response){
       
+      //dont send headers if they were already sent
+      if(res._header) {
+        console.log("header allready set!");
+        return;
+      }
       
       if (err) {
         winston.error(err, " - "+path, "(Server Error) 500");
@@ -132,11 +137,11 @@ function requestHandler(req, res) {
       Object.keys(apiRoutes).join(', ') + '\n');
   }
 
-  res.setTimeout(45 * 1000); //max 45s
-  res.on("timeout", function(){
-    winston.error("Response 408 Request Timeout - ", path);
-    res.send(408, {error: "Request Timeout"});
-  }); 
+  //res.setTimeout(45 * 1000); //max 45s
+  //res.on("timeout", function(){
+  //  winston.error("Response 408 Request Timeout - ", path);
+  //  res.send(408, {error: "Request Timeout"});
+  //}); 
 }
 
 //initialize ledger monitor

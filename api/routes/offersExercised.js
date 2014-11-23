@@ -362,7 +362,7 @@ function offersExercised (params, callback, unlimit) {
   function prepareRows(keyBase, rows, start) {
     
     var time = moment.utc(start);
-    var max  = moment.utc().subtract(16, 'minutes');
+    var max  = moment.utc().subtract(6, 'minutes');
     var temp = {}, timestamp, key, results = [];
     
     //use the lesser of current time or endTime    
@@ -492,9 +492,9 @@ function offersExercised (params, callback, unlimit) {
   function applyGroupMultiple (rows) {
     
     if (!rows.length) return [];
-
+    
     //get initial epoch end time as aligned from the first row
-    var time    = tools.getAlignedTime(rows[0].key.slice(1), options.increment, options.multiple);
+    var time    = rows[0].key ? rows[0].key.slice(1) : rows[0].value.openTime;
     var results = [];
     var reduced;
     var now;
@@ -517,6 +517,7 @@ function offersExercised (params, callback, unlimit) {
       ]);      
     }
     
+    time = tools.getAlignedTime(time, options.increment, options.multiple);
     rows.forEach(function(row){
          
       //if the epoch end time is less than or equal

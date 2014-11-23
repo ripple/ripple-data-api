@@ -423,7 +423,7 @@ function issuerCapitalization(params, callback) {
 
     var keyBase = parseKey(options.view);
     var time    = moment.utc(options.alignedTime);
-    var max     = moment.utc().subtract(4, 'hours');
+    var max     = moment.utc().subtract(45, 'minutes');
     var points  = [];
     
     //use the lesser of current time or endTime    
