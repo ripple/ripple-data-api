@@ -110,7 +110,7 @@ function requestHandler(req, res) {
     nSockets = countSockets();
     monitor.logRequest(apiRoute, nSockets);
     
-    //if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
+    if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
     
     apiRoutes[apiRoute](req.body, function(err, response){
       
