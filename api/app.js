@@ -8,7 +8,7 @@ var env    = process.env.NODE_ENV || "development",
 
 var posix = require('posix');
 
-posix.setrlimit('nofile', {soft:100});
+posix.setrlimit('nofile', {soft:4000});
 console.log(posix.getrlimit('nofile'));
 
             
