@@ -28,9 +28,13 @@ db      = require('./library/couchClient')({
     '@'   + DBconfig.host + 
     ':'   + DBconfig.port + 
     '/'   + DBconfig.database,
-  //log : function (id, args) {
-  //  console.log(id, args);
-  //},
+  log : function (id, args) {
+    if (!args[0]) 
+      console.log(id, args);
+    if (args[0].err) 
+      console.log(id, args[0].err, args[0].headers ? args[0].headers.uri : null);
+
+  },
   request_defaults : {timeout :45 * 1000}, //30 seconds max for couchDB 
 });
 
