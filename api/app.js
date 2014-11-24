@@ -104,7 +104,7 @@ winston.info('Listening on port ' + config.port);
 function requestHandler(req, res) {
   var path = req.path.slice(5),
     time   = Date.now(),
-    ip     = req.connection.remoteAddress,
+    ip     = getClientIp(req),
     apiRoute, nSockets, code;
   
   if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
@@ -192,6 +192,30 @@ if (CACHE) {
   } 
 }
 
+/**
+ * get Client IP address
+ */
+
+function getClientIp(req) {
+  var clientIp = req.headers['X-Client-IP'];  
+  var ipString;
+
+  if (clientIp) {
+    return clientIp;
+
+  //'x-forwarded-for' header may return multiple IP 
+  //addresses in the format: "client IP, proxy 1 IP, proxy 2 IP" 
+  //so take the first one
+  } else if (ipString = req.headers['X-Forwarded-For']) {
+    return ipString.split(',')[0];
+
+  } else {
+    return req.headers['x-real-ip'] ||
+      req.connection.remoteAddress  || 
+      req.socket.remoteAddress      ||
+      req.connection.socket.remoteAddress;
+  }
+}
 
 function countSockets () {
   var count = 0;
