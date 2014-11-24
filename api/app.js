@@ -7,14 +7,15 @@ var env    = process.env.NODE_ENV || "development",
   maxSockets;
 
 var posix = require('posix');
-
-posix.setrlimit('nofile', {soft:4000});
-console.log(posix.getrlimit('nofile'));
-
-            
+          
 //this is the maximum number of concurrent requests to couchDB
 maxSockets = config.maxSockets || 100;
 http.globalAgent.maxSockets = https.globalAgent.maxSockets = maxSockets;
+
+console.log(posix.getrlimit('nofile'));
+posix.setrlimit('nofile', {soft:4000});
+console.log("file descriptor limits:", posix.getrlimit('nofile'));
+console.log("max sockets:", maxSockets);
 
 //local vars
 var winston = require('winston'),
@@ -187,7 +188,7 @@ if (CACHE) {
     }); 
     
     //initialize historical metrics and associated cron jobs
-    //require('./library/history').init(); 
+    require('./library/history').init(); 
   } 
 }
 
