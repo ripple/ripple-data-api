@@ -42,7 +42,7 @@ db      = require('./library/couchClient')({
       console.log(id, args[0].err, args[0].headers);
 
   },
-  request_defaults : {timeout :45 * 1000}, //30 seconds max for couchDB 
+  request_defaults : {timeout :45 * 1000}, //45 seconds max for couchDB 
 });
 
 //set up global debug and cache variables
@@ -123,7 +123,7 @@ function requestHandler(req, res) {
       
       //dont send headers if they were already sent
       if(res._header) {
-        console.log("header allready set!");
+        console.log("header allready set!", err || null);
         return;
       }
       
@@ -155,7 +155,11 @@ function requestHandler(req, res) {
       Object.keys(apiRoutes).join(', ') + '\n');
   }
 
-  //res.setTimeout(15 * 1000); //max 45s
+  res.setTimeout(45 * 1000); //max 45s
+  res.on("timeout", function(){
+    winston.error("Response 408 Request Timeout - ", path);
+    res.send(408, {error: "Request Timeout"});
+  }); 
 }
 
 //initialize ledger monitor
@@ -172,16 +176,7 @@ if (CACHE) {
     
     //reset cache if the arg is present
     if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb();
-/*    
-    redis.del("TVS:XRP:live:86400", function(err, res){
-    });
-    
-    redis.del("TM:XRP:live:86400", function(err, res){
-    });
-    
-    redis.del("TNV:XRP:live", function(err, res){
-    });    
-*/  
+
     redis.on("error", function (err) {
       winston.error("Redis - " + err);
       CACHE = false; //turn it off if its not working
