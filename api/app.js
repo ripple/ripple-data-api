@@ -12,10 +12,10 @@ var posix = require('posix');
 maxSockets = config.maxSockets || 100;
 http.globalAgent.maxSockets = https.globalAgent.maxSockets = maxSockets;
 
-console.log(posix.getrlimit('nofile'));
-posix.setrlimit('nofile', {soft:4000});
-console.log("file descriptor limits:", posix.getrlimit('nofile'));
 console.log("max sockets:", maxSockets);
+console.log("file descriptor limits:", posix.getrlimit('nofile'));
+//posix.setrlimit('nofile', {soft:65536, hard:65536}); //setting these in upstart 
+//console.log("new file descriptor limits:", posix.getrlimit('nofile'));
 
 //local vars
 var winston = require('winston'),

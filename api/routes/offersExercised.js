@@ -608,7 +608,7 @@ function offersExercised (params, callback, unlimit) {
       options.base = params.base.currency.toUpperCase()+"."+params.base.issuer;
       
     } else {
-      var baseGatewayAddress = gatewayNameToAddress(params.base.issuer, params.base.currency.toUpperCase());
+      var baseGatewayAddress = tools.gatewayNameToAddress(params.base.issuer, params.base.currency.toUpperCase());
       if (baseGatewayAddress) {
         options.base = params.base.currency.toUpperCase()+"."+baseGatewayAddress;
         
@@ -634,7 +634,7 @@ function offersExercised (params, callback, unlimit) {
       options.counter = params.counter.currency.toUpperCase()+"."+params.counter.issuer;
       
     } else {
-      var counterGatewayAddress = gatewayNameToAddress(params.counter.issuer, params.counter.currency.toUpperCase());
+      var counterGatewayAddress = tools.gatewayNameToAddress(params.counter.issuer, params.counter.currency.toUpperCase());
       if (counterGatewayAddress) {
         options.counter = params.counter.currency.toUpperCase()+"."+counterGatewayAddress;
         
