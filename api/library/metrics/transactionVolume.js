@@ -59,8 +59,6 @@ function totalValueSent(params, callback) {
   } else {
     cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();  
   }
- 
-  console.log(cacheKey);
   
   //prepare results to send back
   var response = {

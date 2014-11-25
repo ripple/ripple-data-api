@@ -208,20 +208,22 @@ exports.getAlignedTime = function (original, increment, multiple) {
   var time = moment.utc(original); //clone the original
   if (!multiple) multiple = 1;
   
-  if (increment=='seconds') {
+  increment = increment ? increment.slice(0,3) : null;
+
+  if (increment === 'sec') {
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : multiple === 1 ? 0 : time.seconds()%multiple
     });   
     
-  } else if (increment=='minutes') {
+  } else if (increment === 'min') {
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : time.seconds(), 
       minutes : multiple === 1 ? 0 : time.minutes()%multiple
     });
           
-  } else if (increment=='hours') {
+  } else if (increment === 'hou') {
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : time.seconds(), 
@@ -229,8 +231,20 @@ exports.getAlignedTime = function (original, increment, multiple) {
       hours   : multiple === 1 ? 0 : time.hours()%multiple
     });   
            
-  } else if (increment=='days') {
-    var days = multiple === 1 ? 0 : Math.abs(time.diff(moment([2013,1,1]), 'days'))%multiple;
+  } else if (increment === 'day') {
+    var days;
+    var diff;
+    
+    if (multiple === 1) {
+      days = 0;
+      
+    } else { 
+      diff = time.diff(moment.utc([2013,0,1]), 'hours')/24;
+      if (diff<0) days = multiple - (0 - Math.floor(diff))%multiple;
+      else days = Math.floor(diff)%multiple;
+    }
+    
+    console.log(diff, days)
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : time.seconds(), 
@@ -239,7 +253,7 @@ exports.getAlignedTime = function (original, increment, multiple) {
       days    : days
     }); 
 
-  } else if (increment=='months') {
+  } else if (increment === 'mon') {
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : time.seconds(), 
@@ -248,7 +262,7 @@ exports.getAlignedTime = function (original, increment, multiple) {
       days    : time.date()-1,
       months  : multiple === 1 ? 0 : time.months()%multiple
     }); 
-  } else if (increment=='years') {
+  } else if (increment === 'yea') {
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : time.seconds(), 
