@@ -1,8 +1,8 @@
-var env   = process.env.NODE_ENV || "development",
-  winston = require('winston');
+var env     = process.env.NODE_ENV || "development";
+var winston = require('winston');
 
-function init (url) {
-  var client = require('nano')(url);
+function init (params) {
+  var client = require('nano')(params);
   
   client.parentView = client.view;
   client.view       = function(doc, view, options, callback) {
@@ -15,7 +15,8 @@ function init (url) {
     
     tags = ["view:"+doc+"/"+view, "node_env:"+env];
     datadog.increment('ripple_data_api.couchDB_requests', null, tags);
-    return client.parentView(doc, view, options, function(error, response){
+    
+    client.parentView(doc, view, options, function(error, response){
       if (error) { 
         if (error.code === 'EMFILE' || error.code === 'EADDRINFO' || error.code === 'ENOTFOUND') {
           error = 'Too Many Connections';

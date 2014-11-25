@@ -491,7 +491,7 @@ function offersExercised (params, callback, unlimit) {
  */  
   function applyGroupMultiple (rows) {
     
-    if (!rows.length) return [];
+    if (!rows || !rows.length) return [];
     
     //get initial epoch end time as aligned from the first row
     var time    = rows[0].key ? rows[0].key.slice(1) : rows[0].value.openTime;

@@ -13,9 +13,9 @@ function saveHistory (metric, interval, done) {
   var fn;
   var params;
   
-  if (metric === 'totalTradeVolume')       fn = require("../routes/totalTradeVolume");
-  else if (metric === 'totalValueSent')    fn = require("../routes/totalValueSent");
-  else if (metric === 'totalNetworkValue') fn = require("../routes/totalNetworkValue");
+  if (metric === 'tradeVolume')            fn = require("../routes/totalTradeVolume");
+  else if (metric === 'transactionVolume') fn = require("../routes/totalValueSent");
+  else if (metric === 'networkValue')      fn = require("../routes/totalNetworkValue");
   else return winston.error("invalid metric");
 
   if (interval != 'month' && 
@@ -25,15 +25,14 @@ function saveHistory (metric, interval, done) {
   next(); //start
   
   function getStat(callback) {
-    if (metric == 'totalNetworkValue') params = {
+    if (metric == 'networkValue') params = {
       time    : time.format(),
       history : true  
     } 
            
     else params = {
       startTime : time.format(),
-      endTime   : end.format(),
-      history   : true  
+      endTime   : end.format(), 
     }
     
     if (DEBUG) winston.info("cacheing metric: ", metric, interval, time.format());
@@ -77,9 +76,9 @@ module.exports.init = function () {
   });  
   
   var saveMonthlyHistory = function (done) {
-    saveHistory('totalTradeVolume', "month", function() {
-      saveHistory('totalValueSent', "month", function() {
-        saveHistory('totalNetworkValue', "month", function() {  
+    saveHistory('tradeVolume', "month", function() {
+      saveHistory('transactionVolume', "month", function() {
+        saveHistory('networkValue', "month", function() {  
           winston.info("finished cacheing monthly historical metrics");  
           if(done) done();
         });    
@@ -88,9 +87,9 @@ module.exports.init = function () {
   };
   
   var saveWeeklyHistory = function (done) {
-    saveHistory('totalTradeVolume', "week", function() {
-      saveHistory('totalValueSent', "week", function() {
-        saveHistory('totalNetworkValue', "week", function() {  
+    saveHistory('tradeVolume', "week", function() {
+      saveHistory('transactionVolume', "week", function() {
+        saveHistory('networkValue', "week", function() {  
           winston.info("finished cacheing daily historical metrics"); 
           if (done) done();    
         });    
@@ -99,9 +98,9 @@ module.exports.init = function () {
   }
   
   var saveDailyHistory = function (done) {
-    saveHistory('totalTradeVolume', "day", function() {
-      saveHistory('totalValueSent', "day", function() {
-        saveHistory('totalNetworkValue', "day", function() {  
+    saveHistory('tradeVolume', "day", function() {
+      saveHistory('transactionVolume', "day", function() {
+        saveHistory('networkValue', "day", function() {  
           winston.info("finished cacheing daily historical metrics"); 
           if (done) done();    
         });    

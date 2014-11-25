@@ -207,26 +207,32 @@ exports.parseTimeIncrement = function (inc) {
 exports.getAlignedTime = function (original, increment, multiple) {
   var time = moment.utc(original); //clone the original
   if (!multiple) multiple = 1;
-
+  
   if (increment=='seconds') {
-    time.subtract("seconds", time.seconds()%multiple);   
+    time.subtract({
+      ms      : time.milliseconds(), 
+      seconds : multiple === 1 ? 0 : time.seconds()%multiple
+    });   
     
   } else if (increment=='minutes') {
     time.subtract({
+      ms      : time.milliseconds(), 
       seconds : time.seconds(), 
-      minutes : time.minutes()%multiple
+      minutes : multiple === 1 ? 0 : time.minutes()%multiple
     });
           
   } else if (increment=='hours') {
     time.subtract({
+      ms      : time.milliseconds(), 
       seconds : time.seconds(), 
       minutes : time.minutes(),
-      hours   : time.hours()%multiple
+      hours   : multiple === 1 ? 0 : time.hours()%multiple
     });   
            
   } else if (increment=='days') {
-    var days = time.diff(moment([2013,1,1]), 'days')%multiple;
+    var days = multiple === 1 ? 0 : Math.abs(time.diff(moment([2013,1,1]), 'days'))%multiple;
     time.subtract({
+      ms      : time.milliseconds(), 
       seconds : time.seconds(), 
       minutes : time.minutes(),
       hours   : time.hours(),
@@ -235,20 +241,22 @@ exports.getAlignedTime = function (original, increment, multiple) {
 
   } else if (increment=='months') {
     time.subtract({
+      ms      : time.milliseconds(), 
       seconds : time.seconds(), 
       minutes : time.minutes(),
       hours   : time.hours(),
       days    : time.date()-1,
-      months  : time.months()%multiple
+      months  : multiple === 1 ? 0 : time.months()%multiple
     }); 
   } else if (increment=='years') {
     time.subtract({
+      ms      : time.milliseconds(), 
       seconds : time.seconds(), 
       minutes : time.minutes(),
       hours   : time.hours(),
       days    : time.date()-1,
       months  : time.months(),
-      years   : time.years()%multiple
+      years   : multiple === 1 ? 0 : time.years()%multiple
     }); 
   }
   

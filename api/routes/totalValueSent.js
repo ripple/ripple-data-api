@@ -1,8 +1,9 @@
-var winston = require('winston'),
-  moment    = require('moment'),
-  ripple    = require('ripple-lib'),
-  async     = require('async');
-
+var winston = require('winston');
+var moment  = require('moment');
+var ripple  = require('ripple-lib');
+var async   = require('async');
+var offersExercised   = require('./offersExercised');
+var transactionVolume = require('../library/metrics/transactionVolume');
 /**
  *  totalValueSent: 
  * 
@@ -52,7 +53,7 @@ var winston = require('winston'),
  *
     curl -H "Content-Type: application/json" -X POST -d '{
     "exchange"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}
-  
+    
     }' http://localhost:5993/api/total_value_sent 
     
  
@@ -60,71 +61,73 @@ var winston = require('winston'),
 
 function totalValueSent(params, callback) {
 
-  var options = {};
-  var ex = params.exchange || {currency:"XRP"};
-  
-  if (typeof ex != 'object')               return callback('invalid exchange currency');
-  else if (!ex.currency)                   return callback('exchange currency is required');
-  else if (typeof ex.currency != 'string') return callback('invalid exchange currency');
-  else if (ex.currency.toUpperCase() != "XRP" && !ex.issuer)
-    return callback('exchange issuer is required');
-  else if (ex.currency == "XRP" && ex.issuer)
-    return callback('XRP cannot have an issuer');
- 
-  options.ex = ex;
- 
-  //all currencies we are going to check    
-  options.currencies = [ 
-    {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp USD
-    {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
-    {currency: 'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}, //Justcoin BTC
-    {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap USD
-    {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap BTC
-    {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap EUR
-    {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //RippleCN CNY
-    {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}, //RippleChina CNY
-    {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}, //RippleFox CNY
-    {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}, //RippleTradeJapan JPY
-    {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'}, //Tokyo JPY
-    {currency: 'JPY', issuer: 'rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg'}, //Ripple Market Japan JPY
-    {currency: 'XRP'}
-  ];
+  var viewOpts = {};
+  var ex       = params.exchange || {currency:'XRP'};
+  var cacheKey; 
+  var startTime;
+  var endTime;
 
-  options.conversionPairs = [];
-  options.currencies.forEach(function(currency) {
+  if (typeof ex != 'object') {         
+    return callback('invalid exchange currency');
     
-    if (currency.currency == 'XRP') {
-      return;
-    }
-
-    options.conversionPairs.push({
-      base    : {currency: 'XRP'},
-      counter : currency
-    });
-  });
-
+  } else if (!ex.currency) {                  
+    return callback('exchange currency is required');
+    
+  } else if (typeof ex.currency != 'string') {
+    return callback('invalid exchange currency');
+    
+  } else if (ex.currency.toUpperCase() != "XRP" && !ex.issuer) {
+    return callback('exchange issuer is required');
+    
+  } else if (ex.currency == "XRP" && ex.issuer) {
+    return callback('XRP cannot have an issuer');
+  }
+  
+  //live request  
   if (!params.startTime && !params.endTime) {
 
-    options.startTime = moment.utc().subtract('hours', 24);
-    options.endTime   = moment.utc();
-
-  } else if (params.startTime && params.endTime && moment(params.startTime).isValid() && moment(params.endTime).isValid()) {
+    if (!CACHE) {
+      return callback('metric unavailable at this time');
+    }
+    
+    redis.get('TVS:XRP:live', function(error, response){
+      if (error) {                     
+        callback("Redis - " + error);
+        
+      } else if (!response) {   
+        callback('metric unavailable at this time');
+      
+      } else if (ex.currency === 'XRP') {
+        callback(null, JSON.parse(response));  
+        
+      } else {
+        convert(ex, JSON.parse(response), callback);
+      }
+    });
+    
+    return;
+  }
+  
+  
+  if (params.startTime && 
+      params.endTime && 
+      moment(params.startTime).isValid() && 
+      moment(params.endTime).isValid()) {
 
     if (moment(params.startTime).isBefore(moment(params.endTime))) {
-      options.startTime = moment.utc(params.startTime);
-      options.endTime   = moment.utc(params.endTime);
+      startTime = moment.utc(params.startTime);
+      endTime   = moment.utc(params.endTime);
+
     } else {
-      options.endTime   = moment.utc(params.startTime);
-      options.startTime = moment.utc(params.endTime);
+      endTime   = moment.utc(params.startTime);
+      startTime = moment.utc(params.endTime);
     }
 
   } else if (params.endTime && moment(params.endTime).isValid()) {
-    
-    options.endTime   = moment.utc(params.endTime);
-    options.startTime = moment.utc(params.endTime).subtract('hours', 24);
-    
-  } else {
+    endTime   = moment.utc(params.endTime);
+    startTime = moment.utc(params.endTime).subtract('hours', 24);
 
+  } else {
     if (!moment(params.startTime).isValid()) {
       return callback('invalid startTime: ' + params.startTime + ' is invalid at: ' + moment(params.startTime).invalidAt());
     }
@@ -133,39 +136,35 @@ function totalValueSent(params, callback) {
       return callback('invalid endTime: ' + params.endTime + ' is invalid at: ' + moment(params.endTime).invalidAt());
     }
 
-    return;
+    return callback("invalid time"); //should never get here
   }  
-   
-  if (options.endTime.isBefore(options.startTime)) { //swap times
-    tempTime          = options.startTime;
-    options.startTime = options.endTime;
-    options.endTime   = tempTime;
-  } else if (options.endTime.isSame(options.startTime)) {
+
+  if (endTime.isBefore(startTime)) { //swap times
+    tempTime  = startTime;
+    startTime = endTime;
+    endTime   = tempTime;
+
+  } else if (endTime.isSame(startTime)) {
     return callback('please provide 2 distinct times');
   }
+  
+  if (CACHE) {
+    cacheKey = "TVS:" + ex.currency;
+    if (ex.issuer) cacheKey += "."+ex.issuer;
+    cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
     
-  if (CACHE) fromCache(options);
-  else fromCouch(options);
-  
-  function fromCache(options) {
-    options.cacheKey = "TVS:" + ex.currency;
-    if (options.ex.issuer) options.cacheKey += "."+options.ex.issuer;
-    if (options.endTime.unix()==moment.utc().unix()) { //live update request
-      options.cacheKey += ":live:"+options.endTime.diff(options.startTime, "seconds");
-
-    } else {
-      options.cacheKey += ":hist:"+options.startTime.unix()+":"+options.endTime.unix();
-    }
  
-    redis.get(options.cacheKey, function(error, response){
-      if (error)                      return callback("Redis - " + error);
-      if (response && params.history) return callback(null, true);
-      else if (response)              return callback(null, JSON.parse(response));  
-      else fromCouch(options);
-    });    
-  }
-  
-  function fromCouch(options) {  
+    redis.get(cacheKey, function(error, response){
+      if (error)         return callback("Redis - " + error);
+      else if (response) return callback(null, JSON.parse(response));  
+      else transactionVolume({startTime:startTime, endTime:endTime, ex:ex}, callback);
+    });
+    
+  } else transactionVolume({startTime:startTime, endTime:endTime, ex:ex}, callback);
+}
+
+    
+/*  
     //prepare results to send back
     var response = {
       startTime : options.startTime.format(),
@@ -266,74 +265,50 @@ function totalValueSent(params, callback) {
     });
   }   
 
-
-
-  /*
-   * get exchange rates for the listed currencies
-   * 
-   */
-  function getExchangeRates (options, callback) {
-    
-    // Mimic calling offersExercised for each asset pair
-    async.map(options.conversionPairs, function(assetPair, asyncCallbackPair){
+*/
+ 
   
-      require("./offersExercised")({
-        base      : assetPair.base,
-        counter   : assetPair.counter,
-        startTime : options.startTime,
-        endTime   : options.endTime,
-        timeIncrement: 'all'
-       
-      }, function(error, data) {
-  
-        if (error) return asyncCallbackPair(error);
-        if (data && data.length > 1) 
-              assetPair.rate = data[1][8]; // vwavPrice
-        else  assetPair.rate = 0;
-        
-        asyncCallbackPair(null, assetPair);
-        
+/*
+ * get XRP to specified currency conversion
+ */
+
+function convert (ex, data, callback) {
+
+  // Mimic calling offersExercised 
+  offersExercised({
+    base      : {currency:"XRP"},
+    counter   : ex,
+    startTime : moment.utc().subtract(24, 'hours'),
+    endTime   : moment.utc(),
+    timeIncrement : 'all'
+
+  }, function(err, resp) {
+    var rate;
+
+    if (err) {
+      callback(err);
+      
+    } else if (!resp || !resp.length || resp.length<2) {
+      callback("cannot determine exchange rate");
+      
+    } else {
+      
+      rate = resp[1][8]; // vwavPrice 
+      data.components.forEach(function(currency, index) {
+
+        currency.convertedAmount *= rate;
+        currency.rate *= rate;
       });
-  
-    }, function(error, results){
-      if (error) return callback(error);
-      return callback(null, results);
-    });  
-  }
-  
-  
-  
-  /*
-   * get XRP to specified currency conversion
-   * 
-   */
-  function getConversion (params, callback) {
-    
-    // Mimic calling offersExercised 
-    require("./offersExercised")({
-      base      : {currency:"XRP"},
-      counter   : {currency:params.currency,issuer:params.issuer},
-      startTime : params.startTime,
-      endTime   : params.endTime,
-      timeIncrement : 'all'
-      
-    }, function(error, data) {
-  
-      if (error) return callback(error);
-      if (data && data.length > 1) 
-           callback(null,data[1][8]); // vwavPrice
-      else callback("cannot determine exchange rate");
-      
-    });    
-  }
-  
-  function cacheResponse (cacheKey, response) {
-    redis.set(cacheKey, JSON.stringify(response), function(error, res){
-      if (error) return callback("Redis - "+ error);
-      if (cacheKey.indexOf(':live') !== -1) redis.expire(cacheKey, 240); //expire in 4 min
-      if (DEBUG) winston.info(cacheKey + " cached");
-    });
-  }
+
+      data.exchange     = ex;
+      data.exchangeRate = rate;
+      data.total       *= rate;
+      callback(null, data);     
+    }
+  });    
 }
+  
+
+
 
 module.exports = totalValueSent;

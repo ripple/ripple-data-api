@@ -1,10 +1,10 @@
-var env    = process.env.NODE_ENV || "development",
-  DBconfig = require('../db.config.json')[env],
-  config   = require('../deployment.environments.json')[env],
-  StatsD   = require('node-dogstatsd').StatsD,
-  http     = require('http'),
-  https    = require('https'),
-  maxSockets;
+var env        = process.env.NODE_ENV || "development";
+var DBconfig   = require('../db.config.json')[env];
+var config     = require('../deployment.environments.json')[env];
+var StatsD     = require('node-dogstatsd').StatsD;
+var http       = require('http');
+var https      = require('https');
+var maxSockets;
 
 var posix = require('posix');
           
@@ -40,9 +40,8 @@ db      = require('./library/couchClient')({
       console.log(id, args);
     if (args[0].err) 
       console.log(id, args[0].err, args[0].headers);
-
   },
-  request_defaults : {timeout :45 * 1000}, //45 seconds max for couchDB 
+  //request_defaults : {timeout:60 *1000}
 });
 
 //set up global debug and cache variables
@@ -96,6 +95,10 @@ var allowCrossDomain = function(req, res, next) {
 app.use(allowCrossDomain);
 app.use(express.json());
 app.use(express.urlencoded());
+app.get('/health', function (req, res){
+  res.send(200, '');
+});
+
 app.post('/api/*', requestHandler);
 app.listen(config.port);
 winston.info('Listening on port ' + config.port);
@@ -155,11 +158,11 @@ function requestHandler(req, res) {
       Object.keys(apiRoutes).join(', ') + '\n');
   }
 
-  res.setTimeout(45 * 1000); //max 45s
-  res.on("timeout", function(){
-    winston.error("Response 408 Request Timeout - ", path);
-    res.send(408, {error: "Request Timeout"});
-  }); 
+  //res.setTimeout(2 * 60 * 1000); //max 45s
+  //res.on("timeout", function(){
+  //  winston.error("Response 408 Request Timeout - ", path);
+  //  res.send(408, {error: "Request Timeout"});
+  //}); 
 }
 
 //initialize ledger monitor
@@ -182,6 +185,9 @@ if (CACHE) {
       CACHE = false; //turn it off if its not working
     }); 
     
+    //initialize the metrics data
+    require('./library/metrics').init();
+
     //initialize historical metrics and associated cron jobs
     require('./library/history').init(); 
   } 
@@ -192,23 +198,26 @@ if (CACHE) {
  */
 
 function getClientIp(req) {
-  var clientIp = req.headers['X-Client-IP'];  
+  var clientIp; 
   var ipString;
 
-  if (clientIp) {
+  if (!req.headers && 
+      !req.connection && 
+      !req.socket) return null;
+  
+  if (clientIp = req.headers['x-client-ip']) {
     return clientIp;
 
   //'x-forwarded-for' header may return multiple IP 
   //addresses in the format: "client IP, proxy 1 IP, proxy 2 IP" 
   //so take the first one
-  } else if (ipString = req.headers['X-Forwarded-For']) {
+  } else if (ipString = req.headers['x-forwarded-for']) {
     return ipString.split(',')[0];
 
   } else {
     return req.headers['x-real-ip'] ||
       req.connection.remoteAddress  || 
-      req.socket.remoteAddress      ||
-      req.connection.socket.remoteAddress;
+      req.socket.remoteAddress      || null;
   }
 }
 

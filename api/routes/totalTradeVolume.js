@@ -1,8 +1,8 @@
-var winston = require('winston'),
-  moment    = require('moment'),
-  ripple    = require('ripple-lib'),
-  async     = require('async');
-
+var winston     = require('winston');
+var moment      = require('moment');
+var ripple      = require('ripple-lib');
+var async       = require('async');
+var tradeVolume = require('../library/metrics/tradeVolume');
 
 /**
  *  topMarkets: 
@@ -54,7 +54,9 @@ var winston = require('winston'),
  
  
    curl -H "Content-Type: application/json" -X POST -d '{
-    "exchange"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"}
+    "exchange"  : {"currency": "USD", "issuer" : "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+    "startTime" : "2014-10-30 01:00 pm",
+    "endTime" : "2014-10-30 05:00 pm"
   
     }' http://localhost:5993/api/topMarkets 
  
@@ -62,164 +64,73 @@ var winston = require('winston'),
 
 function topMarkets(params, callback) {
 
-  var cacheKey, viewOpts = {};
-  var ex = params.exchange || {currency:"XRP"};
-  
-  if (typeof ex != 'object')               return callback('invalid exchange currency');
-  else if (!ex.currency)                   return callback('exchange currency is required');
-  else if (typeof ex.currency != 'string') return callback('invalid exchange currency');
-  else if (ex.currency.toUpperCase() != "XRP" && !ex.issuer)
-    return callback('exchange issuer is required');
-  else if (ex.currency == "XRP" && ex.issuer)
-    return callback('XRP cannot have an issuer');
+  var viewOpts = {};
+  var ex       = params.exchange || {currency:'XRP'};
+  var cacheKey; 
+  var startTime;
+  var endTime;
 
-  //these must be traded in terms of XRP - perhaps we can change this later
-  var marketPairs = [
-    {
-      // Bitstamp USD market
-      base: {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      counter: {currency: 'XRP'}
-    },
-    {
-      // Bitstamp BTC market
-      base: {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      counter: {currency: 'XRP'}
-    },
-    {
-      // RippleCN CNY market
-      base: {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'},
-      counter: {currency: 'XRP'}
-    },
-    {
-      // RippleChina CNY market
-      base: {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'},
-      counter: {currency: 'XRP'}
-    },
-    {
-      // RippleFox CNY market
-      base: {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
-      counter: {currency: 'XRP'}
-    },    
-    {
-      // SnapSwap USD market
-      base: {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-      counter: {currency: 'XRP'}
-    },
-    {
-      // SnapSwap USD market
-      base: {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-      counter: {currency: 'XRP'}
-    },    
-    {
-      // SnapSwap BTC market
-      base: {currency:'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-      counter: {currency:'XRP'}
-    },
-    {
-      // Justcoin BTC market
-      base: {currency:'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'},
-      counter: {currency:'XRP'}
-    },    
-    {
-      // Ripple Trade Japan JPY
-      base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-      counter: {currency:'XRP'}
-    },  
-    {
-      // TokyoJPY JPY
-      base: {currency:'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
-      counter: {currency:'XRP'}
-    },
-    {
-      // Ripple Market Japan JPY
-      base: {currency:'JPY', issuer: 'rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg'},
-      counter: {currency:'XRP'}
-    },    
-    {
-      // Snapswap EUR/ Snapswap USD
-      base    : {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}  
-    }, 
-    {
-      // Bitstamp BTC/USD
-      base    : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-    },  
-    {
-      // Bitstamp BTC/USD
-      base    : {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-    },     
-    {
-      // Bitstamp BTC/ Snapswap BTC
-      base    : {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      counter : {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-    },       
-    {
-      // Bitstamp USD/ Snapswap USD
-      base    : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
-    },    
-    {
-      // Bitstamp USD/ rippleCN CNY
-      base    : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'},      
-      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
-    },    
-    {
-      // Bitstamp USD/ rippleChina CNY
-      base    : {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'},
-      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
-    },
-    {
-      //ripple trade japan JPY/ Bitstamp USD
-      base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-      counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}  
-    },
-    {
-      //ripple trade japan JPY/ Snapswap USD/
-      base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-      counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}  
-    },
-    {
-      //ripple trade japan JPY/ RippleCN CNY/
-      base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-      counter : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}  
-    },
-    {
-      // Ripple Trade Japan JPY/TokyoJPY JPY
-      base    : {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-      counter : {currency:'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'}
-    },  
+  if (typeof ex != 'object') {         
+    return callback('invalid exchange currency');
     
-  ];
-
-
-
-  //parse startTime and endTime
-  var startTime, endTime;
-
+  } else if (!ex.currency) {                  
+    return callback('exchange currency is required');
+    
+  } else if (typeof ex.currency != 'string') {
+    return callback('invalid exchange currency');
+    
+  } else if (ex.currency.toUpperCase() != "XRP" && !ex.issuer) {
+    return callback('exchange issuer is required');
+    
+  } else if (ex.currency == "XRP" && ex.issuer) {
+    return callback('XRP cannot have an issuer');
+  }
+  
+  //live request  
   if (!params.startTime && !params.endTime) {
 
-    startTime = moment.utc().subtract('hours', 24);
-    endTime   = moment.utc();
-
-  } else if (params.startTime && params.endTime && moment(params.startTime).isValid() && moment(params.endTime).isValid()) {
+    if (!CACHE) {
+      return callback('metric unavailable at this time');
+    }
+    
+    redis.get('TM:XRP:live', function(error, response){
+      if (error) {                     
+        callback("Redis - " + error);
+        
+      } else if (!response) {   
+        callback('metric unavailable at this time');
+      
+      } else if (ex.currency === 'XRP') {
+        callback(null, JSON.parse(response));  
+        
+      } else {
+        convert(ex, JSON.parse(response), callback);
+      }
+    });
+    
+    return;
+    
+  } 
+  
+  if (params.startTime && 
+      params.endTime && 
+      moment(params.startTime).isValid() && 
+      moment(params.endTime).isValid()) {
 
     if (moment(params.startTime).isBefore(moment(params.endTime))) {
       startTime = moment.utc(params.startTime);
       endTime   = moment.utc(params.endTime);
+
     } else {
       endTime   = moment.utc(params.startTime);
       startTime = moment.utc(params.endTime);
     }
 
   } else if (params.endTime && moment(params.endTime).isValid()) {
-    
     endTime   = moment.utc(params.endTime);
     startTime = moment.utc(params.endTime).subtract('hours', 24);
-    
-  } else {
 
+  } else {
     if (!moment(params.startTime).isValid()) {
       return callback('invalid startTime: ' + params.startTime + ' is invalid at: ' + moment(params.startTime).invalidAt());
     }
@@ -230,40 +141,32 @@ function topMarkets(params, callback) {
 
     return callback("invalid time"); //should never get here
   }  
-   
+
   if (endTime.isBefore(startTime)) { //swap times
     tempTime  = startTime;
     startTime = endTime;
     endTime   = tempTime;
+
   } else if (endTime.isSame(startTime)) {
     return callback('please provide 2 distinct times');
   }
   
-
   if (CACHE) {
     cacheKey = "TM:" + ex.currency;
     if (ex.issuer) cacheKey += "."+ex.issuer;
-    if (endTime.unix()==moment.utc().unix()) { //live update request
-      cacheKey += ":live:"+endTime.diff(startTime, "seconds");
-
-    } else {
-      cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
-    }
+    cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
+    
  
     redis.get(cacheKey, function(error, response){
       if (error)                      return callback("Redis - " + error);
       if (response && params.history) return callback(null, true);
       else if (response)              return callback(null, JSON.parse(response));  
-      else fromCouch();
+      else tradeVolume({startTime:startTime, endTime:endTime, ex:ex}, callback);
     });
     
-  } else fromCouch();
+  } else tradeVolume({startTime:startTime, endTime:endTime, ex:ex}, callback);
   
-  
-  function fromCache(callback) {
-    var response = redis.get(cacheKey, callback)  
-  }
-  
+/*  
   function fromCouch() {
     //prepare results to send back
     var response = {
@@ -365,38 +268,43 @@ function topMarkets(params, callback) {
       }  
     });
   }
-
+*/
 
   /*
    * get XRP to specified currency conversion
-   * 
    */
-  function getConversion (params, callback) {
+  
+  function convert (ex, data, callback) {
     
     // Mimic calling offersExercised 
     require("./offersExercised")({
       base      : {currency:"XRP"},
-      counter     : {currency:params.currency,issuer:params.issuer},
-      startTime : params.startTime,
-      endTime   : params.endTime,
+      counter   : ex,
+      startTime : moment.utc().subtract(24, 'hours'),
+      endTime   : moment.utc(),
       timeIncrement : 'all'
       
-    }, function(error, data) {
+    }, function(err, resp) {
+      var rate;
   
-      if (error) return callback(error);
-      if (data && data.length > 1) 
-           callback(null,data[1][8]); // vwavPrice
-      else callback("cannot determine exchange rate");
-      
+      if (err) {
+        callback(err);
+      } else if (!resp || !resp.length || resp.length<2) {
+        callback("cannot determine exchange rate");
+      } else {
+        rate = resp[1][8]; // vwavPrice
+
+        data.components.forEach(function(pair, index) {
+          pair.rate            *= rate;
+          pair.convertedAmount  = pair.amount*pair.rate;
+        });
+
+        data.exchange     = ex;
+        data.exchangeRate = rate;
+        data.total       *= rate;
+        callback(null, data);
+      }
     });    
   }
-  
-  function cacheResponse (cacheKey, response) {
-    redis.set(cacheKey, JSON.stringify(response), function(error, res){
-      if (error) return callback("Redis - " + error);
-      if (cacheKey.indexOf(':live') !== -1) redis.expire(cacheKey, 240); //expire in 4 min
-      if (DEBUG) winston.info(cacheKey + " cached");
-    });
-  } 
 }
 module.exports = topMarkets;
