@@ -64,6 +64,11 @@ var marketPairs = [
     // Ripple Market Japan JPY
     base: {currency:'JPY', issuer: 'rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg'},
     counter: {currency:'XRP'}
+  },  
+  {
+    // Pax Moneta KRW
+    base: {currency:'KRW', issuer: 'rUkMKjQitpgAM5WTGk79xpjT38DEJY283d'},
+    counter: {currency:'XRP'}
   },    
   {
     // Snapswap EUR/ Snapswap USD
