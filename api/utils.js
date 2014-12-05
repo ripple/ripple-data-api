@@ -244,7 +244,6 @@ exports.getAlignedTime = function (original, increment, multiple) {
       else days = Math.floor(diff)%multiple;
     }
     
-    console.log(diff, days)
     time.subtract({
       ms      : time.milliseconds(), 
       seconds : time.seconds(), 

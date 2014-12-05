@@ -6,15 +6,21 @@ function init (params) {
   
   client.parentView = client.view;
   client.view       = function(doc, view, options, callback) {
-    var label = "", d = Date.now(), tags; //tracking elapsed time
+    var label = "", d = Date.now()
+    var tags; //tracking elapsed time
+    var suffix;
     
     if (options.label) {
       label         = options.label;
       options.label = undefined;  
     } 
     
-    tags = ["view:"+doc+"/"+view, "node_env:"+env];
-    datadog.increment('ripple_data_api.couchDB_requests', null, tags);
+    tags = [doc+'.'+view];
+    if (label) tags.push(label.replace(':','_'));
+    
+    suffix = tags.join('.');
+    console.log(suffix);
+    statsd.increment('couchDB.request.' + suffix, null);
     
     client.parentView(doc, view, options, function(error, response){
       if (error) { 
@@ -27,10 +33,10 @@ function init (params) {
         }
       }
       
-      d = (Date.now()-d)/1000;
-      if (DEBUG) winston.info("CouchDB - "+doc+"/"+view, label, d+"s");
+      d = Date.now()-d;
+      if (DEBUG) winston.info('CouchDB - '+doc+'/'+view, label, (d/1000)+'s');
       
-      datadog.histogram('ripple_data_api.couchDB_responseTime', d, null, tags);    
+      statsd.timing('couchDB.responseTime.' + suffix, d);    
       callback(error, response);
     });
   }

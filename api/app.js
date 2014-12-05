@@ -1,7 +1,7 @@
 var env        = process.env.NODE_ENV || "development";
 var DBconfig   = require('../db.config.json')[env];
 var config     = require('../deployment.environments.json')[env];
-var StatsD     = require('node-dogstatsd').StatsD;
+var StatsD     = require('node-statsd').StatsD;
 var http       = require('http');
 var https      = require('https');
 var maxSockets;
@@ -26,9 +26,17 @@ var winston = require('winston'),
   
 if (!config)   return winston.info('Invalid environment: ' + env);
 if (!DBconfig) return winston.info('Invalid DB config: '+env);
+if (!config.statsd) config.statsd = {};
 
-datadog = new StatsD(config.datadogURL, config.datadogPort);
-db      = require('./library/couchClient')({
+statsd = new StatsD({
+  host     : config.statsd.host   ? config.statsd.host   : null,
+  port     : config.statsd.port   ? config.statsd.port   : null,
+  prefix   : config.statsd.prefix ? config.statsd.prefix + "." : null,
+  cacheDns : true
+});
+
+
+db = require('./library/couchClient')({
   url : DBconfig.protocol+
     '://' + DBconfig.username + 
     ':'   + DBconfig.password + 
@@ -145,8 +153,8 @@ function requestHandler(req, res) {
       }
       
       res.send(200, response); 
-      time = (Date.now()-time)/1000;
-      winston.info(ip, path, 200, "["+(new Date())+"]", time+"s");
+      time = Date.now()-time;
+      winston.info(ip, path, 200, "["+(new Date())+"]", (time/1000)+"s");
       monitor.logResponseTime(time, apiRoute);
     });
    
