@@ -1,6 +1,5 @@
 module.exports = function(grunt) {
   
-//var userConfig = require( './build.config.js' );
   var env      = process.env.NODE_ENV || "development";
   var DBconfig = require('./db.config.json')[env];
   var db = DBconfig.protocol +
@@ -15,7 +14,6 @@ module.exports = function(grunt) {
     jshint : {
       files   : [
         'api/**/*.js' 
-        //'db/**/*.js' 
         ],
       options : {
         'force'    : true,
@@ -35,8 +33,7 @@ module.exports = function(grunt) {
     watch : {
       files   : [
         'api/**/*.js', 
-        //'db/**/*.js', 
-        'db.config.jsons', 
+        'db.config.json', 
         'deployment.environments.json', 
         'Gruntfile.js'
       ],
