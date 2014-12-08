@@ -32,7 +32,7 @@ var winston = require('winston'),
     "endTime"   : "Sept 11, 2014 5:10:30 am",
     "limit" : 10,
     "reduce" : false,
-    "descending" : true,
+    "descending" : false,
     "format"        : "csv"
       
     }' http://localhost:5993/api/offersExercised
@@ -131,8 +131,7 @@ function offersExercised (params, callback, unlimit) {
       return handleCouchResponse(null, {rows:[]}); 
     } else {
 
-      db.view("offersExercisedV2", "v2", view, function (error, couchRes){
-    
+      db.view("offersExercisedV3", "v2", view, function (error, couchRes){        
         if (error) return callback ('CouchDB - ' + error);       
         handleCouchResponse(couchRes.rows);
       });
@@ -185,7 +184,7 @@ function offersExercised (params, callback, unlimit) {
             row.value.high,
             row.value.low,
             row.value.close,
-            row.value.volumeWeightedAvg,
+            row.value.curr1Volume / row.value.curr2Volume,
             moment.utc(row.value.openTime).format(),  //open  time
             moment.utc(row.value.closeTime).format(), //close time
             false //partial row, default false
@@ -407,12 +406,16 @@ function offersExercised (params, callback, unlimit) {
     return results;  
   }
   
-/*
- * handleResponse - format the data according to the requirements
- * of the request and return it to the caller.
- * 
- */  
+ /**
+  * handleResponse - format the data according to the requirements
+  * of the request and return it to the caller. 
+  */  
+
   function handleResponse (rows) {
+    
+    if (options.invert) {
+      rows = invertPair(rows, options.view.reduce);
+    }
     
     //this doesnt really belong here, it should have been calculated in 
     //in the couchDB view, but until that day, this works pretty well.
@@ -500,7 +503,6 @@ function offersExercised (params, callback, unlimit) {
     var now;
 
     var addResult = function addResult (reduced) {
-      reduced.volumeWeightedAvg = reduced.curr1VwavNumerator / reduced.curr1Volume;
       results.push([
         reduced.startTime, 
         reduced.curr2Volume, 
@@ -510,7 +512,7 @@ function offersExercised (params, callback, unlimit) {
         reduced.high, 
         reduced.low,  
         reduced.close, 
-        reduced.curr1VwavNumerator / reduced.curr1Volume,
+        reduced.curr1Volume / reduced.curr2Volume,
         moment.utc(reduced.openTime).format(),
         moment.utc(reduced.closeTime).format(),
         false
@@ -555,7 +557,6 @@ function offersExercised (params, callback, unlimit) {
       if (row.value.high>reduced.high) reduced.high = row.value.high;
       if (row.value.low<reduced.low)   reduced.low  = row.value.low;
 
-      reduced.curr1VwavNumerator += row.value.curr1VwavNumerator;
       reduced.curr1Volume += row.value.curr1Volume;
       reduced.curr2Volume += row.value.curr2Volume;
       reduced.numTrades   += row.value.numTrades;
@@ -709,10 +710,21 @@ function offersExercised (params, callback, unlimit) {
       else if (options.view.reduce===false) label = "unreduced";
       options.view.label = label; 
     }
-        
+    
+    var key;
+    
+    if (options.base < options.counter) {
+      key = options.base + ":" + options.counter;
+      options.invert = true;
+      
+    } else {
+      key = options.counter + ":" + options.base;
+    }
+    
+    
     // set startkey and endkey for couchdb query
-    options.view.startkey   = [options.counter+":"+options.base].concat(options.startTime.toArray().slice(0,6));
-    options.view.endkey     = [options.counter+":"+options.base].concat(options.endTime.toArray().slice(0,6));
+    options.view.startkey   = [key].concat(options.startTime.toArray().slice(0,6));
+    options.view.endkey     = [key].concat(options.endTime.toArray().slice(0,6));
     options.view.descending = params.descending || false; 
     options.view.stale      = "ok"; //dont wait for updates  
    
@@ -793,6 +805,55 @@ function offersExercised (params, callback, unlimit) {
     
     return rows;
   }
+
+ /**
+  * if the base/counter key was inverted, we need to swap
+  * some of the values in the results
+  */
+
+  function invertPair (rows, reduced) {
+    var swap;
+    var i;
+    
+    if (reduced === false) {      
+      //skip the first, invert the rest
+      for (i=1; i<rows.length; i++) { 
+        rows[i][1] = 1/rows[i][1];
+        
+        //swap base and counter vol
+        swap = rows[i][2];
+        rows[i][2] = rows[i][3];
+        rows[i][3] = swap;
+        
+        //swap account and counterparty
+        swap = rows[i][4];
+        rows[i][4] = rows[i][5];
+        rows[i][5] = swap;
+      }
+      
+    } else {
+      
+      //skip the first, invert the rest
+      for (i=1; i<rows.length; i++) {
+
+        //swap base and counter vol
+        swap = rows[i][1]; 
+        rows[i][1] = rows[i][2];
+        rows[i][2] = swap; 
+        rows[i][4] = 1/rows[i][4];
+
+        //swap high and low
+        swap = 1/rows[i][5]; 
+        rows[i][5] = 1/rows[i][6];
+        rows[i][6] = swap; 
+        rows[i][7] = 1/rows[i][7];
+        rows[i][8] = 1/rows[i][8];
+      }
+    }
+    
+    return rows;
+  }
 }
+
 
 module.exports = offersExercised;
