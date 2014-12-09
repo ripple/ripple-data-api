@@ -1,24 +1,43 @@
 function(doc) {
+  var time      = new Date(doc.close_time_timestamp);
+  var unix      = Math.round(time.getTime());
+  var timestamp = [ time.getUTCFullYear(), time.getUTCMonth(), time.getUTCDate(),
+    time.getUTCHours(), time.getUTCMinutes(), time.getUTCSeconds()
+  ];
+  
+  var account;
+  var hash;
+  var nodes;
+  var node;
+  var i;
+  var j;
 
-  var time    = new Date(doc.close_time_timestamp),
-    unix      = Math.round(time.getTime()),
-    timestamp = [ time.getUTCFullYear(), time.getUTCMonth(), time.getUTCDate(),
-      time.getUTCHours(), time.getUTCMinutes(), time.getUTCSeconds()
-    ];
+  var exchangeRate;
+  var counterparty;
+  var payCurr;
+  var payAmnt;
+  var getCurr;
+  var getAmnt;
 
-  doc.transactions.forEach(function(tx) {
 
-    if (tx.metaData.TransactionResult !== 'tesSUCCESS') {
+  for(i=0; i<doc.transactions.length; i++) {
+
+    if (doc.transactions[i].metaData.TransactionResult !== 'tesSUCCESS') {
       return;
     }
 
-    if (tx.TransactionType !== 'Payment' && tx.TransactionType !== 'OfferCreate') {
+    if (doc.transactions[i].TransactionType !== 'Payment' && 
+        doc.transactions[i].TransactionType !== 'OfferCreate') {
       return;
     }
 
-    tx.metaData.AffectedNodes.forEach(function(affNode) {
+    hash    = doc.transactions[i].hash;
+    account = doc.transactions[i].Account;
+    nodes   = doc.transactions[i].metaData.AffectedNodes;
+    
+    for(j=0; j<nodes.length; j++) {
 
-      var node = affNode.ModifiedNode || affNode.DeletedNode;
+      node = nodes[j].ModifiedNode || nodes[j].DeletedNode;
 
       if (!node || node.LedgerEntryType !== 'Offer') {
         return;
@@ -28,16 +47,13 @@ function(doc) {
         return;
       }
   
-      var exchangeRate = node.exchange_rate,
-        counterparty   = node.FinalFields.Account,
-        payCurr,
-        payAmnt,
-        getCurr,
-        getAmnt;
+      exchangeRate = node.exchange_rate;
+      counterparty = node.FinalFields.Account;
 
       if ( typeof node.PreviousFields.TakerPays === "object" ) {
         payCurr = node.PreviousFields.TakerPays.currency+"."+node.PreviousFields.TakerPays.issuer;
         payAmnt = node.PreviousFields.TakerPays.value - node.FinalFields.TakerPays.value;
+        
       } else {
         payCurr = "XRP";
         payAmnt = (node.PreviousFields.TakerPays - node.FinalFields.TakerPays) / 1000000.0; // convert from drops
@@ -54,11 +70,10 @@ function(doc) {
       }
       
       if (payCurr < getCurr) {
-        emit([payCurr+":"+getCurr].concat(timestamp), [payAmnt, getAmnt, exchangeRate, counterparty, tx.Account, unix, tx.hash]);
+        emit([payCurr+":"+getCurr].concat(timestamp), [payAmnt, getAmnt, exchangeRate, counterparty, account, unix, hash]);
       } else {
-        emit([getCurr+":"+payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate, tx.Account, counterparty, unix, tx.hash]);
-      }
-      
-    } );
-  } );
+        emit([getCurr+":"+payCurr].concat(timestamp), [getAmnt, payAmnt, 1 / exchangeRate, account, counterparty, unix, hash]);
+      } 
+    }
+  }
 }
