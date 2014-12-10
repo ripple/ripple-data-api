@@ -4,7 +4,7 @@ function(keys, values, rereduce) {
   var i;
   
   for (i=0; i<values.length; i++) {
-    sum += val[0];
+    sum += value[0];
     
     if (rereduce) count += val[1];
     else count++;

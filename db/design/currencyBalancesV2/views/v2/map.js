@@ -32,7 +32,7 @@ function (doc) {
   for(i=0; i<doc.transactions.length; i++) {
 
     if (doc.transactions[i].metaData.TransactionResult !== "tesSUCCESS" ) {
-      return;
+      continue;
     }
     
     hash  = doc.transactions[i].hash;
@@ -41,7 +41,7 @@ function (doc) {
     for(j=0; j<nodes.length; j++) {
       node = nodes[j].ModifiedNode || nodes[j].CreatedNode || nodes[j].DeletedNode;
     
-      if (!node) return;
+      if (!node) continue;
       if (node.LedgerEntryType === "AccountRoot" ) {
       
         fields = node.FinalFields || node.NewFields;
@@ -61,7 +61,7 @@ function (doc) {
   
           // trustline created with non-negative balance
           if ( parseFloat( node.NewFields.Balance.value ) === 0 ) {
-            return;
+            continue;
           }
   
           currency  = node.NewFields.Balance.currency;
@@ -87,7 +87,7 @@ function (doc) {
           change    = balance - previous;
   
         } else {
-          return;
+          continue;
         }
   
         emit([currency+"."+lowParty].concat(timestamp),  [highParty, balance, change, unix, hash]);

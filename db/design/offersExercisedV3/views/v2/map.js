@@ -19,16 +19,15 @@ function(doc) {
   var getCurr;
   var getAmnt;
 
-
   for(i=0; i<doc.transactions.length; i++) {
 
     if (doc.transactions[i].metaData.TransactionResult !== 'tesSUCCESS') {
-      return;
+      continue;
     }
 
     if (doc.transactions[i].TransactionType !== 'Payment' && 
         doc.transactions[i].TransactionType !== 'OfferCreate') {
-      return;
+      continue;
     }
 
     hash    = doc.transactions[i].hash;
@@ -36,15 +35,16 @@ function(doc) {
     nodes   = doc.transactions[i].metaData.AffectedNodes;
     
     for(j=0; j<nodes.length; j++) {
-
+    
+      
       node = nodes[j].ModifiedNode || nodes[j].DeletedNode;
 
       if (!node || node.LedgerEntryType !== 'Offer') {
-        return;
+        continue;
       }
 
       if (!node.PreviousFields || !node.PreviousFields.TakerPays || !node.PreviousFields.TakerGets) {
-        return;
+        continue;
       }
   
       exchangeRate = node.exchange_rate;
