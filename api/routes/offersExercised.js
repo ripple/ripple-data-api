@@ -698,7 +698,8 @@ function offersExercised (params, callback, unlimit) {
     if (results.group !== false) {
       intervalCount = tools.countIntervals(time.start, time.end, results.name, options.multiple);
       if (intervalCount>maxLimit) {
-        return callback("Please specify a smaller time range or larger interval");
+        options.error = "Please specify a smaller time range or larger interval";
+        return;
       }
     }
 

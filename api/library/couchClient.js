@@ -19,7 +19,6 @@ function init (params) {
     if (label) tags.push(label.replace(':','_'));
     
     suffix = tags.join('.');
-    console.log(suffix);
     statsd.increment('couchDB.request.' + suffix, null);
     
     client.parentView(doc, view, options, function(error, response){
