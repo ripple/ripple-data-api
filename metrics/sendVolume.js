@@ -6,12 +6,13 @@ var fs   = require('fs'),
   _      = require('lodash'),
   moment = require('moment');
 
-datadog = {
+statsd = {
   increment : function(){},
   histogram : function(){},
+  timing    : function(){}
 };
 
-fs.mkdir("results",function(e){
+fs.mkdir("./metrics/results",function(e){
     if(!e || (e && e.code === 'EEXIST')){
         //do something with contents
     } else {
@@ -32,20 +33,30 @@ db = require('../api/library/couchClient')({
     '/'   + DBconfig.database,
 });
 
-var tvs  = require("../api/routes/totalValueSent");
+var tvs  = require("../api/library/metrics/transactionVolume");
 var rows = [];
 
 var end    = moment.utc().startOf("day");
-var start  = moment.utc(end).subtract(31, "day"); 
+var start  = moment.utc(end).subtract(3, "day"); 
 var time   = moment.utc(end).subtract(1, "day");
 var length = 0; 
-while(time.diff(start)>0) {
-  length++;
+while(time.diff(start)>=0) {
+  var fn = get(time, end, length);
   console.log(time.format(), end.format());
+  setTimeout(fn, length*500); 
   
-  getStats(time, end, length);
   time.subtract(1, "day");
   end.subtract(1, "day");
+  length++;
+}
+
+function get (start, end, index) {
+  var s = moment.utc(start);
+  var e = moment.utc(end);
+  var i = index;  
+  return function () {
+    getStats (s, e, i);
+  }
 }
 
 
@@ -94,14 +105,14 @@ function getStats (start, end, index) {
       rows.push(row);
     }
     
-    if (rows.length==length) {
+    if (rows.length==length+1) {
       var csvStr = _.map(rows, function(row){
         return row.join(', ');
       }).join('\n');
       
-      fs.writeFile("results/sendVolume.csv", csvStr, function(err) {
+      fs.writeFile("./metrics/results/sendVolume.csv", csvStr, function(err) {
         if (err) console.log(err);
-        else console.log(rows.length);
+        else console.log(length);
       });       
     }
   });
