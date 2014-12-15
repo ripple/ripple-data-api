@@ -7,12 +7,13 @@ var _      = require('lodash');
 var moment = require('moment');
 var tools  = require('../api/utils');
 
-datadog = {
+statsd = {
   increment : function(){},
   histogram : function(){},
+  timing    : function(){}
 };
 
-fs.mkdir("results",function(e){
+fs.mkdir("./metrics/results",function(e){
     if(!e || (e && e.code === 'EEXIST')){
         //do something with contents
     } else {
@@ -33,42 +34,52 @@ db = require('../api/library/couchClient')({
     '/'   + DBconfig.database,
 });
 
-var topMarkets = require("../api/routes/totalTradeVolume");
+var tradeVolume = require("../api/library/metrics/tradeVolume");
 var rows = [];
 
 var end    = moment.utc().startOf("day");
-var start  = moment.utc(end).subtract(91, "day");
+var start  = moment.utc(end).subtract(180, "day");
 var time   = moment.utc(end).subtract(1, "day");
 
 var length = 0; 
-while(time.diff(start)>0) {
-  length++;
+while(time.diff(start)>=0) { 
+  var fn = get(time, end, length);
   console.log(time.format(), end.format());
+  setTimeout(fn, length*500); 
   
-  getStats(time, end, length);
   time.subtract(1, "day");
   end.subtract(1, "day");
+  length++;
 }
 
+function get (start, end, index) {
+  var s = moment.utc(start);
+  var e = moment.utc(end);
+  var i = index;  
+  return function () {
+    getStats (s, e, i);
+  }
+}
 
 function getStats (start, end, index) { 
-  
-  topMarkets({
-    exchange : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-    startTime : start,
-    endTime : end,
+  tradeVolume({
+    ex : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
+    startTime : moment.utc(start),
+    endTime   : moment.utc(end),
     
   }, function (err, res){
+    //console.log(res);
+    
     if (err) {
       console.log(err, length, rows.length);
       length--;
       
     } else {
+      console.log(index);
       if (!rows[0]) {
         var header = ["startTime", "totalVolume", "count", "XRPrate"];
         res.components.forEach(function(c){
           var prefix = getHeaderPrefix(c);
-          console.log(prefix);
           header.push(prefix + "-volume");
           header.push(prefix + "-count");
           header.push(prefix + "-rate");
@@ -92,14 +103,14 @@ function getStats (start, end, index) {
       rows.push(row);
     }
     
-    if (rows.length==length) {
+    if (rows.length===length+1) {
       var csvStr = _.map(rows, function(row){
         return row.join(', ');
       }).join('\n');
       
-      fs.writeFile("results/tradeVolume.csv", csvStr, function(err) {
+      fs.writeFile("./metrics/results/tradeVolume.csv", csvStr, function(err) {
         if (err) console.log(err);
-        else console.log(rows.length);
+        else console.log(length);
       });       
     }
   });
