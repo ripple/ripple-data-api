@@ -169,7 +169,7 @@ function issuerCapitalization(params, callback) {
     }
     
     //Query CouchDB for changes in trustline balances    
-    db.view('currencyBalances', 'v1', viewOptions, function(error, trustlineRes){
+    db.view('currencyBalancesV2', 'v2', viewOptions, function(error, trustlineRes){
       
       if (error) return callback("CouchDB - " + error);
       
@@ -226,7 +226,7 @@ function issuerCapitalization(params, callback) {
         };
   
         //query couchDB for the start capitalization
-        db.view('currencyBalances', 'v1', initialValueViewOpts, function(error, initValRes) {
+        db.view('currencyBalancesV2', 'v2', initialValueViewOpts, function(error, initValRes) {
 
           if (error) return callback("CouchDB - " + error);
           
@@ -483,7 +483,7 @@ function issuerCapitalization(params, callback) {
          stale      : 'ok' 
       }
       
-      db.view('currencyBalances', 'v1', view, function(err, resp) {
+      db.view('currencyBalancesV2', 'v2', view, function(err, resp) {
         if (err) {
           return asyncCallback(err);
         }
@@ -494,7 +494,7 @@ function issuerCapitalization(params, callback) {
         }
           
         //get initial balance 
-        db.view('currencyBalances', 'v1', initialOpts, function(err, initial) {
+        db.view('currencyBalancesV2', 'v2', initialOpts, function(err, initial) {
           if (err) {
             return asyncCallback(err);
           }
