@@ -39,6 +39,8 @@
     "ripple-lib": "^0.7.36",
     "winston": "~0.7.2",
     "posix": "^1.0.4",
-    "node-statsd": "^0.1.0"
+    "node-statsd": "^0.1.0",
+    "hbase": "^0.1.7",
+    "thrift": "^0.9.2"
   }
 }

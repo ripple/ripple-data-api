@@ -325,3 +325,12 @@ exports.getAlignedTime = function (original, increment, multiple) {
   
   return time;    
 }
+
+exports.formatTime = function(time) {
+  if (typeof time === 'number') {
+    t = moment.unix(time).utc();
+  } else {
+    t = moment.utc(time);
+  }
+  return t.format('YYYYMMDDHHmmss');
+};

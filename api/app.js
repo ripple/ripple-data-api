@@ -70,7 +70,8 @@ DATEFORMAT = DATEARRAY.join('');
   
 var apiRoutes = {
   'offers'                  : require("./routes/offers"),
-  'offersexercised'         : require("./routes/offersExercised"),
+  //'offersexercised'         : require("./routes/offersExercised"),
+  'offersexercised'         : require("./routesV2/exchanges"),
   'topmarkets'              : require("./routes/totalTradeVolume"),
   'totaltradevolume'        : require("./routes/totalTradeVolume"),
   'markettraders'           : require("./routes/marketTraders"),
@@ -198,10 +199,10 @@ if (CACHE) {
     }); 
     
     //initialize the metrics data
-    require('./library/metrics').init();
+    //require('./library/metrics').init();
 
     //initialize historical metrics and associated cron jobs
-    require('./library/history').init(); 
+    //require('./library/history').init(); 
   } 
 }
 
