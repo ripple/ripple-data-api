@@ -5,7 +5,16 @@ var thrift = require('thrift');
 var HBase  = require('../library/hbase/hbase');
 var HBaseTypes = require('../library/hbase/hbase_types');
 var hbase;
+var connection = thrift.createConnection('54.172.122.6', 9090, {
+  transport : thrift.TFramedTransport,
+  protocol  : thrift.TBinaryProtocol
+});
 
+connection.on('connect', function() {
+  hbase = thrift.createClient(HBase,connection);
+});
+
+    
 var intervals = {
   minute : [1,5,15,30],
   hour   : [1,2,4],
@@ -258,11 +267,6 @@ function getAggregated (options, params, callback) {
     start.add(multiple, interval);
   }
 
-  console.log(keys[0]);
-  var connection = thrift.createConnection('54.172.122.6', 9095, {
-    transport : thrift.TFramedTransport,
-    protocol  : thrift.TBinaryProtocol
-  });
   
   /*
   connection.on('connect', function () {
@@ -273,7 +277,7 @@ function getAggregated (options, params, callback) {
       connection.end();
     });
   });
-  */
+
       
   connection.on('connect', function() {
     var hbase = thrift.createClient(HBase,connection);
@@ -281,6 +285,7 @@ function getAggregated (options, params, callback) {
 
     hbase.exists(table, keys[0], function (err, data) {
       console.log(err, data);
+      console.log('here');
       connection.end();
     });
   });
@@ -307,10 +312,41 @@ function getAggregated (options, params, callback) {
   });
    */ 
 
-  
-  //hbase.getMultiple(table, keys, function(err, resp) {
-  //  console.log(err, resp);
-  //});
+  hbase.getMultiple(table, keys, function(err, resp) {
+    var rows = [];
+    if (err) {
+      callback(err);
+      return;
+    }
+    
+    resp.forEach(function(hbaseRow) {
+      var row = { };
+      
+      if (!hbaseRow.columnValues.length) {
+        return;
+      }
+      
+      hbaseRow.columnValues.forEach(function(column) {
+        row[column.qualifier] = column.value;
+      });
+      
+      rows.push([
+        row.start_time, //start time
+        parseFloat(row.base_volume),
+        parseFloat(row.counter_volume),
+        parseInt(row.count, 10),
+        parseFloat(row.open),
+        parseFloat(row.high),
+        parseFloat(row.low),
+        parseFloat(row.close),
+        parseFloat(row.base_volume) / parseFloat(row.counter_volume),
+        row.open_time,  //open  time
+        row.close_time, //close time        
+      ]);
+    });
+    
+    handleResponse(rows, options, callback);
+  });
 }
 
 /**
