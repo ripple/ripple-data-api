@@ -13,7 +13,6 @@ var connection = thrift.createConnection('54.172.122.6', 9090, {
 connection.on('connect', function() {
   hbase = thrift.createClient(HBase,connection);
 });
-
     
 var intervals = {
   minute : [1,5,15,30],
@@ -221,13 +220,18 @@ function getReduced(options, params, callback) {
 function getAggregated (options, params, callback) {
   var base    = options.base    + '|' + (params.base.issuer    || '');
   var counter = options.counter + '|' + (params.counter.issuer || '');
-  var start   = tools.getAlignedTime(options.time.start, interval, multiple);
-  var end     = tools.getAlignedTime(options.time.end, interval, multiple);
   var keys    = [];
   var keyBase;
+  var start;
+  var end;
   var interval;
   var multiple;
   var table;
+  
+  if (!hbase) {
+    callback('unavailable');
+    return;
+  }
   
   if (base < counter) {
     keyBase = base + '|' + counter;
@@ -240,7 +244,6 @@ function getAggregated (options, params, callback) {
   if (params.interval) {
     multiple = parseInt(params.interval.match(/\d+/)[0], 10); 
     interval = params.interval.match(/[a-z]+/i)[0];
-    console.log(interval, multiple);
     
     interval = params.timeIncrement || 'hour';
     
@@ -260,7 +263,9 @@ function getAggregated (options, params, callback) {
   }
   
   table = 'agg_exchange_' + multiple + interval;
-
+  start = tools.getAlignedTime(options.time.start, interval, multiple);
+  end   = tools.getAlignedTime(options.time.end, interval, multiple).add(multiple, interval);
+  
   while (end.diff(start)>0) {
     rowKey = keyBase + '|' + tools.formatTime(start);
     keys.push(new HBaseTypes.TGet({row : rowKey, }));
