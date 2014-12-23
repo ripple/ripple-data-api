@@ -199,10 +199,10 @@ if (CACHE) {
     }); 
     
     //initialize the metrics data
-    //require('./library/metrics').init();
+    require('./library/metrics').init();
 
     //initialize historical metrics and associated cron jobs
-    //require('./library/history').init(); 
+    require('./library/history').init(); 
   } 
 }
 
