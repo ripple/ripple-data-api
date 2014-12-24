@@ -268,7 +268,7 @@ function getAggregated (options, params, callback) {
   
   while (end.diff(start)>0) {
     rowKey = keyBase + '|' + tools.formatTime(start);
-    keys.push(new HBaseTypes.TGet({row : rowKey, }));
+    keys.push(new HBaseTypes.TGet({row : rowKey}));
     start.add(multiple, interval);
   }
 
@@ -344,7 +344,7 @@ function getAggregated (options, params, callback) {
         parseFloat(row.high),
         parseFloat(row.low),
         parseFloat(row.close),
-        parseFloat(row.base_volume) / parseFloat(row.counter_volume),
+        parseFloat(row.vwap),
         row.open_time,  //open  time
         row.close_time, //close time        
       ]);
