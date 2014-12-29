@@ -5,14 +5,7 @@ var thrift = require('thrift');
 var HBase  = require('../library/hbase/hbase');
 var HBaseTypes = require('../library/hbase/hbase_types');
 var hbase;
-var connection = thrift.createConnection('54.172.122.6', 9090, {
-  transport : thrift.TFramedTransport,
-  protocol  : thrift.TBinaryProtocol
-});
-
-connection.on('connect', function() {
-  hbase = thrift.createClient(HBase,connection);
-});
+var connection;
     
 var intervals = {
   minute : [1,5,15,30],
@@ -43,8 +36,24 @@ var unreducedHeader = [
   'account',
   'counterparty',
   'tx_hash'
-]
-  
+];
+
+function connectHbase (fn) { 
+  connection = thrift.createConnection('54.172.122.6', 9090, {
+    transport : thrift.TFramedTransport,
+    protocol  : thrift.TBinaryProtocol
+  });
+
+  connection.on('connect', function() {
+    hbase = thrift.createClient(HBase,connection);
+    console.log('hbase connected');
+    connection.connected = true;
+    if (fn) setTimeout(fn, 100);
+  });
+}
+
+connectHbase();
+
 module.exports = function (params, callback) {
 
   var options = {};
@@ -186,7 +195,6 @@ function getReduced(options, params, callback) {
   db.view("offersExercisedV3", "v2", view, function (err, resp){ 
     var rows = [header];
     
-    console.log(resp);
     if (err || !resp || !resp.rows) {
       callback ('CouchDB - ' + err);  
       return;
@@ -228,8 +236,18 @@ function getAggregated (options, params, callback) {
   var multiple;
   var table;
   
-  if (!hbase) {
-    callback('unavailable');
+
+  //attempt to reconnect to hbase if our 
+  //connection has been lost
+  if (!hbase || !connection || !connection.connected) {
+    var timeout = setTimeout(function(){
+      callback ('unavailable');
+    }, 10000);
+    
+    connectHbase(function(){
+      clearTimeout(timeout);
+      getAggregated(options, params, callback);
+    });
     return;
   }
   
