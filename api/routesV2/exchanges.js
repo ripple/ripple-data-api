@@ -1,11 +1,6 @@
 var moment = require('moment');
 var tools  = require('../utils');
 var ripple = require('ripple-lib');
-var thrift = require('thrift');
-var HBase  = require('../library/hbase/hbase');
-var HBaseTypes = require('../library/hbase/hbase_types');
-var hbase;
-var connection;
     
 var intervals = {
   minute : [1,5,15,30],
@@ -37,22 +32,6 @@ var unreducedHeader = [
   'counterparty',
   'tx_hash'
 ];
-
-function connectHbase (fn) { 
-  connection = thrift.createConnection('54.172.122.6', 9090, {
-    transport : thrift.TFramedTransport,
-    protocol  : thrift.TBinaryProtocol
-  });
-
-  connection.on('connect', function() {
-    hbase = thrift.createClient(HBase,connection);
-    console.log('hbase connected');
-    connection.connected = true;
-    if (fn) setTimeout(fn, 100);
-  });
-}
-
-connectHbase();
 
 module.exports = function (params, callback) {
 
@@ -181,10 +160,10 @@ function getReduced(options, params, callback) {
 
   if (base < counter) {
     keyBase = base + ':' + counter;
-    options.invert  = true;
 
   } else {
     keyBase = counter + ':' + base;
+    options.invert  = true;
   }
   
   var view = {
@@ -236,27 +215,12 @@ function getAggregated (options, params, callback) {
   var multiple;
   var table;
   
-
-  //attempt to reconnect to hbase if our 
-  //connection has been lost
-  if (!hbase || !connection || !connection.connected) {
-    var timeout = setTimeout(function(){
-      callback ('unavailable');
-    }, 10000);
-    
-    connectHbase(function(){
-      clearTimeout(timeout);
-      getAggregated(options, params, callback);
-    });
-    return;
-  }
-  
   if (base < counter) {
     keyBase = base + '|' + counter;
-    options.invert = true;
     
   } else {
     keyBase = counter + '|' + base;
+    options.invert = true;
   }
   
   if (params.interval) {
@@ -286,73 +250,18 @@ function getAggregated (options, params, callback) {
   
   while (end.diff(start)>0) {
     rowKey = keyBase + '|' + tools.formatTime(start);
-    keys.push(new HBaseTypes.TGet({row : rowKey}));
+    keys.push(rowKey);
     start.add(multiple, interval);
   }
 
-  
-  /*
-  connection.on('connect', function () {
-    var hbase = thrift.createClient(HBase,connection);
-    console.log('Connected');
-    hbase.getTableNames(function (err, data) {
-      console.log(err, data);
-      connection.end();
-    });
-  });
-
-      
-  connection.on('connect', function() {
-    var hbase = thrift.createClient(HBase,connection);
-    console.log('hbase thrift connected');
-
-    hbase.exists(table, keys[0], function (err, data) {
-      console.log(err, data);
-      console.log('here');
-      connection.end();
-    });
-  });
-      
-  /*    
-  connection.on('connect', function() {
-    var hbase = thrift.createClient(HBase,connection);
-    var scan = new HBaseTypes.TScan({filterString: "PrefixFilter('r2d2iZiCcJmNL6vhUGFjs8U8BuUq6BnmT')"});
-    console.log('hbase thrift connected'); 
-    console.log(scan);
-    
-    hbase.openScanner('a2_transactions_by_affected_account', scan, function(err, id) {
-      console.log(err, id);
-      if (id) hbase.getScannerRows(id, 5, function(err, resp){
-        if (err) {
-          console.log(err);
-        } else {
-          resp.forEach(function(row) {
-            console.log(row);
-          });
-        }
-      });
-    });  
-  });
-   */ 
-
-  hbase.getMultiple(table, keys, function(err, resp) {
+  hbase.getRows(table, keys, function (err, resp) {
     var rows = [];
     if (err) {
       callback(err);
       return;
     }
     
-    resp.forEach(function(hbaseRow) {
-      var row = { };
-      
-      if (!hbaseRow.columnValues.length) {
-        return;
-      }
-      
-      hbaseRow.columnValues.forEach(function(column) {
-        row[column.qualifier] = column.value;
-      });
-      
+    resp.forEach(function(row) {
       rows.push([
         row.start_time, //start time
         parseFloat(row.base_volume),
@@ -367,7 +276,7 @@ function getAggregated (options, params, callback) {
         row.close_time, //close time        
       ]);
     });
-    
+        
     handleResponse(rows, options, callback);
   });
 }

@@ -7,6 +7,10 @@ function( doc ) {
 
   doc.transactions.forEach( function( tx ) {
 
+    if (tx.TransactionType !== 'Payment') {
+      return;
+    }
+    
     if ( tx.metaData.TransactionResult !== "tesSUCCESS" ) {
       return;
     }
