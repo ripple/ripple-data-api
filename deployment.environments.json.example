@@ -17,7 +17,11 @@
       "options" : {
         "auth_pass" : null
       }
-    }
+    },
+    "hbase" : {
+      "host" : "",
+      "port" : 9090
+    },
   },
   
   "staging": {
@@ -38,7 +42,11 @@
       "options" : {
         "auth_pass" : null
       }
-    }
+    },
+    "hbase" : {
+      "host" : "",
+      "port" : 9090
+    },
   },
   
   "production": {
@@ -59,6 +67,10 @@
       "options" : {
         "auth_pass" : null
       }
-    }
+    },
+    "hbase" : {
+      "host" : "",
+      "port" : 9090
+    },
   }
 }
