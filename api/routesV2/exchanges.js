@@ -160,10 +160,10 @@ function getReduced(options, params, callback) {
 
   if (base < counter) {
     keyBase = base + ':' + counter;
+    options.invert = true;
 
   } else {
     keyBase = counter + ':' + base;
-    options.invert  = true;
   }
   
   var view = {
