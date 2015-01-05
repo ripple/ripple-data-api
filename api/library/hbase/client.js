@@ -32,7 +32,9 @@ var Client = function (options) {
     
     connection.on('close', function() {
       console.log('hbase close');
-      self.connect(); //attempt reconnect
+      setTimeout(function() {
+        self.connect(); //attempt reconnect
+      }, 250);
     });
     
     return self;
@@ -47,6 +49,10 @@ Client.prototype.getRows = function (table, keys, callback) {
     list.push(new HBaseTypes.TGet({row : key}));
   });
   
+  if (!self.isConnected()) {
+    callback('hbase not connected');
+    return;
+  }
   
   self.hbase.getMultiple(table, list, function(err, resp) {
     var rows = [];
