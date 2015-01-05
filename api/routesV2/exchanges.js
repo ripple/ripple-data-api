@@ -252,8 +252,9 @@ function getAggregated (options, params, callback) {
     rowKey = keyBase + '|' + tools.formatTime(start);
     keys.push(rowKey);
     start.add(multiple, interval);
-  }
 
+  }
+  
   hbase.getRows(table, keys, function (err, resp) {
     var rows = [];
     if (err) {
