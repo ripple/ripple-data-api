@@ -81,17 +81,22 @@ function totalValueSent(params, callback) {
 
     }, function(error, data) {
 
+      var pair = {
+        base    : assetPair.base,
+        counter : assetPair.counter
+      };
+      
       if (error) return asyncCallbackPair(error);
 
       if (data && data.length > 1) {
-        assetPair.amount = data[1][1]; 
-        assetPair.count  = data[1][2];
+        pair.amount = data[1][1]; 
+        pair.count  = data[1][2];
       } else {
-        assetPair.amount = 0;
-        assetPair.count  = 0;
+        pair.amount = 0;
+        pair.count  = 0;
       }
 
-      asyncCallbackPair(null, assetPair);
+      asyncCallbackPair(null, pair);
 
     });
 

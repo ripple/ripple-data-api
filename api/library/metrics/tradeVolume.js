@@ -163,18 +163,24 @@ function tradeVolume(params, callback) {
 
     }, function (error, data) {
 
+      var pair = {
+        base    : assetPair.base,
+        counter : assetPair.counter
+      };
+      
       if (error) return asyncCallbackPair(error);
 
       if (data && data.length > 1) {
-        assetPair.rate   = data[1][8]; // vwavPrice
-        assetPair.count  = data[1][3]; // num trades
-        assetPair.amount = data[1][1]; // amount
+        pair.rate   = data[1][8]; // vwavPrice
+        pair.count  = data[1][3]; // num trades
+        pair.amount = data[1][1]; // amount
+
       } else {
-        assetPair.rate   = 0;
-        assetPair.count  = 0;
-        assetPair.amount = 0;
+        pair.rate   = 0;
+        pair.count  = 0;
+        pair.amount = 0;
       }
-      asyncCallbackPair(null, assetPair);
+      asyncCallbackPair(null, pair);
 
     });
 
