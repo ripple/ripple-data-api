@@ -244,7 +244,7 @@ function getAggregated (options, params, callback) {
     return;
   }
   
-  table = 'agg_exchange_' + multiple + interval;
+  table = 'beta2_agg_exchange_' + multiple + interval;
   start = tools.getAlignedTime(options.time.start, interval, multiple);
   end   = tools.getAlignedTime(options.time.end, interval, multiple).add(multiple, interval);
   
@@ -256,7 +256,7 @@ function getAggregated (options, params, callback) {
   }
   
   hbase.getRows(table, keys, function (err, resp) {
-    var rows = [];
+    var rows = [header];
     if (err) {
       callback(err);
       return;
@@ -264,7 +264,7 @@ function getAggregated (options, params, callback) {
     
     resp.forEach(function(row) {
       rows.push([
-        row.start_time, //start time
+        row.start, //start time
         parseFloat(row.base_volume),
         parseFloat(row.counter_volume),
         parseInt(row.count, 10),
@@ -273,11 +273,11 @@ function getAggregated (options, params, callback) {
         parseFloat(row.low),
         parseFloat(row.close),
         parseFloat(row.vwap),
-        row.open_time,  //open  time
-        row.close_time, //close time        
+        moment.unix(row.open_time).utc(),  //open  time
+        moment.unix(row.close_time).utc(), //close time        
       ]);
     });
-        
+    
     handleResponse(rows, options, callback);
   });
 }
