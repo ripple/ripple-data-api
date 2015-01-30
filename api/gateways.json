@@ -5,7 +5,10 @@
             "address": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
             "currencies": ["AUD", "BTC", "CHF", "EUR", "GBP", "JPY", "USD"]
             }],
-        "hotwallets": ["rrpNnNLKrartuEqfJGpqyDwPj1AFPg9vn1"]
+        "hotwallets": [
+          "rrpNnNLKrartuEqfJGpqyDwPj1AFPg9vn1",
+          "rGFuMiw48HdbnrUbkRYuitXTmfrDBNTCnX"
+        ]
     }, {
         "name": "RippleChina",
         "accounts": [{
@@ -41,8 +44,9 @@
             "currencies": ["USD","BTC","EUR","GBP"]
             }],
         "hotwallets": [
-          "ra7JkEzrgeKHdzKgo4EUUVBnxggY4z37kt", 
+          "ra7JkEzrgeKHdzKgo4EUUVBnxggY4z37kt",
           "rQsAshmCjPsxkYnxY9GnmBTAeEUaePDAie",
+          "rEk9i7G8ac1kUs1mFjtze1qjj9FzGvXAG",
           "rsTQ7iwrCik9Ugc3zbpcbo2K3SbAdYJss1",
           "rwm98fCBS8tV1YB8CGho8zUPW5J7N41th2",
           "rnd8KJ4qeip6FPJvC1fyv82nW2Lm8C8KjQ",
