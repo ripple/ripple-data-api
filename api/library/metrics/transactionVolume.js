@@ -71,32 +71,32 @@ function totalValueSent(params, callback) {
   var finalRate;
        
   //call valueSent for each asset pair
-  async.map(currencies, function(assetPair, asyncCallbackPair){
+  async.map(currencies, function(c, asyncCallbackPair){
 
+    var currency = {
+      currency : c.currency,
+      issuer   : c.issuer
+    };
+    
     valueSent({
-      currency  : assetPair.currency,
-      issuer    : assetPair.issuer,
+      currency  : c.currency,
+      issuer    : c.issuer,
       startTime : startTime,
       endTime   : endTime
 
     }, function(error, data) {
-
-      var pair = {
-        base    : assetPair.base,
-        counter : assetPair.counter
-      };
       
       if (error) return asyncCallbackPair(error);
 
       if (data && data.length > 1) {
-        pair.amount = data[1][1]; 
-        pair.count  = data[1][2];
+        currency.amount = data[1][1]; 
+        currency.count  = data[1][2];
       } else {
-        pair.amount = 0;
-        pair.count  = 0;
+        currency.amount = 0;
+        currency.count  = 0;
       }
 
-      asyncCallbackPair(null, pair);
+      asyncCallbackPair(null, currency);
 
     });
 
@@ -107,6 +107,8 @@ function totalValueSent(params, callback) {
       return;
     }
 
+    var currencies = resp;
+    
     getExchangeRates(function(error, rates){
       if (error) return callback(error);
 

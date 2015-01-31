@@ -153,6 +153,11 @@ function tradeVolume(params, callback) {
   
   async.map(marketPairs, function(assetPair, asyncCallbackPair){
 
+    var pair = {
+      base    : assetPair.base,
+      counter : assetPair.counter
+    };
+    
     //call offersExercised for each market pair
     offersExercised({
       base          : assetPair.base,
@@ -162,11 +167,6 @@ function tradeVolume(params, callback) {
       timeIncrement : 'all'
 
     }, function (error, data) {
-
-      var pair = {
-        base    : assetPair.base,
-        counter : assetPair.counter
-      };
       
       if (error) return asyncCallbackPair(error);
 
@@ -180,8 +180,8 @@ function tradeVolume(params, callback) {
         pair.count  = 0;
         pair.amount = 0;
       }
+      
       asyncCallbackPair(null, pair);
-
     });
 
   }, function(err, pairs) {
@@ -204,8 +204,6 @@ function tradeVolume(params, callback) {
         rates[pair.base.currency + "." + pair.base.issuer] = pair.rate;
       }
     });
-
-
 
     if (ex.currency == 'XRP') { 
       exchangeRate = 1;
@@ -247,7 +245,7 @@ function tradeVolume(params, callback) {
       response.total        = total;
       response.count        = count;
       response.components   = pairs;
-
+      
       if (CACHE) {
         cacheResponse (cacheKey, response);
       }
