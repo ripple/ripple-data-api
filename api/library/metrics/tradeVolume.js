@@ -129,7 +129,7 @@ var marketPairs = [
 
 function tradeVolume(params, callback) {
   
-  var cacheKey;
+  var rowkey;
   var ex;
   var startTime;
   var endTime;
@@ -138,17 +138,15 @@ function tradeVolume(params, callback) {
   ex        = params.ex || {currency:'XRP'};
   startTime = params.startTime;
   endTime   = params.endTime;
-  cacheKey  = "TM:" + ex.currency.toUpperCase();
-  
-  if (ex.issuer) cacheKey += "."+ex.issuer;
+  rowkey    = ex.currency.toUpperCase() + '|' + (ex.issuer || '');
   
   if (!startTime && !endTime) {
     startTime = moment.utc().subtract('hours', 24);
     endTime   = moment.utc();
-    cacheKey += ':live';
+    rowkey   += '|live';
     
   } else {
-    cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();  
+    rowkey += '|'+startTime.unix() + '|' + endTime.unix();  
   }
   
   async.map(marketPairs, function(assetPair, asyncCallbackPair){
@@ -246,9 +244,7 @@ function tradeVolume(params, callback) {
       response.count        = count;
       response.components   = pairs;
       
-      if (CACHE) {
-        cacheResponse (cacheKey, response);
-      }
+      cacheResponse (rowkey, response);
 
       if (callback) {
         callback(null, response);  
@@ -279,11 +275,9 @@ function getConversion (params, callback) {
   });    
 }
   
-function cacheResponse (cacheKey, response) {
-  redis.set(cacheKey, JSON.stringify(response), function(error, res){
-    if (error) winston.error("Redis - " + error);
-    if (DEBUG) winston.info(cacheKey + " cached");
-  });
+function cacheResponse (rowkey, response) {
+  var table = 'beta2_agg_trade_volume';
+  hbase.putRow(table, rowkey, response);
 } 
 
 

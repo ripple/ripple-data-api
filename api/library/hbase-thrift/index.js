@@ -171,16 +171,7 @@ HbaseClient.prototype.getScan = function (options, callback) {
       if (rows.length) {
         
         //format as json
-        rows.forEach(function(row) {
-          r = {};
-          r.rowkey = row.row;
-          for (key in row.columns) {
-            parts = key.split(':');
-            r[parts[1]] = row.columns[key].value;
-          }
-          
-          results.push(r);
-        }); 
+        results = formatRows(rows);
         
         //stop if we are at the limit
         if (limit && page * count >= limit) {
@@ -343,8 +334,36 @@ HbaseClient.prototype._prepareColumns = function (data) {
       value     : value
     });
   }
+};
+
+HbaseClient.prototype.getRow = function (table, rowkey, callback) { 
+  this.hbase.getRow(table, rowkey, null, function (err, rows) {
+    var row = null;
+    
+    if (rows) {
+      rows = formatRows(rows);
+      row  = rows[0];
+    }
+    
+    callback(err, row);
+  });
+};
+
+                    
+function formatRows(data) {
+  var rows = [];
+  data.forEach(function(row) {
+    r = {};
+    r.rowkey = row.row;
+    for (key in row.columns) {
+      parts = key.split(':');
+      r[parts[1]] = row.columns[key].value;
+    }
+
+    rows.push(r);
+  }); 
+  
+  return rows;
 }
-
-
 
 module.exports = HbaseClient;

@@ -66,7 +66,7 @@ function topMarkets(params, callback) {
 
   var viewOpts = {};
   var ex       = params.exchange || {currency:'XRP'};
-  var cacheKey; 
+  var rowkey; 
   var startTime;
   var endTime;
 
@@ -86,61 +86,46 @@ function topMarkets(params, callback) {
     return callback('XRP cannot have an issuer');
   }
   
-  //live request  
-  if (!params.startTime && !params.endTime) {
-
-    if (!CACHE) {
-      return callback('metric unavailable at this time');
-    }
-    
-    redis.get('TM:XRP:live', function(error, response){
-      if (error) {                     
-        callback("Redis - " + error);
-        
-      } else if (!response) {   
-        callback('metric unavailable at this time');
-      
-      } else if (ex.currency === 'XRP') {
-        callback(null, JSON.parse(response));  
-        
-      } else {
-        convert(ex, JSON.parse(response), callback);
-      }
-    });
-    
-    return;
-    
-  } 
+  rowkey = ex.currency.toUpperCase() + '|' + (ex.issuer || '');
   
-  if (params.startTime && 
-      params.endTime && 
-      moment(params.startTime).isValid() && 
-      moment(params.endTime).isValid()) {
-
-    if (moment(params.startTime).isBefore(moment(params.endTime))) {
-      startTime = moment.utc(params.startTime);
-      endTime   = moment.utc(params.endTime);
-
-    } else {
-      endTime   = moment.utc(params.startTime);
-      startTime = moment.utc(params.endTime);
-    }
-
-  } else if (params.endTime && moment(params.endTime).isValid()) {
-    endTime   = moment.utc(params.endTime);
-    startTime = moment.utc(params.endTime).subtract('hours', 24);
-
+  if (!params.startTime && !params.endTime) {
+    startTime = moment.utc().subtract('hours', 24);
+    endTime   = moment.utc();
+    rowkey   += '|live';
+  
   } else {
-    if (!moment(params.startTime).isValid()) {
-      return callback('invalid startTime: ' + params.startTime + ' is invalid at: ' + moment(params.startTime).invalidAt());
-    }
+      if (params.startTime && 
+        params.endTime && 
+        moment(params.startTime).isValid() && 
+        moment(params.endTime).isValid()) {
 
-    if (!moment(params.endTime).isValid()) {
-      return callback('invalid endTime: ' + params.endTime + ' is invalid at: ' + moment(params.endTime).invalidAt());
-    }
+      if (moment(params.startTime).isBefore(moment(params.endTime))) {
+        startTime = moment.utc(params.startTime);
+        endTime   = moment.utc(params.endTime);
 
-    return callback("invalid time"); //should never get here
-  }  
+      } else {
+        endTime   = moment.utc(params.startTime);
+        startTime = moment.utc(params.endTime);
+      }
+
+    } else if (params.endTime && moment(params.endTime).isValid()) {
+      endTime   = moment.utc(params.endTime);
+      startTime = moment.utc(params.endTime).subtract('hours', 24);
+
+    } else if (params.startTime) {
+      if (!moment(params.startTime).isValid()) {
+        return callback('invalid startTime: ' + params.startTime + ' is invalid at: ' + moment(params.startTime).invalidAt());
+      }
+
+      if (!moment(params.endTime).isValid()) {
+        return callback('invalid endTime: ' + params.endTime + ' is invalid at: ' + moment(params.endTime).invalidAt());
+      }
+
+      return callback("invalid time"); //should never get here
+    }
+    
+    rowkey += '|'+startTime.unix() + '|' + endTime.unix();  
+  }
 
   if (endTime.isBefore(startTime)) { //swap times
     tempTime  = startTime;
@@ -151,13 +136,30 @@ function topMarkets(params, callback) {
     return callback('please provide 2 distinct times');
   }
   
+  hbase.getRow('beta2_agg_trade_volume', rowkey, function(err, row) {
+    if (row) {
+      row.components   = JSON.parse(row.components);
+      row.exchange     = JSON.parse(row.exchange);
+      row.total        = parseFloat(row.total);
+      row.count        = parseFloat(row.count);
+      row.exchangeRate = parseFloat(row.exchangeRate); 
+    }
+    
+    if (!err && !row && rowkey.indexOf('live') === -1) {
+      tradeVolume({startTime:startTime, endTime:endTime, ex:ex}, callback);
+    } else {
+      callback(err, row);
+    }
+  });
+  
+  /*
   if (CACHE) {
-    cacheKey = "TM:" + ex.currency;
-    if (ex.issuer) cacheKey += "."+ex.issuer;
-    cacheKey += ":hist:"+startTime.unix()+":"+endTime.unix();
+    rowkey = "TM:" + ex.currency;
+    if (ex.issuer) rowkey += "."+ex.issuer;
+    rowkey += ":hist:"+startTime.unix()+":"+endTime.unix();
     
  
-    redis.get(cacheKey, function(error, response){
+    redis.get(rowkey, function(error, response){
       if (error)                      return callback("Redis - " + error);
       if (response && params.history) return callback(null, true);
       else if (response)              return callback(null, JSON.parse(response));  
@@ -166,6 +168,7 @@ function topMarkets(params, callback) {
     
   } else tradeVolume({startTime:startTime, endTime:endTime, ex:ex}, callback);
   
+  8/
 /*  
   function fromCouch() {
     //prepare results to send back
@@ -260,7 +263,7 @@ function topMarkets(params, callback) {
         response.components   = pairs;
           
         if (CACHE) {
-          cacheResponse (cacheKey, response);
+          cacheResponse (rowkey, response);
         }
         
         if (params.history) callback(null, false);

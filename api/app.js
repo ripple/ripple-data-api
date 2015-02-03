@@ -42,7 +42,10 @@ statsd = new StatsD({
 
 //global hbase client
 hbase = new HBase(config.hbase);
-hbase.connect();
+hbase.connect().then(function(){
+  //initialize the metrics data
+  require('./library/metrics').init();
+});
 
 db    = require('./library/couchClient')({
   url : DBconfig.protocol+
@@ -203,9 +206,6 @@ if (CACHE) {
       winston.error("Redis - " + err);
       CACHE = false; //turn it off if its not working
     }); 
-    
-    //initialize the metrics data
-    require('./library/metrics').init();
 
     //initialize historical metrics and associated cron jobs
     require('./library/history').init(); 
