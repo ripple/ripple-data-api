@@ -7,7 +7,7 @@ var http     = require('http');
 var https    = require('https');
 var gateways = require('./routes/gateways').Gateways;
 var logos    = require('./routes/gateways').Logos;
-var HBase    = require('./library/hbase/client');
+var HBase    = require('./library/hbase-thrift');
 
 var maxSockets;
 
@@ -41,7 +41,9 @@ statsd = new StatsD({
 });
 
 //global hbase client
-hbase = new HBase(config.hbase).connect();
+hbase = new HBase(config.hbase);
+hbase.connect();
+
 db    = require('./library/couchClient')({
   url : DBconfig.protocol+
     '://' + DBconfig.username + 

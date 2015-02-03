@@ -1,7 +1,9 @@
 var moment = require('moment');
 var tools  = require('../utils');
 var ripple = require('ripple-lib');
-    
+   
+var PREFIX = 'beta2_';
+
 var intervals = {
   minute : [1,5,15,30],
   hour   : [1,2,4],
@@ -95,8 +97,9 @@ module.exports = function (params, callback) {
  */
 
 function getUnreduced(options, params, callback) {
-  var base    = options.base    + (params.base.issuer ? '.' + params.base.issuer : '');
-  var counter = options.counter + (params.counter.issuer ? '.' + params.counter.issuer : '');
+  var table   = PREFIX + 'exchanges';
+  var base    = options.base    + '|' + (params.base.issuer || '');
+  var counter = options.counter + '|' + (params.counter.issuer || '');
   var keyBase;
   
   options.descending = params.descending || false; 
@@ -105,41 +108,38 @@ function getUnreduced(options, params, callback) {
   options.limit      = params.limit  || 500;
 
   if (base < counter) {
-    keyBase = base + ':' + counter;
-    options.invert  = true;
+    keyBase = base + '|' + counter;
 
   } else {
-    keyBase = counter + ':' + base;
+    keyBase = counter + '|' + base;
+    options.invert  = true;
   }
   
-  var view = {
-    startkey   : [keyBase].concat(options.time.start.toArray().slice(0,6)),
-    endkey     : [keyBase].concat(options.time.end.toArray().slice(0,6)),
-    reduce     : false,
-    descending : options.descending,
+  hbase.getScan({
+    table      : table,
+    stopRow    : keyBase + '|' + tools.formatTime(options.time.start),
+    startRow   : keyBase + '|' + tools.formatTime(options.time.end),
+    descending : false,
     limit      : options.limit,
-    offset     : options.offset
-  };
-  
-  db.view("offersExercisedV3", "v2", view, function (err, resp){        
+  }, function (err, resp) {
     var rows = [unreducedHeader];
-    
     if (err) {
-      callback ('CouchDB - ' + err);  
+      callback(err);
       return;
     }
     
-    resp.rows.forEach(function(row){
-      var time = row.key ? row.key.slice(1) : row.value[5];
+    resp.forEach(function(row){
+      var key = row.rowkey.split('|');
+      
       rows.push([
-        moment.utc(time).format(),
-        row.value[2],         //price
-        row.value[1],         //get amount
-        row.value[0],         //pay amount
-        row.value[3],         //account
-        row.value[4],         //counterparty
-        row.value[6],         //tx hash
-        parseInt(row.id, 10)  //ledger index
+        tools.unformatTime(key[4]).format(),
+        parseFloat(row.rate, 10), //price
+        parseFloat(row.base_amount, 10), //get amount
+        parseFloat(row.counter_amount, 10), //pay amount
+        row.buyer,         //account
+        row.seller,         //counterparty
+        row.tx_hash,         //tx hash
+        parseInt(row.ledger_index, 10)  //ledger index
       ]);  
     });
     
@@ -154,18 +154,87 @@ function getUnreduced(options, params, callback) {
  */
 
 function getReduced(options, params, callback) {
-  var base    = options.base    + (params.base.issuer ? '.' + params.base.issuer : '');
-  var counter = options.counter + (params.counter.issuer ? '.' + params.counter.issuer : '');
+  var table   = PREFIX + 'exchanges';
+  var base    = options.base    + '|' + (params.base.issuer || '');
+  var counter = options.counter + '|' + (params.counter.issuer || '');
   var keyBase;
+  
+  options.descending = params.descending || false; 
 
   if (base < counter) {
-    keyBase = base + ':' + counter;
-    options.invert = true;
+    keyBase = base + '|' + counter;
 
   } else {
-    keyBase = counter + ':' + base;
+    keyBase = counter + '|' + base;
+    options.invert  = true;
+
   }
   
+  hbase.getScan({
+    table      : table,
+    startRow   : keyBase + '|' + tools.formatTime(options.time.start),
+    stopRow    : keyBase + '|' + tools.formatTime(options.time.end),
+  }, function (err, resp) {
+    var reduced = {
+      open  : 0,
+      high  : 0,
+      low   : Infinity,
+      close : 0,
+      base_amount : 0,
+      counter_amount : 0,
+      count : 0
+    };
+    
+    var open;
+    var close;    
+    
+    if (err) {
+      callback(err);
+      return;
+    }
+    
+    resp.forEach(function(row) {    
+      var price   = parseFloat(row.rate, 10);
+      var base    = parseFloat(row.base_amount, 10);
+      var counter = parseFloat(row.counter_amount, 10); 
+
+      if (options.base    === 'XRP' && base < 0.0001)    return;
+      if (options.counter === 'XRP' && counter < 0.0001) return;
+      
+      reduced.base_amount    += base;
+      reduced.counter_amount += counter; 
+      
+      if (price < reduced.low)  reduced.low  = price;
+      if (price > reduced.high) reduced.high = price;
+    });
+    
+    open  = resp[0].rowkey.split('|');
+    close = resp[resp.length-1].rowkey.split('|');
+    
+    reduced.open_time  = tools.unformatTime(open[4]);
+    reduced.close_time = tools.unformatTime(close[4]);
+    
+    reduced.open  = parseFloat(resp[0].rate, 10);
+    reduced.close = parseFloat(resp[resp.length -1].rate, 10); 
+    reduced.count = resp.length;
+    
+    handleResponse([
+      [header], [
+      options.time.start,
+      reduced.base_amount,
+      reduced.counter_amount,
+      reduced.count,
+      reduced.open,
+      reduced.high,
+      reduced.low,
+      reduced.close,
+      reduced.counter_amount / reduced.base_amount,
+      reduced.open_time,
+      reduced.close_time
+    ]], options, callback);
+  });
+  
+  /*
   var view = {
     startkey   : [keyBase].concat(options.time.start.toArray().slice(0,6)),
     endkey     : [keyBase].concat(options.time.end.toArray().slice(0,6)),
@@ -197,6 +266,7 @@ function getReduced(options, params, callback) {
 
     handleResponse(rows, options, callback);
   });
+  */
 }
 
 /**
@@ -244,7 +314,7 @@ function getAggregated (options, params, callback) {
     return;
   }
   
-  table = 'beta2_agg_exchange_' + multiple + interval;
+  table = PREFIX + 'agg_exchange_' + multiple + interval;
   start = tools.getAlignedTime(options.time.start, interval, multiple);
   end   = tools.getAlignedTime(options.time.end, interval, multiple).add(multiple, interval);
   
@@ -255,7 +325,12 @@ function getAggregated (options, params, callback) {
 
   }
   
-  hbase.getRows(table, keys, function (err, resp) {
+  hbase.getScan({
+    table      : table,
+    startRow   : keyBase + '|' + tools.formatTime(options.time.start),
+    stopRow    : keyBase + '|' + tools.formatTime(options.time.end),
+    descending : true
+  }, function (err, resp) {
     var rows = [header];
     if (err) {
       callback(err);
@@ -264,7 +339,7 @@ function getAggregated (options, params, callback) {
     
     resp.forEach(function(row) {
       rows.push([
-        row.start, //start time
+        row.start || row.start_time, //start time
         parseFloat(row.base_volume),
         parseFloat(row.counter_volume),
         parseInt(row.count, 10),
@@ -280,6 +355,34 @@ function getAggregated (options, params, callback) {
     
     handleResponse(rows, options, callback);
   });
+ 
+  /*
+  hbase.getRows(table, keys, function (err, resp) {
+    var rows = [header];
+    if (err) {
+      callback(err);
+      return;
+    }
+    
+    resp.forEach(function(row) {
+      rows.push([
+        row.start || row.start_time, //start time
+        parseFloat(row.base_volume),
+        parseFloat(row.counter_volume),
+        parseInt(row.count, 10),
+        parseFloat(row.open),
+        parseFloat(row.high),
+        parseFloat(row.low),
+        parseFloat(row.close),
+        parseFloat(row.vwap),
+        moment.unix(row.open_time).utc(),  //open  time
+        moment.unix(row.close_time).utc(), //close time        
+      ]);
+    });
+    
+    handleResponse(rows, options, callback);
+  });
+  */
 }
 
 /**
