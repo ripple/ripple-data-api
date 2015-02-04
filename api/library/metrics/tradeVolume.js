@@ -141,7 +141,7 @@ function tradeVolume(params, callback) {
   rowkey    = ex.currency.toUpperCase() + '|' + (ex.issuer || '');
   
   if (!startTime && !endTime) {
-    startTime = moment.utc().subtract('hours', 24);
+    startTime = moment.utc().subtract(24, 'hours');
     endTime   = moment.utc();
     rowkey   += '|live';
     

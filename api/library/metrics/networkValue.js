@@ -103,7 +103,7 @@ function totalNetworkValue (params, callback) {
         if (finalRate) finalize();
         else {
           getConversion({
-            startTime : moment.utc(params.time).subtract("hours",24),
+            startTime : moment.utc(params.time).subtract(24, "hours"),
             endTime   : params.time,
             currency  : ex.currency,
             issuer    : ex.issuer
@@ -160,7 +160,7 @@ function totalNetworkValue (params, callback) {
       offersExercised({
         base      : assetPair.base,
         counter   : assetPair.counter,
-        startTime : moment.utc(params.time).subtract("hours",24),
+        startTime : moment.utc(params.time).subtract(24, "hours"),
         endTime   : params.time,
         timeIncrement: 'all'
         

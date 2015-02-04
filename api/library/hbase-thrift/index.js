@@ -66,6 +66,7 @@ HbaseClient.prototype.connect = function () {
   //time, fail the promise
   return new Promise (function(resolve, reject) {
     self._connection.once('connect', function() {
+      self.hbase = thrift.createClient(HBase,self._connection);
       resolve(true);
     });
 
@@ -116,7 +117,8 @@ HbaseClient.prototype.getScan = function (options, callback) {
   
   //check connection
   if (!self.isConnected()) {
-    return Promise.reject('not connected');
+    callback('not connected');
+    return;
   }
   
   //default to reversed, 
@@ -287,6 +289,28 @@ HbaseClient.prototype.putRow = function (table, rowKey, data) {
   });
 }
 
+HbaseClient.prototype.getRow = function (table, rowkey, callback) { 
+  var self = this;
+  
+  //check connection
+  //check connection
+  if (!self.isConnected()) {
+    callback('not connected');
+    return;
+  }
+  
+  self.hbase.getRow(table, rowkey, null, function (err, rows) {
+    var row = null;
+    
+    if (rows) {
+      rows = formatRows(rows);
+      row  = rows[0];
+    }
+    
+    callback(err, row);
+  });
+};
+
 /**
  * prepareColumns
  * create an array of columnValue
@@ -334,19 +358,6 @@ HbaseClient.prototype._prepareColumns = function (data) {
       value     : value
     });
   }
-};
-
-HbaseClient.prototype.getRow = function (table, rowkey, callback) { 
-  this.hbase.getRow(table, rowkey, null, function (err, rows) {
-    var row = null;
-    
-    if (rows) {
-      rows = formatRows(rows);
-      row  = rows[0];
-    }
-    
-    callback(err, row);
-  });
 };
 
                     

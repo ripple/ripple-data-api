@@ -53,7 +53,7 @@ function totalValueSent(params, callback) {
   if (ex.issuer) cacheKey += "."+ex.issuer;
   
   if (!startTime && !endTime) {
-    startTime = moment.utc().subtract('hours', 24);
+    startTime = moment.utc().subtract(24, 'hours');
     endTime   = moment.utc();
     cacheKey += ':live';
     

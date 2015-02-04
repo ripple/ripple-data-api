@@ -139,7 +139,7 @@ function accountsCreated(params, callback) {
 /* below is a workaround for the fact that we dont have ledger history
    before ledger #32570 */ 
    
-    var genTime      = moment("2013-Jan-01 03:21:10+00:00"); //date of genesis ledger
+    var genTime      = moment('2013-01-01T03:21:10+00:00'); //date of genesis ledger
     var nGenAccounts = 136;
 
     if (viewOpts.reduce === false) {

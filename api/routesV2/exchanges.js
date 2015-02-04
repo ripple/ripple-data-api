@@ -208,15 +208,24 @@ function getReduced(options, params, callback) {
       if (price > reduced.high) reduced.high = price;
     });
     
-    open  = resp[0].rowkey.split('|');
-    close = resp[resp.length-1].rowkey.split('|');
+    if (resp[0]) {
+      open  = resp[0].rowkey.split('|');
+      close = resp[resp.length-1].rowkey.split('|');
+
+      reduced.open_time  = tools.unformatTime(open[4]);
+      reduced.close_time = tools.unformatTime(close[4]);
+
+      reduced.open  = parseFloat(resp[0].rate, 10);
+      reduced.close = parseFloat(resp[resp.length -1].rate, 10); 
+      reduced.count = resp.length;
     
-    reduced.open_time  = tools.unformatTime(open[4]);
-    reduced.close_time = tools.unformatTime(close[4]);
-    
-    reduced.open  = parseFloat(resp[0].rate, 10);
-    reduced.close = parseFloat(resp[resp.length -1].rate, 10); 
-    reduced.count = resp.length;
+    } else {
+      reduced.open       = 0;
+      reduced.close      = 0;
+      reduced.open_time  = 0;
+      reduced.close_time = 0;
+      reduced.count      = 0;
+    }
     
     handleResponse([
       [header], [
