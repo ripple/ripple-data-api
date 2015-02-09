@@ -2,6 +2,36 @@ var  _     = require('lodash');
 var moment = require('moment');
 var gatewayList = require('./gateways.json'); 
  
+
+exports.getGatewaysByCurrency = function () {
+  var results = { };
+  gatewayList.forEach(function(gateway){
+    
+    if (gateway.status !== 'active') {
+      return;
+    }
+    
+    gateway.accounts.forEach(function(acct){
+      for (currency in acct.currencies) {
+        if (!results[currency]) {
+          results[currency] = [ ];
+        }
+        
+        var g = {
+          name     : gateway.name,
+          account  : acct.address,
+          featured : acct.currencies[currency].featured,
+          label    : acct.currencies[currency].label
+        }
+        
+        results[currency].push(g);
+      }
+    });
+  });
+
+  return results;  
+};
+
 /**
  *  gatewayNameToAddress translates a given name and, 
  *  optionally, a currency to its corresponding ripple address or
@@ -35,7 +65,27 @@ exports.gatewayNameToAddress = function ( name, currency ) {
 
   return gatewayAddress;
 }
- 
+
+/**
+ * getGateway
+ * get gateway details
+ * from an issuer address
+ */
+
+exports.getGateway = function (address) {
+  var gateway;
+  
+  for (var i=0; i<gatewayList.length; i++) {
+    gateway = gatewayList[i];
+    
+    for (var j=0; j<gateway.accounts.length; j++) {
+
+      if (gateway.accounts[j].address === address) {
+        return gateway;
+      }
+    }
+  }
+}
 
 /**
  *  getGatewayName returns the name

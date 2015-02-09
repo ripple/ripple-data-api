@@ -4,6 +4,8 @@ var config     = require('../deployment.environments.json')[env];
 var StatsD     = require('node-statsd').StatsD;
 var http       = require('http');
 var https      = require('https');
+var gateways   = require('./routes/gateways').Gateways;
+var logos      = require('./routes/gateways').Logos;
 var maxSockets;
 
 var posix = require('posix');
@@ -18,11 +20,11 @@ console.log("file descriptor limits:", posix.getrlimit('nofile'));
 //console.log("new file descriptor limits:", posix.getrlimit('nofile'));
 
 //local vars
-var winston = require('winston'),
-  express   = require('express'),
-  moment    = require('moment'),
-  monitor   = require('./library/monitor'),
-  app       = express();
+var winston = require('winston');
+var express = require('express');
+var moment  = require('moment');
+var monitor = require('./library/monitor');
+var app     = express();
   
 if (!config)   return winston.info('Invalid environment: ' + env);
 if (!DBconfig) return winston.info('Invalid DB config: '+env);
@@ -85,7 +87,7 @@ var apiRoutes = {
   'accounttrust'            : require("./routes/accountTrust"),
   'transactionstats'        : require("./routes/transactionStats"),
   'ledgersclosed'           : require("./routes/ledgersClosed"),
-  'historicalmetrics'       : require("./routes/historicalMetrics")
+  'historicalmetrics'       : require("./routes/historicalMetrics"),
 };
 
 
@@ -103,6 +105,8 @@ var allowCrossDomain = function(req, res, next) {
 app.use(allowCrossDomain);
 app.use(express.json());
 app.use(express.urlencoded());
+app.get('/api/gateways/:gateway?', gateways);
+app.get('/api/gateways/:gateway/logos/:filename?', logos);
 app.get('/health', function (req, res){
   res.send(200, '');
 });
