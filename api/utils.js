@@ -1,5 +1,6 @@
-var  _     = require('lodash');
-var moment = require('moment');
+var  _          = require('lodash');
+var moment      = require('moment');
+var UInt160     = require('ripple-lib').UInt160;
 var gatewayList = require('./gateways.json'); 
  
 
@@ -12,7 +13,7 @@ exports.getGatewaysByCurrency = function () {
     }
     
     gateway.accounts.forEach(function(acct){
-      for (currency in acct.currencies) {
+      for (var currency in acct.currencies) {
         if (!results[currency]) {
           results[currency] = [ ];
         }
@@ -74,18 +75,34 @@ exports.gatewayNameToAddress = function ( name, currency ) {
 
 exports.getGateway = function (address) {
   var gateway;
+  var name;
+  var normalized;
+  
+  if (!address) return;
+  
+  if (address[0] !== 'r' || !UInt160.is_valid(address)) {
+    name    = address.toLowerCase().replace(/\W/g, '');
+    address = null;
+  }
   
   for (var i=0; i<gatewayList.length; i++) {
     gateway = gatewayList[i];
     
     for (var j=0; j<gateway.accounts.length; j++) {
 
-      if (gateway.accounts[j].address === address) {
+      if (address && gateway.accounts[j].address === address) {
         return gateway;
+        
+      } else if (!address) {
+        normalized = gateway.name.toLowerCase().replace(/\W/g, '');
+        
+        if (name === normalized) {
+          return gateway;
+        }
       }
     }
   }
-}
+};
 
 /**
  *  getGatewayName returns the name

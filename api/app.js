@@ -5,7 +5,7 @@ var StatsD     = require('node-statsd').StatsD;
 var http       = require('http');
 var https      = require('https');
 var gateways   = require('./routes/gateways').Gateways;
-var logos      = require('./routes/gateways').Logos;
+var logos      = require('./routes/gateways').Assets;
 var maxSockets;
 
 var posix = require('posix');
@@ -106,7 +106,7 @@ app.use(allowCrossDomain);
 app.use(express.json());
 app.use(express.urlencoded());
 app.get('/api/gateways/:gateway?', gateways);
-app.get('/api/gateways/:gateway/logos/:filename?', logos);
+app.get('/api/gateways/:gateway/assets/:filename?', logos);
 app.get('/health', function (req, res){
   res.send(200, '');
 });

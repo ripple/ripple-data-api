@@ -72,7 +72,6 @@
       "address": "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q",
       "currencies": {
         "USD" : { "featured" : true },
-        "BTC" : { "featured" : true },
         "EUR" : { "featured" : true },
         "GBP" : { "featured" : false }
       }
@@ -82,13 +81,25 @@
       "rQsAshmCjPsxkYnxY9GnmBTAeEUaePDAie",
       "rEk9i7G8ac1kUs1mFjtze1qjj9FzGvXAG",
       "rsTQ7iwrCik9Ugc3zbpcbo2K3SbAdYJss1",
-      "rwm98fCBS8tV1YB8CGho8zUPW5J7N41th2",
-      "rnd8KJ4qeip6FPJvC1fyv82nW2Lm8C8KjQ",
-      "r5ymZSvtdNgbKVc8ay1Jhmq5f9QgnvEtj"
+      "rnd8KJ4qeip6FPJvC1fyv82nW2Lm8C8KjQ"
     ],
     "domain": "snapswap.us",
     "status": "active"
   }, {
+    "name": "BTC 2 Ripple",
+    "accounts": [{
+      "address": "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q",
+      "currencies": {"BTC" : { "featured" : true }}
+    }],
+    "hotwallets": [
+      "rQsAshmCjPsxkYnxY9GnmBTAeEUaePDAie",
+      "rEk9i7G8ac1kUs1mFjtze1qjj9FzGvXAG",
+      "rwm98fCBS8tV1YB8CGho8zUPW5J7N41th2",
+      "r5ymZSvtdNgbKVc8ay1Jhmq5f9QgnvEtj"
+    ],
+    "domain": "btc2ripple.com",
+    "status": "active"
+  }, {    
     "name": "The Rock Trading",
     "accounts": [{
         "address": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
