@@ -1,4 +1,3 @@
-
 var env      = process.env.NODE_ENV || "development";
 var DBconfig = require('../db.config.json')[env];
 var config   = require('../deployment.environments.json')[env];
@@ -6,7 +5,7 @@ var StatsD   = require('node-statsd').StatsD;
 var http     = require('http');
 var https    = require('https');
 var gateways = require('./routes/gateways').Gateways;
-var logos    = require('./routes/gateways').Logos;
+var assets   = require('./routes/gateways').Assets;
 var HBase    = require('./library/hbase-thrift');
 
 var maxSockets;
@@ -116,7 +115,7 @@ app.use(allowCrossDomain);
 app.use(express.json());
 app.use(express.urlencoded());
 app.get('/api/gateways/:gateway?', gateways);
-app.get('/api/gateways/:gateway/logos/:filename?', logos);
+app.get('/api/gateways/:gateway/assets/:filename?', assets);
 app.get('/health', function (req, res){
   res.send(200, '');
 });
