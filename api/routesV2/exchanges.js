@@ -1,8 +1,6 @@
 var moment = require('moment');
 var tools  = require('../utils');
 var ripple = require('ripple-lib');
-   
-var PREFIX = 'beta2_';
 
 var intervals = {
   minute : [1,5,15,30],
@@ -12,17 +10,17 @@ var intervals = {
 }
 
 var header = [
-  'startTime', 
-  'baseVolume', 
-  'counterVolume', 
-  'count', 
-  'open',      
-  'high',       
-  'low',           
-  'close', 
-  'vwap',      
-  'openTime',   
-  'closeTime',     
+  'startTime',
+  'baseVolume',
+  'counterVolume',
+  'count',
+  'open',
+  'high',
+  'low',
+  'close',
+  'vwap',
+  'openTime',
+  'closeTime',
 ];
 
 var unreducedHeader = [
@@ -50,7 +48,7 @@ module.exports = function (params, callback) {
 
   } else if (!params.counter || !params.counter.currency) {
     callback('please specify a base currency');
-    return;      
+    return;
   }
 
   options.base    = params.base.currency.toUpperCase();
@@ -64,10 +62,10 @@ module.exports = function (params, callback) {
     callback('please specifiy a counter issuer');
     return;
   }
-  
+
   //Parse start and end times
   options.time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
-  
+
   if (options.time.error) {
     callback(options.time.error);
     return;
@@ -75,19 +73,19 @@ module.exports = function (params, callback) {
     callback("startTime and endTime are required.");
     return;
   }
-  
+
   //unaggregated results from couchdb
   if (params.reduce === false) {
     getUnreduced(options, params, callback);
-  
-  //sum total aggregation from couchdb  
+
+  //sum total aggregation from couchdb
   } else if (params.timeIncrement === 'all') {
     getReduced(options, params, callback);
-  
+
   //aggregated intervals from hbase
   } else {
     getAggregated(options, params, callback);
-  }    
+  }
 }
 
 /**
@@ -97,12 +95,12 @@ module.exports = function (params, callback) {
  */
 
 function getUnreduced(options, params, callback) {
-  var table   = PREFIX + 'exchanges';
+  var table   = 'exchanges';
   var base    = options.base    + '|' + (params.base.issuer || '');
   var counter = options.counter + '|' + (params.counter.issuer || '');
   var keyBase;
-  
-  options.descending = params.descending || false; 
+
+  options.descending = params.descending || false;
   options.unreduced  = true;
   options.offset     = params.offset || 0;
   options.limit      = params.limit  || 500;
@@ -114,7 +112,7 @@ function getUnreduced(options, params, callback) {
     keyBase = counter + '|' + base;
     options.invert  = true;
   }
-  
+
   hbase.getScan({
     table      : table,
     stopRow    : keyBase + '|' + tools.formatTime(options.time.start),
@@ -127,10 +125,10 @@ function getUnreduced(options, params, callback) {
       callback(err);
       return;
     }
-    
+
     resp.forEach(function(row){
       var key = row.rowkey.split('|');
-      
+
       rows.push([
         tools.unformatTime(key[4]).format(),
         parseFloat(row.rate, 10), //price
@@ -140,9 +138,9 @@ function getUnreduced(options, params, callback) {
         row.seller,         //counterparty
         row.tx_hash,         //tx hash
         parseInt(row.ledger_index, 10)  //ledger index
-      ]);  
+      ]);
     });
-    
+
     handleResponse(rows, options, callback);
   });
 }
@@ -154,12 +152,12 @@ function getUnreduced(options, params, callback) {
  */
 
 function getReduced(options, params, callback) {
-  var table   = PREFIX + 'exchanges';
+  var table   = 'exchanges';
   var base    = options.base    + '|' + (params.base.issuer || '');
   var counter = options.counter + '|' + (params.counter.issuer || '');
   var keyBase;
-  
-  options.descending = params.descending || false; 
+
+  options.descending = params.descending || false;
 
   if (base < counter) {
     keyBase = base + '|' + counter;
@@ -169,7 +167,7 @@ function getReduced(options, params, callback) {
     options.invert  = true;
 
   }
-  
+
   hbase.getScan({
     table      : table,
     startRow   : keyBase + '|' + tools.formatTime(options.time.start),
@@ -184,30 +182,30 @@ function getReduced(options, params, callback) {
       counter_amount : 0,
       count : 0
     };
-    
+
     var open;
-    var close;    
-    
+    var close;
+
     if (err) {
       callback(err);
       return;
     }
-    
-    resp.forEach(function(row) {    
+
+    resp.forEach(function(row) {
       var price   = parseFloat(row.rate, 10);
       var base    = parseFloat(row.base_amount, 10);
-      var counter = parseFloat(row.counter_amount, 10); 
+      var counter = parseFloat(row.counter_amount, 10);
 
       if (options.base    === 'XRP' && base < 0.0001)    return;
       if (options.counter === 'XRP' && counter < 0.0001) return;
-      
+
       reduced.base_amount    += base;
-      reduced.counter_amount += counter; 
-      
+      reduced.counter_amount += counter;
+
       if (price < reduced.low)  reduced.low  = price;
       if (price > reduced.high) reduced.high = price;
     });
-    
+
     if (resp[0]) {
       open  = resp[0].rowkey.split('|');
       close = resp[resp.length-1].rowkey.split('|');
@@ -216,9 +214,9 @@ function getReduced(options, params, callback) {
       reduced.close_time = tools.unformatTime(close[4]);
 
       reduced.open  = parseFloat(resp[0].rate, 10);
-      reduced.close = parseFloat(resp[resp.length -1].rate, 10); 
+      reduced.close = parseFloat(resp[resp.length -1].rate, 10);
       reduced.count = resp.length;
-    
+
     } else {
       reduced.open       = 0;
       reduced.close      = 0;
@@ -226,7 +224,7 @@ function getReduced(options, params, callback) {
       reduced.close_time = 0;
       reduced.count      = 0;
     }
-    
+
     handleResponse([
       [header], [
       options.time.start,
@@ -242,21 +240,21 @@ function getReduced(options, params, callback) {
       reduced.close_time
     ]], options, callback);
   });
-  
+
   /*
   var view = {
     startkey   : [keyBase].concat(options.time.start.toArray().slice(0,6)),
     endkey     : [keyBase].concat(options.time.end.toArray().slice(0,6)),
   };
-  
-  db.view("offersExercisedV3", "v2", view, function (err, resp){ 
+
+  db.view("offersExercisedV3", "v2", view, function (err, resp){
     var rows = [header];
-    
+
     if (err || !resp || !resp.rows) {
-      callback ('CouchDB - ' + err);  
+      callback ('CouchDB - ' + err);
       return;
     }
-  
+
     if (resp.rows.length) {
       rows.push([
         moment.utc(options.time.start).format(), //start time
@@ -293,47 +291,47 @@ function getAggregated (options, params, callback) {
   var interval;
   var multiple;
   var table;
-  
+
   if (base < counter) {
     keyBase = base + '|' + counter;
-    
+
   } else {
     keyBase = counter + '|' + base;
     options.invert = true;
   }
-  
+
   if (params.interval) {
-    multiple = parseInt(params.interval.match(/\d+/)[0], 10); 
+    multiple = parseInt(params.interval.match(/\d+/)[0], 10);
     interval = params.interval.match(/[a-z]+/i)[0];
-    
+
     interval = params.timeIncrement || 'hour';
-    
+
   } else {
     multiple = params.timeMultiple  || 1;
     interval = params.timeIncrement || 'hour';
   }
-  
+
   if (!intervals[interval]) {
     callback('invalid time increment');
     return;
   }
-  
+
   if (intervals[interval].indexOf(multiple) === -1) {
     callback('invalid multiple');
     return;
   }
-  
-  table = PREFIX + 'agg_exchange_' + multiple + interval;
+
+  table = 'agg_exchange_' + multiple + interval;
   start = tools.getAlignedTime(options.time.start, interval, multiple);
   end   = tools.getAlignedTime(options.time.end, interval, multiple).add(multiple, interval);
-  
+
   while (end.diff(start)>0) {
     rowKey = keyBase + '|' + tools.formatTime(start);
     keys.push(rowKey);
     start.add(multiple, interval);
 
   }
-  
+
   hbase.getScan({
     table      : table,
     startRow   : keyBase + '|' + tools.formatTime(options.time.start),
@@ -345,7 +343,7 @@ function getAggregated (options, params, callback) {
       callback(err);
       return;
     }
-    
+
     resp.forEach(function(row) {
       rows.push([
         row.start || row.start_time, //start time
@@ -358,13 +356,13 @@ function getAggregated (options, params, callback) {
         parseFloat(row.close),
         parseFloat(row.vwap),
         moment.unix(row.open_time).utc(),  //open  time
-        moment.unix(row.close_time).utc(), //close time        
+        moment.unix(row.close_time).utc(), //close time
       ]);
     });
-    
+
     handleResponse(rows, options, callback);
   });
- 
+
   /*
   hbase.getRows(table, keys, function (err, resp) {
     var rows = [header];
@@ -372,7 +370,7 @@ function getAggregated (options, params, callback) {
       callback(err);
       return;
     }
-    
+
     resp.forEach(function(row) {
       rows.push([
         row.start || row.start_time, //start time
@@ -385,10 +383,10 @@ function getAggregated (options, params, callback) {
         parseFloat(row.close),
         parseFloat(row.vwap),
         moment.unix(row.open_time).utc(),  //open  time
-        moment.unix(row.close_time).utc(), //close time        
+        moment.unix(row.close_time).utc(), //close time
       ]);
     });
-    
+
     handleResponse(rows, options, callback);
   });
   */
@@ -400,14 +398,14 @@ function getAggregated (options, params, callback) {
  */
 
 function handleResponse (rows, options, callback) {
-  var apiRes = {}; 
-  
+  var apiRes = {};
+
   //invert the base and counter currencies
   if (options.invert) {
     rows = invertPair(rows, options.unreduced);
   }
 
-  //this doesnt really belong here, it should have been calculated in 
+  //this doesnt really belong here, it should have been calculated in
   //in the couchDB view, but until that day, this works pretty well.
   rows = handleInterest(rows, options);
 
@@ -462,15 +460,15 @@ function handleResponse (rows, options, callback) {
           vwap          : row[8],
           partial       : row[11],
         };
-      });          
+      });
     }
 
     callback (null, apiRes);
 
-  //no format or incorrect format specified  
+  //no format or incorrect format specified
   } else {
-    return callback (null, rows);      
-  }    
+    return callback (null, rows);
+  }
 }
 
 /**
@@ -488,11 +486,11 @@ function handleInterest (rows, options) {
         if (!i) return;
 
         //apply interest to the base amount
-        amount = ripple.Amount.from_human(row[2] + " " + options.base).applyInterest(new Date(row[0])).to_human(); 
-        pct   = row[2]/amount; 
+        amount = ripple.Amount.from_human(row[2] + " " + options.base).applyInterest(new Date(row[0])).to_human();
+        pct   = row[2]/amount;
 
         rows[i][2]  = amount;
-        rows[i][1] *= pct;         
+        rows[i][1] *= pct;
       });
 
     } else {
@@ -500,7 +498,7 @@ function handleInterest (rows, options) {
         if (!i) return;
 
         //apply interest to the base volume
-        value = ripple.Amount.from_human(row[1] + " " + options.base).applyInterest(new Date(row[0])).to_human(); 
+        value = ripple.Amount.from_human(row[1] + " " + options.base).applyInterest(new Date(row[0])).to_human();
         pct   = row[1]/value;
 
         //adjust the prices
@@ -518,19 +516,19 @@ function handleInterest (rows, options) {
         if (!i) return;
 
         //apply interest to the counter amount
-        amount = ripple.Amount.from_human(row[3] + " " + options.counter).applyInterest(new Date(row[0])).to_human(); 
-        pct   = amount/row[3]; 
+        amount = ripple.Amount.from_human(row[3] + " " + options.counter).applyInterest(new Date(row[0])).to_human();
+        pct   = amount/row[3];
 
         rows[i][3]  = amount;
-        rows[i][1] *= pct;         
+        rows[i][1] *= pct;
       });
 
-    } else {         
+    } else {
       rows.forEach(function(row, i){
         if (!i) return;
 
         //apply interest to the counter volume
-        value = ripple.Amount.from_human(row[2] + " " + options.counter).applyInterest(new Date(row[0])).to_human(); 
+        value = ripple.Amount.from_human(row[2] + " " + options.counter).applyInterest(new Date(row[0])).to_human();
         pct   = value/row[2];
 
         //adjust the prices
@@ -541,7 +539,7 @@ function handleInterest (rows, options) {
         rows[i][7] *= pct;
         rows[i][8] *= pct;
       });
-    }      
+    }
   }
 
   return rows;
@@ -556,9 +554,9 @@ function invertPair (rows, unreduced) {
   var swap;
   var i;
 
-  if (unreduced) {      
+  if (unreduced) {
     //skip the first, invert the rest
-    for (i=1; i<rows.length; i++) { 
+    for (i=1; i<rows.length; i++) {
       rows[i][1] = 1/rows[i][1];
 
       //swap base and counter vol
@@ -578,15 +576,15 @@ function invertPair (rows, unreduced) {
     for (i=1; i<rows.length; i++) {
 
       //swap base and counter vol
-      swap = rows[i][1]; 
+      swap = rows[i][1];
       rows[i][1] = rows[i][2];
-      rows[i][2] = swap; 
+      rows[i][2] = swap;
       rows[i][4] = 1/rows[i][4];
 
       //swap high and low
-      swap = 1/rows[i][5]; 
+      swap = 1/rows[i][5];
       rows[i][5] = 1/rows[i][6];
-      rows[i][6] = swap; 
+      rows[i][6] = swap;
       rows[i][7] = 1/rows[i][7];
       rows[i][8] = 1/rows[i][8];
     }
