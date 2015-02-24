@@ -95,32 +95,17 @@ module.exports = function (params, callback) {
  */
 
 function getUnreduced(options, params, callback) {
-  var table   = 'exchanges';
-  var base    = options.base    + '|' + (params.base.issuer || '');
-  var counter = options.counter + '|' + (params.counter.issuer || '');
-  var keyBase;
 
-  options.descending = params.descending || false;
-  options.unreduced  = true;
-  options.offset     = params.offset || 0;
-  options.limit      = params.limit  || 500;
+  hbase.getExchanges({
+    start      : options.time.start,
+    end        : options.time.end,
+    base       : params.base,
+    counter    : params.counter,
+    descending : params.descending || false,
+    limit      : params.limit
+  }, function(err, resp) {
 
-  if (base < counter) {
-    keyBase = base + '|' + counter;
-
-  } else {
-    keyBase = counter + '|' + base;
-    options.invert  = true;
-  }
-
-  hbase.getScan({
-    table      : table,
-    stopRow    : keyBase + '|' + tools.formatTime(options.time.start),
-    startRow   : keyBase + '|' + tools.formatTime(options.time.end),
-    descending : false,
-    limit      : options.limit,
-  }, function (err, resp) {
-    var rows = [unreducedHeader];
+    var rows = [header];
     if (err) {
       callback(err);
       return;
@@ -131,13 +116,13 @@ function getUnreduced(options, params, callback) {
 
       rows.push([
         tools.unformatTime(key[4]).format(),
-        parseFloat(row.rate, 10), //price
-        parseFloat(row.base_amount, 10), //get amount
-        parseFloat(row.counter_amount, 10), //pay amount
-        row.buyer,         //account
-        row.seller,         //counterparty
-        row.tx_hash,         //tx hash
-        parseInt(row.ledger_index, 10)  //ledger index
+        row.rate,
+        row.base_amount,
+        row.counter_amount,
+        row.buyer,  //account
+        row.seller, //counterparty
+        row.tx_hash,
+        parseInt(row.ledger_index, 10)
       ]);
     });
 
@@ -152,128 +137,36 @@ function getUnreduced(options, params, callback) {
  */
 
 function getReduced(options, params, callback) {
-  var table   = 'exchanges';
-  var base    = options.base    + '|' + (params.base.issuer || '');
-  var counter = options.counter + '|' + (params.counter.issuer || '');
-  var keyBase;
 
-  options.descending = params.descending || false;
+  hbase.getExchanges({
+    start      : options.time.start,
+    end        : options.time.end,
+    base       : params.base,
+    counter    : params.counter,
+    reduce     : true
 
-  if (base < counter) {
-    keyBase = base + '|' + counter;
-
-  } else {
-    keyBase = counter + '|' + base;
-    options.invert  = true;
-
-  }
-
-  hbase.getScan({
-    table      : table,
-    startRow   : keyBase + '|' + tools.formatTime(options.time.start),
-    stopRow    : keyBase + '|' + tools.formatTime(options.time.end),
-  }, function (err, resp) {
-    var reduced = {
-      open  : 0,
-      high  : 0,
-      low   : Infinity,
-      close : 0,
-      base_amount : 0,
-      counter_amount : 0,
-      count : 0
-    };
-
-    var open;
-    var close;
+  }, function(err, resp) {
 
     if (err) {
       callback(err);
       return;
     }
 
-    resp.forEach(function(row) {
-      var price   = parseFloat(row.rate, 10);
-      var base    = parseFloat(row.base_amount, 10);
-      var counter = parseFloat(row.counter_amount, 10);
-
-      if (options.base    === 'XRP' && base < 0.0001)    return;
-      if (options.counter === 'XRP' && counter < 0.0001) return;
-
-      reduced.base_amount    += base;
-      reduced.counter_amount += counter;
-
-      if (price < reduced.low)  reduced.low  = price;
-      if (price > reduced.high) reduced.high = price;
-    });
-
-    if (resp[0]) {
-      open  = resp[0].rowkey.split('|');
-      close = resp[resp.length-1].rowkey.split('|');
-
-      reduced.open_time  = tools.unformatTime(open[4]);
-      reduced.close_time = tools.unformatTime(close[4]);
-
-      reduced.open  = parseFloat(resp[0].rate, 10);
-      reduced.close = parseFloat(resp[resp.length -1].rate, 10);
-      reduced.count = resp.length;
-
-    } else {
-      reduced.open       = 0;
-      reduced.close      = 0;
-      reduced.open_time  = 0;
-      reduced.close_time = 0;
-      reduced.count      = 0;
-    }
-
     handleResponse([
       [header], [
       options.time.start,
-      reduced.base_amount,
-      reduced.counter_amount,
-      reduced.count,
-      reduced.open,
-      reduced.high,
-      reduced.low,
-      reduced.close,
-      reduced.counter_amount / reduced.base_amount,
-      reduced.open_time,
-      reduced.close_time
+      resp.base_volume,
+      resp.counter_volume,
+      resp.count,
+      resp.open,
+      resp.high,
+      resp.low,
+      resp.close,
+      resp.counter_amount / resp.base_volume,
+      resp.open_time,
+      resp.close_time
     ]], options, callback);
   });
-
-  /*
-  var view = {
-    startkey   : [keyBase].concat(options.time.start.toArray().slice(0,6)),
-    endkey     : [keyBase].concat(options.time.end.toArray().slice(0,6)),
-  };
-
-  db.view("offersExercisedV3", "v2", view, function (err, resp){
-    var rows = [header];
-
-    if (err || !resp || !resp.rows) {
-      callback ('CouchDB - ' + err);
-      return;
-    }
-
-    if (resp.rows.length) {
-      rows.push([
-        moment.utc(options.time.start).format(), //start time
-        resp.rows[0].value.curr2Volume,
-        resp.rows[0].value.curr1Volume,
-        resp.rows[0].value.numTrades,
-        resp.rows[0].value.open,
-        resp.rows[0].value.high,
-        resp.rows[0].value.low,
-        resp.rows[0].value.close,
-        resp.rows[0].value.curr1Volume / resp.rows[0].value.curr2Volume,
-        moment.utc(resp.rows[0].value.openTime).format(),  //open  time
-        moment.utc(resp.rows[0].value.closeTime).format(), //close time
-      ]);
-    }
-
-    handleResponse(rows, options, callback);
-  });
-  */
 }
 
 /**
@@ -282,62 +175,19 @@ function getReduced(options, params, callback) {
  */
 
 function getAggregated (options, params, callback) {
-  var base    = options.base    + '|' + (params.base.issuer    || '');
-  var counter = options.counter + '|' + (params.counter.issuer || '');
-  var keys    = [];
-  var keyBase;
-  var start;
-  var end;
-  var interval;
-  var multiple;
-  var table;
 
-  if (base < counter) {
-    keyBase = base + '|' + counter;
-
-  } else {
-    keyBase = counter + '|' + base;
-    options.invert = true;
+  if (!params.interval) {
+    params.interval = (params.timeMultiple || 1) + (params.timeIncrement || 'hour');
   }
 
-  if (params.interval) {
-    multiple = parseInt(params.interval.match(/\d+/)[0], 10);
-    interval = params.interval.match(/[a-z]+/i)[0];
+  hbase.getExchanges({
+    interval : params.interval,
+    start    : options.time.start,
+    end      : options.time.end,
+    base     : params.base,
+    counter  : params.counter
+  }, function(err, resp) {
 
-    interval = params.timeIncrement || 'hour';
-
-  } else {
-    multiple = params.timeMultiple  || 1;
-    interval = params.timeIncrement || 'hour';
-  }
-
-  if (!intervals[interval]) {
-    callback('invalid time increment');
-    return;
-  }
-
-  if (intervals[interval].indexOf(multiple) === -1) {
-    callback('invalid multiple');
-    return;
-  }
-
-  table = 'agg_exchange_' + multiple + interval;
-  start = tools.getAlignedTime(options.time.start, interval, multiple);
-  end   = tools.getAlignedTime(options.time.end, interval, multiple).add(multiple, interval);
-
-  while (end.diff(start)>0) {
-    rowKey = keyBase + '|' + tools.formatTime(start);
-    keys.push(rowKey);
-    start.add(multiple, interval);
-
-  }
-
-  hbase.getScan({
-    table      : table,
-    startRow   : keyBase + '|' + tools.formatTime(options.time.start),
-    stopRow    : keyBase + '|' + tools.formatTime(options.time.end),
-    descending : true
-  }, function (err, resp) {
     var rows = [header];
     if (err) {
       callback(err);
@@ -346,15 +196,15 @@ function getAggregated (options, params, callback) {
 
     resp.forEach(function(row) {
       rows.push([
-        row.start || row.start_time, //start time
-        parseFloat(row.base_volume),
-        parseFloat(row.counter_volume),
-        parseInt(row.count, 10),
-        parseFloat(row.open),
-        parseFloat(row.high),
-        parseFloat(row.low),
-        parseFloat(row.close),
-        parseFloat(row.vwap),
+        row.start, //start time
+        row.base_volume,
+        row.counter_volume,
+        row.count,
+        row.open,
+        row.high,
+        row.low,
+        row.close,
+        row.vwap,
         moment.unix(row.open_time).utc(),  //open  time
         moment.unix(row.close_time).utc(), //close time
       ]);
@@ -362,34 +212,6 @@ function getAggregated (options, params, callback) {
 
     handleResponse(rows, options, callback);
   });
-
-  /*
-  hbase.getRows(table, keys, function (err, resp) {
-    var rows = [header];
-    if (err) {
-      callback(err);
-      return;
-    }
-
-    resp.forEach(function(row) {
-      rows.push([
-        row.start || row.start_time, //start time
-        parseFloat(row.base_volume),
-        parseFloat(row.counter_volume),
-        parseInt(row.count, 10),
-        parseFloat(row.open),
-        parseFloat(row.high),
-        parseFloat(row.low),
-        parseFloat(row.close),
-        parseFloat(row.vwap),
-        moment.unix(row.open_time).utc(),  //open  time
-        moment.unix(row.close_time).utc(), //close time
-      ]);
-    });
-
-    handleResponse(rows, options, callback);
-  });
-  */
 }
 
 /**
@@ -399,15 +221,6 @@ function getAggregated (options, params, callback) {
 
 function handleResponse (rows, options, callback) {
   var apiRes = {};
-
-  //invert the base and counter currencies
-  if (options.invert) {
-    rows = invertPair(rows, options.unreduced);
-  }
-
-  //this doesnt really belong here, it should have been calculated in
-  //in the couchDB view, but until that day, this works pretty well.
-  rows = handleInterest(rows, options);
 
   //CSV output
   if (options.format === 'csv') {
@@ -469,126 +282,4 @@ function handleResponse (rows, options, callback) {
   } else {
     return callback (null, rows);
   }
-}
-
-/**
- * apply interest to interest/demmurage currencies
- * @param {Object} rows
- */
-
-function handleInterest (rows, options) {
-  var base    = ripple.Currency.from_json(options.base);
-  var counter = ripple.Currency.from_json(options.counter);
-
-  if (base.has_interest()) {
-    if (options.unreduced) {
-      rows.forEach(function(row, i){
-        if (!i) return;
-
-        //apply interest to the base amount
-        amount = ripple.Amount.from_human(row[2] + " " + options.base).applyInterest(new Date(row[0])).to_human();
-        pct   = row[2]/amount;
-
-        rows[i][2]  = amount;
-        rows[i][1] *= pct;
-      });
-
-    } else {
-      rows.forEach(function(row, i){
-        if (!i) return;
-
-        //apply interest to the base volume
-        value = ripple.Amount.from_human(row[1] + " " + options.base).applyInterest(new Date(row[0])).to_human();
-        pct   = row[1]/value;
-
-        //adjust the prices
-        rows[i][1] = value;
-        rows[i][4] *= pct;
-        rows[i][5] *= pct;
-        rows[i][6] *= pct;
-        rows[i][7] *= pct;
-        rows[i][8] *= pct;
-      });
-    }
-  } else if (counter.has_interest()) {
-    if (options.unreduced) {
-      rows.forEach(function(row, i){
-        if (!i) return;
-
-        //apply interest to the counter amount
-        amount = ripple.Amount.from_human(row[3] + " " + options.counter).applyInterest(new Date(row[0])).to_human();
-        pct   = amount/row[3];
-
-        rows[i][3]  = amount;
-        rows[i][1] *= pct;
-      });
-
-    } else {
-      rows.forEach(function(row, i){
-        if (!i) return;
-
-        //apply interest to the counter volume
-        value = ripple.Amount.from_human(row[2] + " " + options.counter).applyInterest(new Date(row[0])).to_human();
-        pct   = value/row[2];
-
-        //adjust the prices
-        rows[i][2] = value;
-        rows[i][4] *= pct;
-        rows[i][5] *= pct;
-        rows[i][6] *= pct;
-        rows[i][7] *= pct;
-        rows[i][8] *= pct;
-      });
-    }
-  }
-
-  return rows;
-}
-
-/**
-* if the base/counter key was inverted, we need to swap
-* some of the values in the results
-*/
-
-function invertPair (rows, unreduced) {
-  var swap;
-  var i;
-
-  if (unreduced) {
-    //skip the first, invert the rest
-    for (i=1; i<rows.length; i++) {
-      rows[i][1] = 1/rows[i][1];
-
-      //swap base and counter vol
-      swap = rows[i][2];
-      rows[i][2] = rows[i][3];
-      rows[i][3] = swap;
-
-      //swap account and counterparty
-      swap = rows[i][4];
-      rows[i][4] = rows[i][5];
-      rows[i][5] = swap;
-    }
-
-  } else {
-
-    //skip the first, invert the rest
-    for (i=1; i<rows.length; i++) {
-
-      //swap base and counter vol
-      swap = rows[i][1];
-      rows[i][1] = rows[i][2];
-      rows[i][2] = swap;
-      rows[i][4] = 1/rows[i][4];
-
-      //swap high and low
-      swap = 1/rows[i][5];
-      rows[i][5] = 1/rows[i][6];
-      rows[i][6] = swap;
-      rows[i][7] = 1/rows[i][7];
-      rows[i][8] = 1/rows[i][8];
-    }
-  }
-
-  return rows;
 }
