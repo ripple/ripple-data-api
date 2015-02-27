@@ -4,12 +4,12 @@
     "accounts": [{
       "address": "rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B",
       "currencies": {
-        "AUD" : { "featured" : false }, 
-        "BTC" : { "featured" : true  }, 
-        "CHF" : { "featured" : false },  
-        "EUR" : { "featured" : false }, 
-        "GBP" : { "featured" : false }, 
-        "JPY" : { "featured" : false },  
+        "AUD" : { "featured" : false },
+        "BTC" : { "featured" : true  },
+        "CHF" : { "featured" : false },
+        "EUR" : { "featured" : false },
+        "GBP" : { "featured" : false },
+        "JPY" : { "featured" : false },
         "USD" : { "featured" : true }
       }
     }],
@@ -37,12 +37,12 @@
     "accounts": [{
       "address": "rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK",
       "currencies": {
-        "BTC" : { "featured" : false }, 
+        "BTC" : { "featured" : false },
         "CNY" : { "featured" : true }
       }
     }],
     "hotwallets": [
-      "rNaptDNfFXo1quhKwMaNPf66iwPqA8YLky", 
+      "rNaptDNfFXo1quhKwMaNPf66iwPqA8YLky",
       "rno91tGDJeRcnM7EMXj8KG9UTyxRGMMz8s"
     ],
     "domain": "ripplecn.com",
@@ -52,7 +52,7 @@
     "accounts": [{
       "address": "rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9",
       "currencies": {
-        "BTC" : { "featured" : true }, 
+        "BTC" : { "featured" : true },
         "ILS" : { "featured" : false }
       }
     }],
@@ -99,13 +99,13 @@
     ],
     "domain": "btc2ripple.com",
     "status": "active"
-  }, {    
+  }, {
     "name": "The Rock Trading",
     "accounts": [{
         "address": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
         "currencies": {
           "BTC" : { "featured" : true },
-          "EUR" : { "featured" : true }, 
+          "EUR" : { "featured" : true },
           "USD" : { "featured" : true }
         }
       }],
@@ -137,7 +137,7 @@
     "accounts": [{
       "address": "rPDXxSZcuVL3ZWoyU82bcde3zwvmShkRyF",
       "currencies": {
-        "BTC" : { "featured" : false }, 
+        "BTC" : { "featured" : false },
         "GBP" : { "featured" : false },
         "JPY" : { "featured" : false },
         "LTC" : { "featured" : false },
@@ -183,7 +183,7 @@
     }],
     "hotwallets": [],
     "domain": "rippleunion.com",
-    "status": "active" 
+    "status": "active"
   },{
     "name": "chriswen",
     "accounts": [{
@@ -191,7 +191,7 @@
       "currencies": {"LTC" : { "featured" : false }}
     }],
     "hotwallets": [],
-    "status": "inactive" 
+    "status": "inactive"
   },{
     "name": "Ripple Money",
     "accounts": [{
@@ -200,7 +200,7 @@
     }],
     "hotwallets": [],
     "domain": "ripplemoney.co.uk",
-    "status": "inactive" 
+    "status": "inactive"
   },{
     "name": "Justcoin",
     "accounts": [{
@@ -215,7 +215,7 @@
     }],
     "hotwallets": [],
     "domain": "justcoin.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "DotPayco",
     "accounts": [{
@@ -226,7 +226,7 @@
       "rHTLdR8F4v9gJmLoW6Fk6zmBvCM2bqzqLP"
     ],
     "domain": "xrpchina.net",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Peercover",
     "accounts": [{
@@ -240,7 +240,7 @@
     }],
     "hotwallets": [],
     "domain": "peercover.com",
-    "status": "inactive" 
+    "status": "inactive"
   }, {
     "name": "Ripple Singapore",
     "accounts": [{
@@ -256,7 +256,7 @@
       "rL4A1qbTkrJXT644gyzmLVk6uudyMagJ9Q"
     ],
     "domain": "ripplesingapore.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Ripple Trade Japan",
     "accounts": [{
@@ -267,7 +267,7 @@
       "r3bStftDydy4dKEUBc9YMabTTk98uZzMpF"
     ],
     "domain": "rippletrade.jp",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Bitso",
     "accounts": [{
@@ -281,7 +281,7 @@
       "rHZaDC6tsGN2JWGeXhjKL6664RNCq5hu4B"
     ],
     "domain": "bitso.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Coinex",
     "accounts": [{
@@ -297,7 +297,7 @@
       "rGAmy1w1ENyTJ9BCAEicYyRM2Yk1iWZ7Z5"
     ],
     "domain": "coinexgateway.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Ripple LatAm",
     "accounts": [{
@@ -318,7 +318,7 @@
       "raoFdQah8c8owTj4TPMr8o1WntnXybXCgB"
     ],
     "domain": "ripplelatam.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Ripple Fox",
     "accounts": [{
@@ -346,7 +346,7 @@
     }],
     "hotwallets": [],
     "domain": "goldbullioninternational.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Lake BTC",
     "accounts": [{
@@ -360,7 +360,7 @@
       "rP9gFJKqKGWdR4n6XjdsUPqmJfXkg4kSgZ"
     ],
     "domain": "lakebtc.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "TokyoJPY",
     "accounts": [{
@@ -379,7 +379,7 @@
     }],
     "hotwallets": ["r37FUji17jCgCZvAUc8m5YqXquwHpgwa9q"],
     "domain": "rippex.net",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Ripple Market Japan",
     "accounts": [{
@@ -388,7 +388,7 @@
       }],
     "hotwallets": [],
     "domain": "ripple-market.jp",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Pax Moneta",
     "accounts": [{
@@ -399,7 +399,7 @@
       "rhLSigWL4J9JBBW1JFMBvaduDkVghG7cc2"
     ],
     "domain": "paxmoneta.com",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Ripple Exchange Tokyo",
     "accounts": [{
@@ -408,7 +408,7 @@
     }],
     "hotwallets": [],
     "domain": "ripple-exchange.tokyo",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Ripula",
     "accounts": [{
@@ -419,7 +419,7 @@
       "rUR5QVHqFxRa8TSQawc1M6jKj7BvKzbHek"
     ],
     "domain": "ripula.co.uk",
-    "status": "active" 
+    "status": "active"
   }, {
     "name": "Mr. Ripple",
     "startDate":"2014-10-5",
