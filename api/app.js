@@ -1,12 +1,13 @@
-var env      = process.env.NODE_ENV || "development";
-var DBconfig = require('../db.config.json')[env];
-var config   = require('../deployment.environments.json')[env];
-var StatsD   = require('node-statsd').StatsD;
-var http     = require('http');
-var https    = require('https');
-var gateways = require('./routes/gateways').Gateways;
-var assets   = require('./routes/gateways').Assets;
-var HBase    = require('./library/hbase/hbase-client');
+var env        = process.env.NODE_ENV || "development";
+var DBconfig   = require('../db.config.json')[env];
+var config     = require('../deployment.environments.json')[env];
+var StatsD     = require('node-statsd').StatsD;
+var http       = require('http');
+var https      = require('https');
+var gateways   = require('./routes/gateways').Gateways;
+var assets     = require('./routes/gateways').Assets;
+var currencies = require('./routes/gateways').Currencies;
+var HBase      = require('./library/hbase/hbase-client');
 
 var maxSockets;
 
@@ -112,6 +113,7 @@ app.use(express.json());
 app.use(express.urlencoded());
 app.get('/api/gateways/:gateway?', gateways);
 app.get('/api/gateways/:gateway/assets/:filename?', assets);
+app.get('/api/currencies/:currencyAsset?', currencies);
 app.get('/health', function (req, res){
   res.send(200, '');
 });
