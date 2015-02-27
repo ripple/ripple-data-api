@@ -453,22 +453,6 @@ HbaseClient.prototype.getLedgersByIndex = function (options, callback) {
         resp[i].ledger_index = parseInt(rowkey[0], 10);
         resp[i].close_time = parseInt(resp[i].close_time, 10);
       });
-
-      if (options.transactions) {
-        Promise.map(resp, function(row) {
-          self.getLedger({
-            ledger_hash  : row.ledger_hash,
-            transactions : true,
-
-          }, function (err, ledger) {
-
-          });
-
-        }).nodeify(function(err, resp) {
-          console.log(err, resp);
-        });
-        return;
-      }
     }
 
     callback(err, resp);
@@ -491,7 +475,7 @@ HbaseClient.prototype.getLedger = function (options, callback) {
   } else if (options.ledger_index) {
     self.getLedgersByIndex({
       startIndex : options.ledger_index,
-      stopIndex : options.ledger_index
+      stopIndex  : options.ledger_index
     }, function (err, resp) {
 
       if (err || !resp || !resp.length) {
@@ -530,8 +514,13 @@ HbaseClient.prototype.getLedger = function (options, callback) {
         Promise.map(transactions, function (tx_hash) {
           return new Promise(function(resolve, reject) {
             self.getTransaction(tx_hash, function(err, tx) {
-              if (err) reject(err);
-              else     resolve(tx);
+              if (err) {
+                reject(err);
+              } else if (!tx) {
+                reject('missing transaction');
+              } else {
+                resolve(tx);
+              }
             });
           });
         }).nodeify(function(err, resp) {
@@ -578,6 +567,11 @@ HbaseClient.prototype.getTransaction = function (tx_hash, callback) {
       return;
     }
 
+    if (!tx) {
+      callback(null, undefined);
+      return;
+    }
+
     try {
       transaction.hash         = tx_hash;
       transaction.date         = moment.unix(tx.executed_time).utc().format();
@@ -619,9 +613,9 @@ HbaseClient.prototype.saveLedger = function (ledger, callback) {
 
   //add ledger index lookup
   tables.lu_ledgers_by_index[ledgerIndexKey] = {
-    'f:ledger_index' : ledger.ledger_index,
     ledger_hash      : ledger.ledger_hash,
     parent_hash      : ledger.parent_hash,
+    'f:ledger_index' : ledger.ledger_index,
     'f:close_time'   : ledger.close_time
   }
 
@@ -711,10 +705,11 @@ HbaseClient.prototype.prepareTransactions = function (transactions) {
 
     data.lu_transactions_by_time[key] = {
       tx_hash           : tx.hash,
+      tx_index          : tx.tx_index,
       'f:executed_time' : tx.executed_time,
       'f:ledger_index'  : tx.ledger_index,
       'f:type'          : tx.TransactionType,
-      'f:result'        : tx.tx_result
+      'f:result'        : tx.tx_result,
     }
 
     //transactions by account sequence
@@ -725,6 +720,7 @@ HbaseClient.prototype.prepareTransactions = function (transactions) {
 
     data.lu_account_transactions[key] = {
       tx_hash           : tx.hash,
+      sequence          : tx.Sequence,
       'f:executed_time' : tx.executed_time,
       'f:ledger_index'  : tx.ledger_index,
       'f:type'          : tx.TransactionType,
@@ -789,7 +785,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     var key2 = ex.buyer  + '|' + key;
     var key3 = ex.seller + '|' + key;
     var row  = {
-      'f:base_currency'    : ex.base_currency,
+      'f:base_currency'    : ex.base.currency,
       'f:base_issuer'      : ex.base.issuer || undefined,
       base_amount          : ex.base.amount,
       'f:counter_currency' : ex.counter.currency,
@@ -800,8 +796,10 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:seller'           : ex.seller,
       'f:taker'            : ex.taker,
       'f:tx_hash'          : ex.tx_hash,
-      'f:executed_time'    : ex.executed_time,
+      'f:executed_time'    : ex.time,
       'f:ledger_index'     : ex.ledger_index,
+      'f:tx_type'          : ex.tx_type,
+      'f:client'           : ex.client,
       tx_index             : ex.tx_index,
       node_index           : ex.node_index
     };
@@ -831,12 +829,17 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:executed_time' : c.time,
       'f:ledger_index'  : c.ledger_index,
       tx_index          : c.tx_index,
-      node_index        : c.node_index
+      node_index        : c.node_index,
+      'f:client'        : c.client
     };
 
     key = c.account + suffix;
     tables.account_balance_changes[c.account + suffix] = row;
-    tables.account_balance_changes[c.issuer  + suffix] = row;
+
+    //XRP has no issuer
+    if (c.issuer) {
+      tables.account_balance_changes[c.issuer  + suffix] = row;
+    }
   });
 
   params.data.payments.forEach(function(p) {
@@ -854,9 +857,11 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       fee                 : p.fee,
       source_balance_changes      : p.source_balance_changes,
       destination_balance_changes : p.destination_balance_changes,
-      'f:executed_time' : p.time,
       'f:tx_hash'       : p.tx_hash,
-      'f:ledger_index'  : p.ledger_index
+      'f:executed_time' : p.time,
+      'f:ledger_index'  : p.ledger_index,
+      tx_index          : p.tx_index,
+      'f:client'        : p.client
     }
 
     if (p.max_amount) {
@@ -887,22 +892,19 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:parent'        : a.parent,
       balance           : a.balance,
       'f:tx_hash'       : a.tx_hash,
-      'f:executed_time' : a.executed_time,
-      'f:ledger_index'  : a.ledger_index
+      'f:executed_time' : a.time,
+      'f:ledger_index'  : a.ledger_index,
+      tx_index          : a.tx_index,
+      'f:client'        : a.client
     };
   });
 
   //add memos
   params.data.memos.forEach(function(m) {
-    var key = utils.formatTime(m.time) +
+    var key = utils.formatTime(m.executed_time) +
       '|' + utils.padNumber(m.ledger_index, LI_PAD) +
       '|' + utils.padNumber(m.tx_index, I_PAD) +
       '|' + utils.padNumber(m.memo_index, I_PAD);
-
-    delete m.time;
-    delete m.ledger_index;
-    delete m.tx_index;
-    delete m.memo_index;
 
     tables.memos[key] = {
       'f:account'         : m.account,
@@ -920,7 +922,9 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       format_encoding     : m.format_encoding,
       'f:tx_hash'         : m.tx_hash,
       'f:executed_time'   : m.executed_time,
-      'f:ledger_index'    : m.ledger_index
+      'f:ledger_index'    : m.ledger_index,
+      tx_index            : m.tx_index,
+      memo_index          : m.memo_index
     };
 
     tables.lu_account_memos[m.account + '|' + key] = {
@@ -929,18 +933,22 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:tag'           : m.source_tag,
       'f:tx_hash'       : m.tx_hash,
       'f:executed_time' : m.executed_time,
-      'f:ledger_index'  : m.ledger_index
-    }
+      'f:ledger_index'  : m.ledger_index,
+      tx_index            : m.tx_index,
+      memo_index          : m.memo_index
+    };
 
     if (m.destination) {
       tables.lu_account_memos[m.destination + '|' + key] = {
         rowkey            : key,
-        'f:is_sender'     : false,
+        'f:is_source'     : false,
         'f:tag'           : m.destination_tag,
         'f:tx_hash'       : m.tx_hash,
         'f:executed_time' : m.executed_time,
-        'f:ledger_index'  : m.ledger_index
-      }
+        'f:ledger_index'  : m.ledger_index,
+        tx_index            : m.tx_index,
+        memo_index          : m.memo_index
+      };
     }
   });
 
@@ -957,8 +965,10 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:type'          : a.tx_type,
       'f:result'        : a.tx_result,
       tx_hash           : a.tx_hash,
+      tx_index          : a.tx_index,
       'f:executed_time' : a.time,
-      'f:ledger_index'  : a.ledger_index
+      'f:ledger_index'  : a.ledger_index,
+      'f:client'        : a.client
     }
   });
 
@@ -968,14 +978,21 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     return self.putRows(name, tables[name]);
   })
   .nodeify(function(err, resp) {
+    var total = 0;
     if (err) {
       self.log.error('error saving parsed data', err);
     } else {
-      self.log.info('parsed data saved');
+      if (resp) {
+        resp.forEach(function(r) {
+          if (r && r[0]) total += r[0];
+        });
+      }
+
+      self.log.info('parsed data saved:', total + ' rows');
     }
 
     if (callback) {
-      callback(err, resp);
+      callback(err, total);
     }
   });
 
