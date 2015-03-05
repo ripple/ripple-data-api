@@ -125,6 +125,12 @@ winston.info('Listening on port ' + config.port);
 //initialize metrics
 require('./library/metrics').init();
 
+//NOTE this should no longer run at
+//any startup, it will re-query all
+//data rather than checking first to
+//determine if it is cached
+//require('./library/history').init();
+
 //function to handle all incoming requests
 function requestHandler(req, res) {
   var path = req.path.slice(5),
@@ -208,7 +214,7 @@ if (CACHE) {
     });
 
     //initialize historical metrics and associated cron jobs
-    require('./library/history').init();
+    //require('./library/history').init();
   }
 }
 

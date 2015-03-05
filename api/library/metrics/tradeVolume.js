@@ -2,7 +2,7 @@ var winston = require('winston');
 var moment  = require('moment');
 var ripple  = require('ripple-lib');
 var async   = require('async');
-var offersExercised = require('../../routes/offersExercised');
+var utils   = require('../hbase/utils');
 
 var marketPairs = [
   {
@@ -127,6 +127,13 @@ var marketPairs = [
   }
 ];
 
+var intervals = [
+  'hour',
+  'day',
+  'week',
+  'month'
+];
+
 function tradeVolume(params, callback) {
 
   var rowkey;
@@ -136,17 +143,24 @@ function tradeVolume(params, callback) {
 
   if (!params) params = {};
   ex        = params.ex || {currency:'XRP'};
+  interval  = (params.interval || '').toLowerCase();
   startTime = params.startTime;
-  endTime   = params.endTime;
-  rowkey    = ex.currency.toUpperCase() + '|' + (ex.issuer || '');
 
-  if (!startTime && !endTime) {
+  rowkey    = 'trade_volume';
+
+  if (!startTime) {
     startTime = moment.utc().subtract(24, 'hours');
     endTime   = moment.utc();
     rowkey   += '|live';
 
+  } else if (!interval || intervals.indexOf(interval) === -1) {
+    callback('invalid interval');
+    return;
+
   } else {
-    rowkey += '|'+startTime.unix() + '|' + endTime.unix();
+    startTime.startOf(interval);
+    rowkey += '|' + interval + '|' + utils.formatTime(startTime);
+    endTime = moment.utc(startTime).add(1, interval);
   }
 
   async.map(marketPairs, function(assetPair, asyncCallbackPair){
@@ -156,22 +170,22 @@ function tradeVolume(params, callback) {
       counter : assetPair.counter
     };
 
-    //call offersExercised for each market pair
-    offersExercised({
-      base          : assetPair.base,
-      counter       : assetPair.counter,
-      startTime     : startTime,
-      endTime       : endTime,
-      timeIncrement : 'all'
+    hbase.getExchanges( {
+      base    : assetPair.base,
+      counter : assetPair.counter,
+      start   : startTime,
+      end     : endTime,
+      reduce  : true
+    }, function(err, resp) {
+      if (err) {
+        asyncCallbackPair(err);
+        return;
+      }
 
-    }, function (error, data) {
-
-      if (error) return asyncCallbackPair(error);
-
-      if (data && data.length > 1) {
-        pair.rate   = data[1][8]; // vwavPrice
-        pair.count  = data[1][3]; // num trades
-        pair.amount = data[1][1]; // amount
+      if (resp) {
+        pair.rate   = resp.vwap;
+        pair.count  = resp.count;
+        pair.amount = resp.base_volume;
 
       } else {
         pair.rate   = 0;
@@ -188,12 +202,15 @@ function tradeVolume(params, callback) {
       return;
     }
 
-    var exchangeRate;
+    var finalRate;
     var rates = { };
     var response = {
-      startTime : startTime.format(),
-      endTime   : endTime.format(),
-      exchange  : ex,
+      startTime    : startTime.format(),
+      endTime      : endTime.format(),
+      exchange     : ex,
+      exchangeRate : 1,
+      total        : 0,
+      count        : 0
     };
 
     //get rates vs XRP
@@ -203,82 +220,116 @@ function tradeVolume(params, callback) {
       }
     });
 
-    if (ex.currency == 'XRP') {
-      exchangeRate = 1;
-    } else if (rates[ex.currency + '.' + ex.issuer]) {
-      exchangeRate = 1 / rates[ex.currency + '.' + ex.issuer];
-    }
 
     //convert non - XRP to XRP value
     pairs.forEach(function(pair, index) {
       if (pair.counter.currency !== 'XRP') {
         pair.rate = rates[pair.base.currency + "." + pair.base.issuer];
       }
-    })
 
-    if (exchangeRate) finalize();
-    else {
+      pair.convertedAmount = pair.rate ? pair.amount * pair.rate : 0;
+      response.total += pair.convertedAmount;
+      response.count += pair.count;
+    });
+
+    response.components = pairs;
+
+    //cache XRP normalized version
+    cacheResponse (rowkey, response);
+
+    if (ex.currency == 'XRP') {
+      finalRate = 1;
+    } else if (rates[ex.currency + '.' + ex.issuer]) {
+      finalRate = 1 / rates[ex.currency + '.' + ex.issuer];
+    }
+
+    var options = {
+      rate  : finalRate,
+      start : startTime,
+      end   : endTime
+    };
+
+    //finalize the response
+    handleResponse(options, response, callback);
+  });
+
+  function handleResponse(options, resp, callback) {
+
+    //normalized to XRP, nothing to do
+    if (options.rate === 1) {
+      callback (null, resp);
+
+    //already have the final rate,
+    //just apply it
+    } else if (options.rate) {
+      finalize(rate);
+
+    //get the final rate
+    } else {
       getConversion({
-        startTime : startTime,
-        endTime   : endTime,
-        currency  : ex.currency,
-        issuer    : ex.issuer
-      }, function(error, rate){
-        if (error) return callback(error);
-        exchangeRate = rate;
-        finalize();
+        startTime : options.start,
+        endTime   : options.end,
+        currency  : resp.exchange.currency,
+        issuer    : resp.exchange.issuer
+
+      }, function(error, finalRate) {
+        if (error) {
+          callback (error);
+          return;
+        }
+
+        finalize(finalRate);
       });
     }
 
-    function finalize () {
-      var total = 0, count = 0;
-      pairs.forEach(function(pair, index) {
-        pair.rate            = pair.rate*exchangeRate;
-        pair.convertedAmount = pair.amount*pair.rate;
-        total += pair.convertedAmount;
-        count += pair.count;
+    function finalize (rate) {
+      resp.total = 0;
+      resp.components.forEach(function(c, index) {
+
+        c.convertedAmount *= rate;
+        c.rate      = c.rate ? rate / c.rate : 0;
+        resp.total += c.convertedAmount;
       });
 
-      response.exchangeRate = exchangeRate;
-      response.total        = total;
-      response.count        = count;
-      response.components   = pairs;
-
-      cacheResponse (rowkey, response);
+      resp.exchangeRate = rate;
 
       if (callback) {
-        callback(null, response);
+        callback(null, resp);
       }
     }
-  });
+  }
+
+  /*
+   * get XRP to specified currency conversion
+   */
+
+  function getConversion (params, callback) {
+
+    hbase.getExchanges( {
+      base    : {currency:"XRP"},
+      counter : {currency:params.currency,issuer:params.issuer},
+      start   : startTime,
+      end     : endTime,
+      reduce  : true
+    }, function(err, resp) {
+      if (err) {
+        callback(error);
+        return;
+      }
+
+      if (resp) {
+        callback(null, resp.vwap); // vwavPrice
+      } else {
+        callback("cannot determine exchange rate");
+      }
+    });
+  }
+
+  function cacheResponse (rowkey, response) {
+    var table = 'agg_metrics';
+    hbase.putRow(table, rowkey, response);
+    console.log('cacheing metric:', rowkey);
+  }
 }
-
-/**
- * get XRP to specified currency conversion
- */
-
-function getConversion (params, callback) {
-
-  offersExercised({
-    base      : {currency:"XRP"},
-    counter   : {currency:params.currency,issuer:params.issuer},
-    startTime : params.startTime,
-    endTime   : params.endTime,
-    timeIncrement : 'all'
-
-  }, function(error, data) {
-
-    if (error) return callback(error);
-    if (data && data.length > 1)
-         callback(null,data[1][8]); // vwavPrice
-    else callback("cannot determine exchange rate");
-  });
-}
-
-function cacheResponse (rowkey, response) {
-  var table = 'agg_trade_volume';
-  hbase.putRow(table, rowkey, response);
-}
-
 
 module.exports = tradeVolume;

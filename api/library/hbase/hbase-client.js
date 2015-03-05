@@ -414,6 +414,7 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
 
     } else {
       reduced.low = 0;
+      return;
     }
 
     rows.forEach(function(row) {
@@ -427,6 +428,7 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
       if (row.rate > reduced.high) reduced.high = row.rate;
     });
 
+    reduced.vwap = reduced.counter_volume / reduced.base_volume;
     return reduced;
   }
 };
