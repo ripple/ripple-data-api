@@ -1,8 +1,7 @@
 var utils      = require('../utils');
 var path       = require('path');
-var assets     = path.resolve(__dirname + '/../gatewayAssets/');
+var assetPath  = path.resolve(__dirname + '/../gatewayAssets/');
 var currencies = path.resolve(__dirname + '/../currencyAssets/');
-
 
 //cached in memory since
 //they will not change until restart
@@ -44,7 +43,7 @@ var Assets = function (req, res, next) {
     gateway    = utils.getGateway(address);
     identifier = gateway.name.toLowerCase().replace(/\W/g, '');
 
-    res.sendfile(assets + '/' + identifier + '.' + filename, null, function(err) {
+    res.sendfile(assetPath + '/' + identifier + '.' + filename, null, function(err) {
       if (err) {
         console.log(err, identifier);
         res.status(err.status).send('Not found');
