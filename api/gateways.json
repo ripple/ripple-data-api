@@ -100,20 +100,6 @@
     "domain": "btc2ripple.com",
     "status": "active"
   }, {
-    "name": "BTC 2 Ripple",
-    "accounts": [{
-      "address": "rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q",
-      "currencies": {"BTC" : { "featured" : true }}
-    }],
-    "hotwallets": [
-      "rQsAshmCjPsxkYnxY9GnmBTAeEUaePDAie",
-      "rEk9i7G8ac1kUs1mFjtze1qjj9FzGvXAG",
-      "rwm98fCBS8tV1YB8CGho8zUPW5J7N41th2",
-      "r5ymZSvtdNgbKVc8ay1Jhmq5f9QgnvEtj"
-    ],
-    "domain": "btc2ripple.com",
-    "status": "active"
-  }, {
     "name": "The Rock Trading",
     "accounts": [{
         "address": "rLEsXccBGNR3UPuPu2hUXPjziKC3qKSBun",
