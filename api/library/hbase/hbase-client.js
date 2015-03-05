@@ -167,22 +167,23 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
     options.invert = true;
   }
 
-  startRow = keyBase + '|' + utils.formatTime(options.start);
-  endRow   = keyBase + '|' + utils.formatTime(options.end);
-
   if (!options.interval) {
     table      = 'exchanges';
-    descending = options.descending;
+    descending = options.reduce ? false : options.descending;
     options.unreduced = true;
 
   } else if (exchangeIntervals.indexOf(options.interval) !== -1) {
-    table      = 'agg_exchange_' + options.interval;
+    keyBase    = options.interval + '|' + keyBase;
     descending = options.descending || false;
+    table      = 'agg_exchanges';
 
   } else {
     callback('invalid time increment or interval');
     return;
   }
+
+  startRow = keyBase + '|' + utils.formatTime(options.start);
+  endRow   = keyBase + '|' + utils.formatTime(options.end);
 
   this.getScan({
     table      : table,
@@ -576,6 +577,7 @@ HbaseClient.prototype.getTransaction = function (tx_hash, callback) {
       transaction.hash         = tx_hash;
       transaction.date         = moment.unix(tx.executed_time).utc().format();
       transaction.ledger_index = parseInt(tx.ledger_index, 10);
+      transaction.ledger_hash  = tx.ledger_hash;
 
       transaction.tx   = new SerializedObject(tx.raw).to_json();
       transaction.meta = new SerializedObject(tx.meta).to_json();
@@ -761,10 +763,10 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   var tableNames = [];
   var tables     = {
     exchanges            : { },
-    lu_account_exchanges : { },
+    account_exchanges    : { },
     account_balance_changes : { },
     payments             : { },
-    lu_account_payments  : { },
+    account_payments     : { },
     accounts_created     : { },
     memos                : { },
     lu_account_memos     : { },
@@ -773,17 +775,19 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
 
   //add exchanges
   params.data.exchanges.forEach(function(ex) {
-    var key = ex.base.currency +
-      '|' + (ex.base.issuer || '') +
-      '|' + ex.counter.currency +
-      '|' + (ex.counter.issuer || '') +
-      '|' + utils.formatTime(ex.time) +
+    var suffix = utils.formatTime(ex.time) +
       '|' + utils.padNumber(ex.ledger_index, LI_PAD) +
       '|' + utils.padNumber(ex.tx_index, I_PAD) +
       '|' + utils.padNumber(ex.node_index, I_PAD); //guarantee uniqueness
 
-    var key2 = ex.buyer  + '|' + key;
-    var key3 = ex.seller + '|' + key;
+    var key = ex.base.currency +
+      '|' + (ex.base.issuer || '') +
+      '|' + ex.counter.currency +
+      '|' + (ex.counter.issuer || '') +
+      '|' + suffix;
+
+    var key2 = ex.buyer  + '|' + suffix;
+    var key3 = ex.seller + '|' + suffix;
     var row  = {
       'f:base_currency'    : ex.base.currency,
       'f:base_issuer'      : ex.base.issuer || undefined,
@@ -805,8 +809,8 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     };
 
     tables.exchanges[key] = row;
-    tables.lu_account_exchanges[key2] = row;
-    tables.lu_account_exchanges[key3] = row;
+    tables.account_exchanges[key2] = row;
+    tables.account_exchanges[key3] = row;
   });
 
   //add balance changes
@@ -877,8 +881,8 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     }
 
     tables.payments[key] = payment;
-    tables.lu_account_payments[p.source      + '|' + key] = payment;
-    tables.lu_account_payments[p.destination + '|' + key] = payment;
+    tables.account_payments[p.source      + '|' + key] = payment;
+    tables.account_payments[p.destination + '|' + key] = payment;
   });
 
   //add accounts created
