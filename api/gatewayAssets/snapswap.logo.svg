@@ -2,38 +2,52 @@
 <!-- Generator: Adobe Illustrator 18.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 1600 900" enable-background="new 0 0 1600 900" xml:space="preserve">
-<text transform="matrix(1 0 0 1 320.3705 382.4795)"><tspan x="0" y="0" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-5">sn</tspan><tspan x="124" y="0" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-8">a</tspan><tspan x="190.9" y="0" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-3">p</tspan></text>
+	 width="532.8px" height="234.3px" viewBox="319.2 253.8 532.8 234.3" enable-background="new 319.2 253.8 532.8 234.3"
+	 xml:space="preserve">
 <g>
-	<circle opacity="0.2" fill="#FCB41C" cx="651" cy="318" r="64.2"/>
 	
-		<ellipse transform="matrix(0.9778 0.2093 -0.2093 0.9778 81.1116 -129.2245)" opacity="0.4" fill="#FCB41C" cx="651" cy="318.5" rx="51.4" ry="64.2"/>
+		<text transform="matrix(1 0 0 1 320.3705 382.4795)" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-4">sn</text>
 	
-		<ellipse transform="matrix(0.9778 0.2093 -0.2093 0.9778 81.1096 -129.2219)" opacity="0.6" fill="#FCB41C" cx="651" cy="318.5" rx="38.5" ry="64.2"/>
+		<text transform="matrix(1 0 0 1 444.3705 382.4795)" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-7">a</text>
 	
-		<ellipse transform="matrix(0.9778 0.2093 -0.2093 0.9778 81.1074 -129.2192)" opacity="0.8" fill="#FCB41C" cx="651" cy="318.5" rx="25.7" ry="64.2"/>
+		<text transform="matrix(1 0 0 1 511.2705 382.4795)" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-2">p</text>
+	<g>
+		<circle opacity="0.2" fill="#FCB41C" enable-background="new    " cx="651" cy="318" r="64.2"/>
+		
+			<ellipse transform="matrix(0.2093 -0.9778 0.9778 0.2093 203.3318 888.3795)" opacity="0.4" fill="#FCB41C" enable-background="new    " cx="651" cy="318.5" rx="64.2" ry="51.4"/>
+		
+			<ellipse transform="matrix(0.2093 -0.9778 0.9778 0.2093 203.3276 888.3796)" opacity="0.6" fill="#FCB41C" enable-background="new    " cx="651" cy="318.5" rx="64.2" ry="38.5"/>
+		
+			<ellipse transform="matrix(0.2093 -0.9778 0.9778 0.2093 203.3232 888.3796)" opacity="0.8" fill="#FCB41C" enable-background="new    " cx="651" cy="318.5" rx="64.2" ry="25.7"/>
+		
+			<ellipse transform="matrix(0.2093 -0.9778 0.9778 0.2093 203.3253 888.3795)" fill="#FCB41C" cx="651" cy="318.5" rx="64.2" ry="12.8"/>
+		
+			<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="616.8992" y1="531.5817" x2="745.3206" y2="531.5817" gradientTransform="matrix(0.9774 0.2116 0.2116 -0.9774 -127.1995 694.1451)">
+			<stop  offset="0" style="stop-color:#FCB41C;stop-opacity:0.1"/>
+			<stop  offset="0.5" style="stop-color:#FCB41C"/>
+			<stop  offset="1" style="stop-color:#FCB41C;stop-opacity:0.1"/>
+		</linearGradient>
+		<circle fill="url(#SVGID_1_)" cx="651" cy="318.7" r="64.2"/>
+	</g>
+	<rect x="522.4" y="366.2" fill="none" width="329.6" height="103.9"/>
 	
-		<ellipse transform="matrix(0.9778 0.2093 -0.2093 0.9778 81.1084 -129.2205)" fill="#FCB41C" cx="651" cy="318.5" rx="12.8" ry="64.2"/>
+		<text transform="matrix(1 0 0 1 522.3861 451.8565)" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-2">sw</text>
 	
-		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="616.916" y1="368.4202" x2="745.3395" y2="368.4202" gradientTransform="matrix(0.9774 0.2116 -0.2116 0.9774 63.2405 -185.5149)">
-		<stop  offset="0" style="stop-color:#FCB41C;stop-opacity:0.1"/>
-		<stop  offset="0.5" style="stop-color:#FCB41C"/>
-		<stop  offset="1" style="stop-color:#FCB41C;stop-opacity:0.1"/>
-	</linearGradient>
-	<circle fill="url(#SVGID_1_)" cx="651" cy="318.7" r="64.2"/>
-</g>
-<rect x="522.4" y="366.2" fill="none" width="329.6" height="103.9"/>
-<text transform="matrix(1 0 0 1 522.3861 451.8565)"><tspan x="0" y="0" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-3">sw</tspan><tspan x="153.6" y="0" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-5">a</tspan><tspan x="223" y="0" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-3">p</tspan></text>
-<g>
-	<path fill="#FFFFFF" d="M641.8,352.9c-10.4-2.9-17.4-8.4-22-15l10-9.7c3,4.6,7.9,9.2,14.4,11.7l2.9-15.7
-		c-9.9-4.5-20.5-10.5-17.9-24.3c1.9-10.2,11.6-17.4,25.5-16.2l-2.1,3.5l9.5,1.8l2.1-3.2c8,2.4,14.4,6.8,18.9,12.8l-10,9.2
-		c-3-4-7.1-7-11.4-8.9l-2.6,13.9c10,4.6,21,10.8,18.4,24.7c-2.1,11.2-11.1,18.5-26.2,17.2l-1.7-1.2l-9.5-1.8L641.8,352.9z
-		 M650.1,308.6l2.3-12.2c-4.6-0.2-7.5,1.7-8.2,5.2C643.7,304.5,646.2,306.5,650.1,308.6z M656.2,328.3l-2.5,13.5
-		c5.3,0,8.3-2.5,8.9-5.8C663.2,332.7,660.4,330.5,656.2,328.3z"/>
-</g>
-<ellipse transform="matrix(0.9768 0.2143 -0.2143 0.9768 83.4136 -132.4696)" fill="#FFFFFF" cx="652.5" cy="318.4" rx="6.4" ry="63.7"/>
-<g>
-	<path fill="#FFFFFF" d="M659.4,340.6c1.6-1,2.6-2.4,3-4.1c2.4-11.7-37.9-11.6-32.6-36.9l14.9,2c-2.2,10.6,37.8,11.5,32.5,36.5
-		c-1.3,6-4.5,10.8-9.5,13.7"/>
+		<text transform="matrix(1 0 0 1 675.9861 451.8565)" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-4">a</text>
+	
+		<text transform="matrix(1 0 0 1 745.3861 451.8565)" fill="#5F7D89" font-family="'ProximaNova-BoldIt'" font-size="128.4016" letter-spacing="-2">p</text>
+	<g>
+		<path fill="#FFFFFF" d="M641.8,352.9c-10.4-2.9-17.4-8.4-22-15l10-9.7c3,4.6,7.9,9.2,14.4,11.7l2.9-15.7
+			c-9.9-4.5-20.5-10.5-17.9-24.3c1.9-10.2,11.6-17.4,25.5-16.2l-2.1,3.5l9.5,1.8l2.1-3.2c8,2.4,14.4,6.8,18.9,12.8l-10,9.2
+			c-3-4-7.1-7-11.4-8.9l-2.6,13.9c10,4.6,21,10.8,18.4,24.7c-2.1,11.2-11.1,18.5-26.2,17.2l-1.7-1.2l-9.5-1.8L641.8,352.9z
+			 M650.1,308.6l2.3-12.2c-4.6-0.2-7.5,1.7-8.2,5.2C643.7,304.5,646.2,306.5,650.1,308.6z M656.2,328.3l-2.5,13.5
+			c5.3,0,8.3-2.5,8.9-5.8C663.2,332.7,660.4,330.5,656.2,328.3z"/>
+	</g>
+	
+		<ellipse transform="matrix(0.2143 -0.9768 0.9768 0.2143 201.7288 887.5323)" fill="#FFFFFF" cx="652.5" cy="318.4" rx="63.7" ry="6.4"/>
+	<g>
+		<path fill="#FFFFFF" d="M659.4,340.6c1.6-1,2.6-2.4,3-4.1c2.4-11.7-37.9-11.6-32.6-36.9l14.9,2c-2.2,10.6,37.8,11.5,32.5,36.5
+			c-1.3,6-4.5,10.8-9.5,13.7"/>
+	</g>
 </g>
 </svg>
