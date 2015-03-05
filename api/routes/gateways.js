@@ -62,9 +62,19 @@ var Currencies = function (req, res, next) {
 
   if (filename) {
     res.sendfile(currencies + '/' + filename, null, function(err) {
-      if (err) {
+
+      //send default svg if its not found
+      if (err && err.status === 404) {
+        res.sendfile(currencies + '/default.svg', null, function(err) {
+          if (err) {
+            console.log(err);
+            res.status(500).send('server error');
+          }
+        });
+
+      } else if (err) {
         console.log(err, filename);
-        res.status(err.status).send('Not found');
+        res.status(err.status).send('server error');
       }
     });
 
