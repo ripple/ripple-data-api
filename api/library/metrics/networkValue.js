@@ -207,14 +207,18 @@ function totalNetworkValue (params, callback) {
   *  index saved in CouchDB
   */
   function getXRPbalance(callback) {
-    db.list({descending:true, startkey:'_c', limit: 1}, function(error, res){
-      if (error) return callback("CouchDB - " + error);
-      if (!res.rows.length) return callback("no ledgers saved"); //no ledgers saved;
+    hbase.getLedger({}, function (err, ledger) {
+      if (err) {
+        callback('Hbase - ' + err);
+        return;
+      }
 
-      db.get(res.rows[0].id, function(error, res){
-        if (error) return callback("CouchDB - " + error);
-        return callback(null, res.total_coins / 1000000.0);
-      });
+      if (!ledger) {
+        callback('no ledgers saved');
+        return;
+      }
+
+      callback(null, Number(ledger.totalCoins) / 1000000.0);
     });
   }
 
