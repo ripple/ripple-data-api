@@ -36,7 +36,6 @@ function saveHistory (metric, interval, done) {
 
     if (DEBUG) winston.info("cacheing metric: ", metric, interval, time.format());
     fn(params, function(err, res){
-      console.log(params, err, res);
       if (err) return callback(err);
 
       //we are assuming at this point it has been cached
@@ -48,8 +47,6 @@ function saveHistory (metric, interval, done) {
 
   function next() {
     getStat(function(err, res){
-      done();
-      return;
       end.subtract(1, interval);
       time.subtract(1, interval);
       if (start.diff(time)<=0) return next();
