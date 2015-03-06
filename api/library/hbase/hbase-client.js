@@ -169,12 +169,12 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
 
   if (!options.interval) {
     table      = 'exchanges';
-    descending = options.reduce ? false : options.descending;
+    descending = options.descending === false ? false : true;
     options.unreduced = true;
 
   } else if (exchangeIntervals.indexOf(options.interval) !== -1) {
     keyBase    = options.interval + '|' + keyBase;
-    descending = options.descending || false;
+    descending = options.descending === false ? true : false;
     table      = 'agg_exchanges';
 
   } else {
@@ -195,6 +195,10 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
   }, function (err, rows) {
 
     if (options.reduce && options.unreduced) {
+      if (rows && options.descending) {
+        rows.reverse();
+      }
+
       callback(err, reduce(rows || []));
     } else if (table === 'exchanges') {
       callback(err, formatExchanges(rows || []));
