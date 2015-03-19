@@ -1,6 +1,6 @@
 var tools  = require('../utils');
 var moment = require('moment');
-var utils  = require('../library/hbase/utils');
+var utils  = require('../library/utils');
 
 /*
 

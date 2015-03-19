@@ -3,7 +3,7 @@ var moment  = require('moment');
 var ripple  = require('ripple-lib');
 var async   = require('async');
 var networkValue = require('../library/metrics/networkValue');
-var utils   = require('../library/hbase/utils');
+var utils   = require('../library/utils');
 
 /**
  *  totalNetworkValue:

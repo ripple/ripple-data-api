@@ -2,7 +2,7 @@ var Promise    = require('bluebird');
 var thrift     = require('thrift');
 var HBase      = require('./gen/Hbase');
 var HBaseTypes = require('./gen/Hbase_types');
-var Logger     = require('../logger');
+var Logger     = require('../../logger');
 
 /**
  * HbaseClient
@@ -126,25 +126,39 @@ HbaseClient.prototype.iterator = function (options) {
   var total = 0;
   //create scan
   self._getConnection(function(err, connection) {
-
-
+    var swap;
 
     if (err) {
       self.log.error("unable to get connection", err);
       return;
     }
 
+    //default to reversed,
     //invert stop and start index
     if (options.descending === false) {
-      scanOpts.startRow  = options.stopRow  ? options.stopRow.toString()  : undefined;
-      scanOpts.stopRow   = options.startRow ? options.startRow.toString() : undefined;
+      scanOpts.startRow = options.stopRow.toString();
+      scanOpts.stopRow  = options.startRow.toString();
+
+      if (scanOpts.startRow > scanOpts.stopRow) {
+        swap              = scanOpts.startRow;
+        scanOpts.startRow = scanOpts.stopRow;
+        scanOpts.stopRow  = swap;
+      }
 
     } else {
-      scanOpts.stopRow   = options.stopRow  ? options.stopRow.toString()  : undefined;
-      scanOpts.startRow  = options.startRow ? options.startRow.toString() : undefined;
-      scanOpts.batchSize = options.batchSize || 100;
-      scanOpts.reversed  = true;
+      scanOpts.stopRow  = options.stopRow.toString();
+      scanOpts.startRow = options.startRow.toString();
+      scanOpts.reversed = true;
+
+      if (scanOpts.startRow < scanOpts.stopRow) {
+        swap              = scanOpts.startRow;
+        scanOpts.startRow = scanOpts.stopRow;
+        scanOpts.stopRow  = swap;
+      }
     }
+
+    if (options.batchSize) scanOpts.batchSize = options.batchSize;
+    if (options.caching)   scanOpts.caching   = options.caching;
 
     scan = new HBaseTypes.TScan(scanOpts);
 
@@ -176,7 +190,7 @@ HbaseClient.prototype.iterator = function (options) {
         return;
       }
 
-      connection.client.scannerGetList(scan_id, options.batchSize, function (err, rows) {
+      connection.client.scannerGetList(scan_id, options.count, function (err, rows) {
         var results = [];
         var key;
         var parts;
@@ -262,6 +276,9 @@ HbaseClient.prototype.getScan = function (options, callback) {
         scanOpts.stopRow  = swap;
       }
     }
+
+    if (options.batchSize) scanOpts.batchSize = options.batchSize;
+    if (options.caching)   scanOpts.caching   = options.caching;
 
     scan = new HBaseTypes.TScan(scanOpts);
 
@@ -450,6 +467,21 @@ HbaseClient.prototype.getRow = function (table, rowkey, callback) {
       }
 
       callback(err, row);
+    });
+  });
+};
+
+HbaseClient.prototype.getRows = function (table, rowkeys, callback) {
+  var self = this;
+  self._getConnection(function(err, connection) {
+
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    connection.client.getRows(self._prefix + table, rowkeys, null, function (err, rows) {
+      callback(err, rows ? formatRows(rows) : []);
     });
   });
 };

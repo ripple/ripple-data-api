@@ -1,10 +1,11 @@
 var Promise    = require('bluebird');
-var binformat  = require('ripple-lib').binformat;
-var utils      = require('./utils');
+var ripple     = require('ripple-lib');
+var utils      = require('../utils');
 var Hbase      = require('./hbase-thrift');
 var moment     = require('moment');
-var ripple     = require('ripple-lib');
+
 var SerializedObject = ripple.SerializedObject;
+var binformat        = ripple.binformat;
 
 var EPOCH_OFFSET = 946684800;
 var LI_PAD       = 12;
@@ -45,30 +46,210 @@ function HbaseClient() {
 HbaseClient.prototype = Object.create(Hbase.prototype);
 HbaseClient.prototype.constructor = HbaseClient;
 
+HbaseClient.prototype.getStats = function (options) {
+
+  if (!options) options = { };
+
+  var self     = this;
+  var time     = options.time || moment.utc();
+  var interval = options.interval || 'day';
+  var rowkey   = interval + '|' + utils.formatTime(time.startOf(interval));
+
+  return new Promise (function(resolve, reject) {
+    self._getConnection(function(err, connection) {
+
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      connection.client.getRow(self._prefix + 'agg_stats', rowkey, null, function (err, rows) {
+        var stats = {
+          time     : time.format(),
+          interval : interval,
+          type     : { },
+          result   : { },
+          metric   : {
+            accounts_created  : 0,
+            transaction_count : 0,
+            ledger_count      : 0,
+            tx_per_ledger     : 0.0,
+            ledger_interval   : 0.0,
+          }
+        };
+
+        if (err) {
+          reject(err);
+
+        } else if (!rows.length) {
+          resolve(stats);
+
+        } else {
+          for (var key in rows[0].columns) {
+            parts = key.split(':');
+            stats[parts[0]][parts[1]] = Number(rows[0].columns[key].value);
+          }
+
+          resolve(stats);
+        }
+      });
+    });
+  });
+};
+
+HbaseClient.prototype.getAggregateAccountPayments = function(options) {
+  var self = this;
+  var keys = [ ];
+  var start;
+  var end;
+
+  if (options.account) {
+    if (options.date) {
+      start  = moment.utc(options.date).startOf('day');
+      keys.push(utils.formatTime(start) + '|' + options.account);
+
+    } else {
+      start = moment.utc(options.start).startOf('day');
+      end   = moment.utc(options.end);
+      while(end.diff(start)>=0) {
+        keys.push(utils.formatTime(start) + '|' + options.account);
+        start.add(1, 'day');
+      }
+    }
+
+    return new Promise (function(resolve, reject) {
+      self._getConnection(function(err, connection) {
+
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        self.getRows('agg_account_payments', keys, function (err, rows) {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          resolve(formatRows(rows || [], keys));
+        });
+      });
+    });
+
+  } else {
+    if (options.date) {
+      start = moment.utc(options.date).startOf('day');
+      end   = moment.utc(start).add(1, 'day');
+
+    } else {
+      start = moment.utc(options.start).startOf('day');
+      end   = moment.utc(options.end);
+    }
+
+    return new Promise (function(resolve, reject) {
+      self._getConnection(function(err, connection) {
+
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        self.getScan({
+          table    : 'agg_account_payments',
+          startRow : utils.formatTime(start),
+          stopRow  : utils.formatTime(end)
+        }, function (err, rows) {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          resolve(formatRows(rows || []));
+        });
+      });
+    });
+  }
+
+  function formatRows(rows, keys) {
+    var results = { };
+
+    var Bucket  = function(key) {
+      this.receiving_counterparties = [],
+      this.sending_counterparties   = [],
+      this.payments_sent        = 0,
+      this.payments_received    = 0,
+      this.high_value_sent      = 0,
+      this.high_value_received  = 0,
+      this.total_value_sent     = 0,
+      this.total_value_received = 0,
+      this.total_value          = 0
+
+      if (key) {
+        var parts    = key.split('|');
+        this.date    = utils.unformatTime(parts[0]).format();
+        this.account = parts[1];
+      }
+
+      return this;
+    }
+
+    rows.forEach(function(row) {
+      var key = row.rowkey;
+      var parts;
+
+      row.sending_counterparties   = JSON.parse(row.sending_counterparties) || [];
+      row.receiving_counterparties = JSON.parse(row.receiving_counterparties) || [];
+      row.payments_sent        = Number(row.payments_sent || 0);
+      row.payments_received    = Number(row.payments_received || 0);
+      row.high_value_sent      = Number(row.high_value_sent || 0);
+      row.high_value_received  = Number(row.high_value_received || 0);
+      row.total_value_sent     = Number(row.total_value_sent || 0);
+      row.total_value_received = Number(row.total_value_received || 0);
+      row.total_value          = Number(row.total_value || 0);
+      delete row.rowkey;
+
+      //keys will be present on a
+      //single account lookup, in
+      //which we will add empty
+      //buckets as needed.
+      if (keys) {
+        results[key] = row;
+      }
+
+      if (!row.account) {
+        parts = key.split('|');
+        row.date    = utils.unformatTime(parts[0]).format();
+        row.account = parts[1];
+      }
+    });
+
+    if (keys) {
+      rows = [ ];
+      keys.forEach(function(key) {
+        rows.push(results[key] || new Bucket(key));
+      });
+    }
+
+    return rows;
+  }
+}
 
 /**
  * getPayments
  * query payments
 */
 
-HbaseClient.prototype.getPayments = function (options, callback) {
-  var keyBase = options.account;
-  var table   = 'lu_account_payments';
-  var startRow;
-  var endRow;
-
-  if (options.start)
-    startRow = keyBase + '|' + utils.formatTime(options.start);
-  else startRow = keyBase + '|1';
-  if (options.end)
-    endRow   = keyBase + '|' + utils.formatTime(options.end);
-  else endRow = keyBase + '|9';
+HbaseClient.prototype.getAccountPayments = function (options, callback) {
+  var table   = 'account_payments';
+  var startRow = options.account + '|' + utils.formatTime(options.start);
+  var endRow   = options.account + '|' + utils.formatTime(options.end);
 
   this.getScan({
-    table    : table,
-    startRow : startRow,
-    stopRow  : endRow,
-    limit    : options.limit
+    table      : table,
+    startRow   : startRow,
+    stopRow    : endRow,
+    limit      : options.limit,
+    descending : options.descending
   }, function (err, rows) {
     callback(err, formatPayments(rows || []));
   });
@@ -77,15 +258,12 @@ HbaseClient.prototype.getPayments = function (options, callback) {
     rows.forEach(function(row, i) {
       var key = row.rowkey.split('|');
 
-      rows[i].account          = key[0];
-      rows[i].executed_time    = parseInt(row.executed_time, 10);
-      rows[i].ledger_index     = parseInt(row.ledger_index, 10);
-      rows[i].tx_index         = key[3];
+      row.executed_time    = parseInt(row.executed_time, 10);
+      row.ledger_index     = parseInt(row.ledger_index, 10);
+      row.tx_index         = key[3];
 
-      delete rows[i].rowkey;
-
-      rows[i].destination_balance_changes = JSON.parse(row.destination_balance_changes);
-      rows[i].source_balance_changes      = JSON.parse(row.source_balance_changes);
+      row.destination_balance_changes = JSON.parse(row.destination_balance_changes);
+      row.source_balance_changes      = JSON.parse(row.source_balance_changes);
     });
 
     return rows;
@@ -136,8 +314,6 @@ HbaseClient.prototype.getAccountBalanceChanges = function (options, callback) {
       rows[i].executed_time  = parseInt(row.executed_time, 10);
       rows[i].ledger_index   = parseInt(row.ledger_index, 10);
       rows[i].node_index     = parseInt(row.node_index, 10);
-
-      delete rows[i].rowkey;
     });
 
     return rows;
@@ -178,7 +354,7 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
     table      = 'agg_exchanges';
 
   } else {
-    callback('invalid time increment or interval');
+    callback('invalid interval: ' + options.interval);
     return;
   }
 
@@ -191,19 +367,19 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
     stopRow    : endRow,
     limit      : options.limit,
     descending : descending
-
   }, function (err, rows) {
+    if (!rows) rows = [];
 
     if (options.reduce && options.unreduced) {
-      if (rows && options.descending) {
+      if (descending) {
         rows.reverse();
       }
 
-      callback(err, reduce(rows || []));
+      callback(err, reduce(rows));
     } else if (table === 'exchanges') {
-      callback(err, formatExchanges(rows || []));
+      callback(err, formatExchanges(rows));
     } else {
-      callback(err, formatAggregates(rows || []));
+      callback(err, formatAggregates(rows));
     }
   });
 
@@ -212,19 +388,21 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
    */
 
   function formatExchanges (rows) {
-    rows.forEach(function(row, i) {
+    rows.forEach(function(row) {
       var key = row.rowkey.split('|');
 
-      delete rows[i].base_issuer;
-      delete rows[i].counter_issuer;
+      delete row.base_issuer;
+      delete row.base_currency;
+      delete row.counter_issuer;
+      delete row.counter_currency;
 
-      rows[i].base_amount    = parseFloat(rows[i].base_amount);
-      rows[i].counter_amount = parseFloat(rows[i].counter_amount);
-      rows[i].rate           = parseFloat(row.rate);
-      rows[i].ledger_index   = parseInt(row.ledger_index, 10);
-      rows[i].tx_index       = parseInt(key[6], 10);
-      rows[i].node_index     = parseInt(key[7], 10);
-      rows[i].time           = utils.unformatTime(key[4]).unix();
+      row.base_amount    = parseFloat(row.base_amount);
+      row.counter_amount = parseFloat(row.counter_amount);
+      row.rate           = parseFloat(row.rate);
+      row.ledger_index   = parseInt(row.ledger_index, 10);
+      row.tx_index       = parseInt(key[6], 10);
+      row.node_index     = parseInt(key[7], 10);
+      row.time           = utils.unformatTime(key[4]).unix();
     });
 
     if (options.invert) {
@@ -239,17 +417,17 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
    */
 
   function formatAggregates (rows) {
-    rows.forEach(function(row, i) {
+    rows.forEach(function(row) {
       var key = row.rowkey.split('|');
-      rows[i].base_volume    = parseFloat(row.base_volume),
-      rows[i].counter_volume = parseFloat(row.counter_volume),
-      rows[i].count          = parseInt(row.count, 10);
-      rows[i].open           = parseFloat(row.open);
-      rows[i].high           = parseFloat(row.high);
-      rows[i].low            = parseFloat(row.low);
-      rows[i].close          = parseFloat(row.close);
-      rows[i].close_time     = parseInt(row.open_time, 10);
-      rows[i].open_time      = parseInt(row.close_time, 10);
+      row.base_volume    = parseFloat(row.base_volume),
+      row.counter_volume = parseFloat(row.counter_volume),
+      row.count          = parseInt(row.count, 10);
+      row.open           = parseFloat(row.open);
+      row.high           = parseFloat(row.high);
+      row.low            = parseFloat(row.low);
+      row.close          = parseFloat(row.close);
+      row.close_time     = parseInt(row.open_time, 10);
+      row.open_time      = parseInt(row.close_time, 10);
     });
 
     if (options.invert) {
@@ -418,12 +596,12 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
 
     } else {
       reduced.low = 0;
-      return;
+      return reduced;
     }
 
     rows.forEach(function(row) {
-      if (options.base    === 'XRP' && row.base_amount < 0.0001)    return;
-      if (options.counter === 'XRP' && row.counter_amount < 0.0001) return;
+      if (options.base.currency    === 'XRP' && row.base_amount < 0.0001)    return;
+      if (options.counter.currency === 'XRP' && row.counter_amount < 0.0001) return;
 
       reduced.base_volume    += row.base_amount;
       reduced.counter_volume += row.counter_amount;
@@ -435,6 +613,32 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
     reduced.vwap = reduced.counter_volume / reduced.base_volume;
     return reduced;
   }
+};
+
+HbaseClient.prototype.getAccountExchanges = function (options, callback) {
+  this.getScan({
+    table      : 'account_exchanges',
+    startRow   : options.account + '|' + utils.formatTime(options.start),
+    stopRow    : options.account + '|' + utils.formatTime(options.end),
+    descending : options.descending,
+    limit      : options.limit
+
+  }, function(err, rows) {
+
+      if (!rows) rows = [];
+
+      rows.forEach(function(row) {
+
+        row.base_amount    = parseFloat(row.base_amount);
+        row.counter_amount = parseFloat(row.counter_amount);
+        row.rate           = parseFloat(row.rate);
+        row.ledger_index   = parseInt(row.ledger_index, 10);
+        row.tx_index       = parseInt(row.tx_index || 0);
+        row.node_index     = parseInt(row.node_index || 0);
+      });
+
+      callback(err, rows);
+  });
 };
 
 /**
@@ -681,7 +885,7 @@ HbaseClient.prototype.saveTransactions = function (transactions, callback) {
     }
 
     if (callback) {
-      callback(err, resp);
+      callback(err, transactions.length);
     }
   });
 };
@@ -763,6 +967,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   var tableNames = [];
   var tables     = {
     exchanges            : { },
+    account_offers       : { },
     account_exchanges    : { },
     account_balance_changes : { },
     payments             : { },
@@ -771,6 +976,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     memos                : { },
     lu_account_memos     : { },
     lu_affected_account_transactions : { },
+    lu_account_offers_by_sequence : { },
   };
 
   //add exchanges
@@ -799,6 +1005,8 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:buyer'            : ex.buyer,
       'f:seller'           : ex.seller,
       'f:taker'            : ex.taker,
+      'f:provider'         : ex.provider,
+      'f:offer_sequence'   : ex.sequence,
       'f:tx_hash'          : ex.tx_hash,
       'f:executed_time'    : ex.time,
       'f:ledger_index'     : ex.ledger_index,
@@ -811,6 +1019,53 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     tables.exchanges[key] = row;
     tables.account_exchanges[key2] = row;
     tables.account_exchanges[key3] = row;
+  });
+
+  //add offers
+  params.data.offers.forEach(function(o) {
+    var key = o.account +
+      '|' + utils.formatTime(o.time) +
+      '|' + utils.padNumber(o.ledger_index, LI_PAD) +
+      '|' + utils.padNumber(o.tx_index, I_PAD) +
+      '|' + utils.padNumber(o.node_index, I_PAD);
+
+    tables.account_offers[key] = {
+      'f:account'       : o.account,
+      'f:sequence'      : o.sequence,
+      'f:type'          : o.type,
+      'f:pays_currency' : o.taker_pays.currency,
+      'f:pays_issuer'   : o.taker_pays.issuer || undefined,
+      pays_amount       : o.taker_pays.value,
+      'f:gets_currency' : o.taker_gets.currency,
+      'f:gets_issuer'   : o.taker_gets.issuer || undefined,
+      gets_amount       : o.taker_gets.value,
+      'f:expiration'    : o.expiration,
+      'f:new_offer'     : o.new_offer,
+      'f:old_offer'     : o.old_offer,
+      'f:executed_time' : o.time,
+      'f:ledger_index'  : o.ledger_index,
+      'f:client'        : o.client,
+      tx_index          : o.tx_index,
+      node_index        : o.node_index,
+      tx_hash           : o.tx_hash
+    }
+
+    key = o.account +
+      '|' + o.sequence +
+      '|' + utils.padNumber(o.ledger_index, LI_PAD) +
+      '|' + utils.padNumber(o.tx_index, I_PAD) +
+      '|' + utils.padNumber(o.node_index, I_PAD);
+
+    tables.lu_account_offers_by_sequence[o.account + '|' + o.sequence] = {
+       'f:account'      : o.account,
+      'f:sequence'      : o.sequence,
+      'f:type'          : o.type,
+      'f:executed_time' : o.time,
+      'f:ledger_index'  : o.ledger_index,
+      tx_index          : o.tx_index,
+      node_index        : o.node_index,
+      tx_hash           : o.tx_hash
+    }
   });
 
   //add balance changes

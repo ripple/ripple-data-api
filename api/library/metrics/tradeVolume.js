@@ -2,7 +2,7 @@ var winston = require('winston');
 var moment  = require('moment');
 var ripple  = require('ripple-lib');
 var async   = require('async');
-var utils   = require('../hbase/utils');
+var utils   = require('../utils');
 
 var marketPairs = [
   {

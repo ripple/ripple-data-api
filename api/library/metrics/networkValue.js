@@ -3,7 +3,7 @@ var moment  = require('moment');
 var ripple  = require('ripple-lib');
 var async   = require('async');
 var issuerCapitalization = require('../../routes/issuerCapitalization');
-var utils   = require('../hbase/utils');
+var utils   = require('../utils');
 
 //all currencies we are going to check
 var currencies = [

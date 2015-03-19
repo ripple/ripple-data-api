@@ -2,7 +2,7 @@ var winston = require('winston');
 var moment  = require('moment');
 var ripple  = require('ripple-lib');
 var async   = require('async');
-var utils   = require('../library/hbase/utils');
+var utils   = require('../library/utils');
 var transactionVolume = require('../library/metrics/transactionVolume');
 
 var intervals = [

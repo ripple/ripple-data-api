@@ -3,7 +3,7 @@ var moment    = require('moment');
 var ripple    = require('ripple-lib');
 var async     = require('async');
 var valueSent = require('../../routes/valueSent');
-var utils     = require('../hbase/utils');
+var utils     = require('../utils');
 
 var intervals = [
   'hour',
