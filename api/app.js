@@ -144,13 +144,13 @@ function requestHandler(req, res) {
   apiRoute = path.replace(/_/g, "").toLowerCase();
 
   if (apiRoutes[apiRoute]) {
-
     nSockets = countSockets();
     monitor.logRequest(apiRoute, nSockets);
 
     if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
 
-    apiRoutes[apiRoute](req.body, function(err, response){
+
+    makeRequest(apiRoute, req.body, function(err, response){
 
       //dont send headers if they were already sent
       if(res._header) {
@@ -179,18 +179,90 @@ function requestHandler(req, res) {
     });
 
   } else {
-
     winston.info("Response 404 Not Found - ", path);
     res.send(404, 'Sorry, that API route doesn\'t seem to exist.'+
       ' Available paths are: ' +
       Object.keys(apiRoutes).join(', ') + '\n');
   }
+}
 
-  //res.setTimeout(2 * 60 * 1000); //max 45s
-  //res.on("timeout", function(){
-  //  winston.error("Response 408 Request Timeout - ", path);
-  //  res.send(408, {error: "Request Timeout"});
-  //});
+/**
+ * makeRequest
+ * fuction to handle the
+ * actual request, checking
+ * redis first if it is enabled
+ */
+
+function makeRequest(route, params, callback) {
+  var key;
+  if (CACHE) {
+    key = makeKey(route, params);
+    redis.get(key, function(err, resp) {
+
+      //if its pending, try again later
+      if (resp && resp === 'PENDING CACHE') {
+        setTimeout(function() {
+          makeRequest(route, params, callback);
+        }, 100);
+        return;
+
+      //if we have it cached, serve it
+      } else if (resp) {
+        winston.info('HIT CACHE:', route);
+        callback(null, JSON.parse(resp));
+        return;
+      }
+
+      //set cache as pending
+      redis.set(key, 'PENDING CACHE');
+      redis.expire(key, 5);
+
+      //get from API
+      apiRoutes[route](params, function(err, resp) {
+        if (err) {
+          callback(err);
+          return;
+        }
+
+        //cache the response
+        redis.set(key, JSON.stringify(resp), function(err) {
+          if (err) winston.error('redis cache error:', err);
+        });
+
+        //set expiration
+        redis.expire(key, 1);
+        callback(null, resp);
+      });
+    });
+
+  //pass through to the api routes
+  } else {
+    apiRoutes[route](params, callback);
+  }
+}
+
+/**
+ * makeKey
+ * create a key for the
+ * cache from the route
+ * and post params
+ */
+
+function makeKey(route, params) {
+  var cacheKey = route + '?';
+  var key;
+  var value;
+
+  for (var key in params) {
+    value = params[key];
+    if (typeof value === 'object') {
+      value = JSON.stringify(value);
+    }
+
+    cacheKey += key + ':' + value + '|';
+  }
+
+  return cacheKey;
 }
 
 //initialize ledger monitor
@@ -207,6 +279,11 @@ if (CACHE) {
 
     //reset cache if the arg is present
     if (process.argv.indexOf('reset-cache') !== -1) redis.flushdb();
+
+    redis.on('connect', function() {
+      winston.info('Redis cache enabled');
+      CACHE = true;
+    });
 
     redis.on("error", function (err) {
       winston.error("Redis - " + err);
