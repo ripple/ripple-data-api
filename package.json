@@ -9,6 +9,9 @@
   "engines": {
     "node": ">=0.10"
   },
+  "bin": {
+    "importer": "./db/importer.js"
+  },
   "devDependencies": {
     "couch-compile": "^1.0.1",
     "grunt": "^0.4.5",

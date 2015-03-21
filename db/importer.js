@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  *  ledgerImporter uses the rippled API to import
  *  ledgers into a CouchDB instance
