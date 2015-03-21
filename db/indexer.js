@@ -1,7 +1,7 @@
 /*
  * Indexer:  This module connects to couchDB and queries every view so
  * that couchDB will update the index to add the new ledgers.
- * 
+ *
  */
 function Indexer () {
 
@@ -10,15 +10,15 @@ function Indexer () {
   async   = require('async');
 
   var env    = process.env.NODE_ENV || "development",
-    DBconfig = require('../db.config.json')[env],
+    DBconfig = require(process.env.DB_CONFIG || '../db.config.json')[env],
     nano     = require('nano')(DBconfig.protocol+
-      '://' + DBconfig.username + 
-      ':'   + DBconfig.password + 
-      '@'   + DBconfig.host + 
+      '://' + DBconfig.username +
+      ':'   + DBconfig.password +
+      '@'   + DBconfig.host +
       ':'   + DBconfig.port),
     db = nano.use(DBconfig.database),
-    DEBUG;   
-      
+    DEBUG;
+
   if (process.argv.indexOf('debug3') !== -1) DEBUG = 3;
   if (process.argv.indexOf('debug2') !== -1) DEBUG = 2;
   if (process.argv.indexOf('debug1') !== -1) DEBUG = 1;
@@ -34,37 +34,37 @@ function Indexer () {
     // list design docs
     db.list({ startkey:'_design/', endkey:'_e' }, function(err, res){
       if (err) return winston.error('problem getting design doc list: ' + err);
-     
+
       var designDocIds = _.map(res.rows, function(row){ return row.key; });
-  
+
       // get design docs
       db.fetch({keys: designDocIds}, function(err, res){
-        if (err) return winston.error('problem getting design docs: ' + err);  
-           
+        if (err) return winston.error('problem getting design docs: ' + err);
+
         async.each(res.rows, function(row, asyncCallback) {
-  
-          if (!row.key || !row.doc) return asyncCallback(null, null);      
-  
+
+          if (!row.key || !row.doc) return asyncCallback(null, null);
+
           var ddoc = row.key.slice(8),
             view   = Object.keys(row.doc.views)[0];
-  
+
           // query one view per design doc
           db.view(ddoc, view, { limit:1, reduce:false, stale:'update_after'}, function(err, res) {
             if (err) {
               winston.error("invalid response triggering design doc: " + ddoc);
-              return asyncCallback(err); 
-            }  
-            
-            asyncCallback(null, null);         
+              return asyncCallback(err);
+            }
+
+            asyncCallback(null, null);
           });
-  
-        }, 
-        function(err) { 
+
+        },
+        function(err) {
           if (DEBUG>2 && err) {
-            return winston.error(err); 
+            return winston.error(err);
           }
         });
-        
+
         //display which views are being indexed
         if (DEBUG>2) {
           nano.request({path: '_active_tasks'}, function(err, res){
@@ -72,18 +72,18 @@ function Indexer () {
               winston.error(err);
               return;
             }
-            
+
             res.forEach(function(process){
-              if (process.design_document) { 
+              if (process.design_document) {
                 winston.info('triggered update of ' + process.design_document);
               }
             });
           });
-        }     
+        }
       });
-    });  
+    });
   }
-  return this; 
+  return this;
 }
 
 module.exports = Indexer();

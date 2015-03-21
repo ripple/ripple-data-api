@@ -1,6 +1,6 @@
 var env        = process.env.NODE_ENV || "development";
-var DBconfig   = require('../db.config.json')[env];
-var config     = require('../deployment.environments.json')[env];
+var DBconfig   = require(process.env.DB_CONFIG || '../db.config.json')[env];
+var config     = require(process.env.DEPLOYMENT_ENVS_CONFIG || '../deployment.environments.json')[env];
 var StatsD     = require('node-statsd').StatsD;
 var http       = require('http');
 var https      = require('https');
