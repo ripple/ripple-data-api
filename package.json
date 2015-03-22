@@ -11,10 +11,10 @@
   },
   "bin": {
     "api": "./api/app.js",
-    "importer": "./db/importer.js"
+    "importer": "./db/importer.js",
+    "purge-views": "./db/purgeViews.js"
   },
   "devDependencies": {
-    "couch-compile": "^1.0.1",
     "grunt": "^0.4.5",
     "grunt-contrib-jshint": "^0.10.0",
     "grunt-contrib-watch": "^0.6.1",
@@ -23,6 +23,7 @@
     "grunt-npm-install": "^0.1.0"
   },
   "dependencies": {
+    "couch-compile": "^1.0.1",
     "async": "~0.2.9",
     "clone": "~0.1.11",
     "deep-diff": "^0.1.4",
