@@ -10,6 +10,7 @@
     "node": ">=0.10"
   },
   "bin": {
+    "api": "./api/app.js",
     "importer": "./db/importer.js"
   },
   "devDependencies": {

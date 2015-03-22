@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var env        = process.env.NODE_ENV || "development";
 var DBconfig   = require(process.env.DB_CONFIG || '../db.config.json')[env];
 var config     = require(process.env.DEPLOYMENT_ENVS_CONFIG || '../deployment.environments.json')[env];
