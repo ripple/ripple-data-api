@@ -149,7 +149,7 @@ function offersExercised (params, callback, unlimit) {
     
     // prepare results to send back
     if (options.view.reduce === false) {
-      rows.push(['time','price','baseAmount','counterAmount','account','counterparty','tx_hash']);
+      rows.push(['time','price','baseAmount','counterAmount','account','counterparty','tx_hash','ledgerIndex']);
       resRows.forEach(function(row){
         var time = row.key ? row.key.slice(1) : row.value[5];
         rows.push([
