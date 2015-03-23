@@ -12,7 +12,7 @@
   "bin": {
     "api": "./api/app.js",
     "importer": "./db/importer.js",
-    "purge-views": "./db/purgeViews.js"
+    "update-views": "./db/updateViews.js"
   },
   "devDependencies": {
     "grunt": "^0.4.5",
