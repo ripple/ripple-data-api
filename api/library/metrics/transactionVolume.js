@@ -226,6 +226,7 @@ function totalValueSent(params, callback) {
         counter : assetPair.counter,
         start   : startTime,
         end     : endTime,
+        decending : false,
         reduce  : true
       }, function(err, resp) {
 
@@ -257,6 +258,7 @@ function totalValueSent(params, callback) {
       counter : {currency:params.currency,issuer:params.issuer},
       start   : startTime,
       end     : endTime,
+      descending : false,
       reduce  : true
     }, function(err, resp) {
       if (err) {

@@ -184,6 +184,7 @@ function totalNetworkValue (params, callback) {
         counter : assetPair.counter,
         start   : moment.utc(params.time).subtract(1, 'day'),
         end     : params.time,
+        descending : false,
         reduce  : true
       }, function(err, resp) {
 

@@ -10,6 +10,7 @@ var currencies = require('./routes/gateways').Currencies;
 var HBase      = require('./library/hbase/hbase-client');
 
 var maxSockets;
+var reload;
 
 var posix = require('posix');
 
@@ -63,8 +64,9 @@ db    = require('./library/couchClient')({
 DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
 CACHE = config.redis && config.redis.enabled    ? true : false;
 
-if (process.argv.indexOf('debug')    !== -1) DEBUG = true;
-if (process.argv.indexOf('no-cache') !== -1) CACHE = false;
+if (process.argv.indexOf('debug')    !== -1) DEBUG  = true;
+if (process.argv.indexOf('no-cache') !== -1) CACHE  = false;
+if (process.argv.indexOf('reload')   !== -1) reload = true;
 
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
@@ -125,11 +127,8 @@ winston.info('Listening on port ' + config.port);
 //initialize metrics
 require('./library/metrics').init();
 
-//NOTE this should no longer run at
-//any startup, it will re-query all
-//data rather than checking first to
-//determine if it is cached
-//require('./library/history').init();
+//initialize historical metrics
+require('./library/history').init(reload);
 
 //function to handle all incoming requests
 function requestHandler(req, res) {

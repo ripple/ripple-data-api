@@ -75,7 +75,8 @@ var getMetric = function (params, callback) {
   hbase.getScan({
     table    : 'agg_metrics',
     startRow : keyBase + utils.formatTime(result.start),
-    stopRow  : keyBase + utils.formatTime(result.end)
+    stopRow  : keyBase + utils.formatTime(result.end),
+    descending : false
   }, function (err, rows) {
 
     if (params.exchange && rows.length) {
@@ -83,7 +84,7 @@ var getMetric = function (params, callback) {
         base      : {currency:'XRP'},
         counter   : params.exchange,
         start     : moment.utc(result.start).subtract(1, increment).startOf(increment),
-        end       : result.end,
+        end       : moment.utc(result.end).add(1, increment).startOf(increment),
         increment : increment
       };
 
@@ -104,26 +105,27 @@ var getMetric = function (params, callback) {
    * get XRP to specified currency conversion
    *
    */
-  var getConversion = function (params, callback) {
+  function getConversion (params, callback) {
 
-    // Mimic calling offersExercised
-    require("./offersExercised")({
-      base      : params.base,
-      counter   : params.counter,
-      startTime : params.start,
-      endTime   : params.end,
-      timeIncrement : params.increment
+    hbase.getExchanges( {
+      base     : params.base,
+      counter  : params.counter,
+      start    : params.start,
+      end      : params.end,
+      interval : '1' + params.increment
 
-    }, function(err, data) {
+
+    }, function(err, resp) {
       if (err) {
-        return callback (err);
+        callback(error);
+        return;
       }
 
       var rates = { };
-      data.shift();
-      data.forEach(function(row){
-        rates[moment.utc(row[0]).format()] = row[8];
+      resp.forEach(function(row){
+        rates[row.start] = row.vwap;
       });
+
       callback(null, rates);
     });
   }
@@ -133,12 +135,12 @@ var getMetric = function (params, callback) {
     rows.forEach(function(row, i) {
       row.components   = JSON.parse(row.components);
       row.exchange     = JSON.parse(row.exchange);
-      row.total        = parseFloat(row.total);
-      row.count        = parseFloat(row.count);
-      row.exchangeRate = parseFloat(row.exchangeRate);
+      row.total        = parseFloat(row.total || 0);
+      row.count        = parseFloat(row.count || 0);
+      row.exchangeRate = parseFloat(row.exchangeRate || 0);
 
       if (rates) {
-        row.exchangeRate = rates[row.startTime || row.time] || 0; //this shouldnt happen but it will make it obvious
+        row.exchangeRate = rates[row.startTime || row.time] || 0;
         row.exchange = params.exchange;
         row.total *= row.exchangeRate;
 
@@ -149,6 +151,8 @@ var getMetric = function (params, callback) {
         });
       }
     });
+
+    console.log(rows);
 
     callback(null, rows);
   }

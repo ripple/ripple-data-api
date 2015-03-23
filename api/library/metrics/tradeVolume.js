@@ -152,6 +152,7 @@ function tradeVolume(params, callback) {
     startTime = moment.utc().subtract(24, 'hours');
     endTime   = moment.utc();
     rowkey   += '|live';
+    interval  = null;
 
   } else if (!interval || intervals.indexOf(interval) === -1) {
     callback('invalid interval');
@@ -164,22 +165,40 @@ function tradeVolume(params, callback) {
   }
 
   async.map(marketPairs, function(assetPair, asyncCallbackPair){
+    var options = {
+      base       : assetPair.base,
+      counter    : assetPair.counter,
+      start      : startTime,
+      end        : endTime,
+      descending : false,
+      reduce     : true
+    }
 
     var pair = {
       base    : assetPair.base,
       counter : assetPair.counter
     };
 
-    hbase.getExchanges( {
-      base    : assetPair.base,
-      counter : assetPair.counter,
-      start   : startTime,
-      end     : endTime,
-      reduce  : true
-    }, function(err, resp) {
+    //the section below will use
+    //the previously calculated
+    //vwap from the aggregated row
+
+    /*
+    if (interval) {
+      options.interval = '1' + interval;
+    } else {
+      options.reduce   = true;
+    }
+    */
+
+    hbase.getExchanges(options, function(err, resp) {
       if (err) {
         asyncCallbackPair(err);
         return;
+      }
+
+      if (options.interval) {
+        resp = resp[0];
       }
 
       if (resp) {

@@ -137,11 +137,14 @@ function topMarkets(params, callback) {
 
 
   function handleResponse (options, row, callback) {
+    var params;
 
     if (options.ex.currency === 'XRP') {
       callback(null, row);
       return;
     }
+
+    row.exchange = options.ex;
 
     //check for final rate within row first
     for(var i=0; i<row.components.length; i++) {
@@ -154,20 +157,31 @@ function topMarkets(params, callback) {
       }
     }
 
-    //get the exchange rate
-    hbase.getExchanges( {
+    params = {
       base    : {currency:"XRP"},
       counter : {currency:options.ex.currency,issuer:options.ex.issuer},
       start   : options.start,
       end     : moment.utc(options.start).add(1, options.interval || 'day'),
-      reduce  : true
+      descending : false
+    }
 
-    }, function(err, resp) {
+    if (options.interval) {
+      params.interval = '1' + options.interval;
+    } else {
+      params.reduce = true
+    }
+
+    //get the exchange rate
+    hbase.getExchanges(params, function(err, resp) {
       var rate;
 
       if (err) {
         callback(error);
         return;
+      }
+
+      if (params.interval) {
+        resp = resp[0];
       }
 
       if (!resp) {
