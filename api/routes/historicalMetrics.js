@@ -152,8 +152,6 @@ var getMetric = function (params, callback) {
       }
     });
 
-    console.log(rows);
-
     callback(null, rows);
   }
 }
