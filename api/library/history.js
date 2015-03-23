@@ -1,6 +1,6 @@
 var env      = process.env.NODE_ENV || "staging";
-var DBconfig = require('../../db.config.json')[env];
-var config   = require('../../deployment.environments.json')[env];
+var DBconfig = require(process.env.DB_CONFIG || '../../db.config.json')[env];
+var config   = require(process.env.DEPLOYMENT_ENVS_CONFIG || '../../deployment.environments.json')[env];
 var _        = require('lodash');
 var winston  = require('winston');
 var moment   = require('moment');
@@ -63,6 +63,7 @@ function saveHistory (metric, interval, update, done) {
     getStat(function(err, res){
       end.subtract(1, interval);
       time.subtract(1, interval);
+
       if (err) {
         console.log(err);
       } else if (update && !res) {
@@ -80,11 +81,10 @@ function saveHistory (metric, interval, update, done) {
 
 module.exports.init = function (reload) {
   var offset      = Math.ceil(new Date().getTimezoneOffset()/60);
-  console.log(offset);
+  var dailyRule   = new schedule.RecurrenceRule(null, null, null, null, offset, 15, 0);
+  var weeklyRule  = new schedule.RecurrenceRule(null, null, null, 1, offset, 10, 0);
+  var monthlyRule = new schedule.RecurrenceRule(null, null, 1, null, offset, 5, 0);
 
-  var dailyRule   = new schedule.RecurrenceRule(null, null, null, null, 17, 21, 0);
-  var weeklyRule  = new schedule.RecurrenceRule(null, null, null, 1, 17, 10, 0);
-  var monthlyRule = new schedule.RecurrenceRule(null, null, 1, null, 17, 5, 0);
 
   schedule.scheduleJob(dailyRule, function(){
     saveDailyHistory(false);
