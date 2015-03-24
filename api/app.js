@@ -45,8 +45,8 @@ statsd = new StatsD({
 
 //global hbase client
 hbase = new HBase(config.hbase);
-
 db    = require('./library/couchClient')({
+
   url : DBconfig.protocol+
     '://' + DBconfig.username +
     ':'   + DBconfig.password +
@@ -100,6 +100,11 @@ var apiRoutes = {
   'historicalmetrics'       : require("./routes/historicalMetrics"),
 };
 
+//set content type to application/json
+var  setContentType = function (req, res, next) {
+  req.headers['content-type'] = 'application/json';
+  next();
+};
 
 // enable CORS
 var allowCrossDomain = function(req, res, next) {
@@ -113,8 +118,9 @@ var allowCrossDomain = function(req, res, next) {
 };
 
 app.use(allowCrossDomain);
+app.use(setContentType);
 app.use(express.json());
-app.use(express.urlencoded());
+
 app.get('/api/gateways/:gateway?', gateways);
 app.get('/api/gateways/:gateway/assets/:filename?', assets);
 app.get('/api/currencies/:currencyAsset?', currencies);
@@ -149,7 +155,6 @@ function requestHandler(req, res) {
     monitor.logRequest(apiRoute, nSockets);
 
     if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
-
 
     makeRequest(apiRoute, req.body, function(err, response){
 
@@ -288,11 +293,7 @@ if (CACHE) {
 
     redis.on("error", function (err) {
       winston.error("Redis - " + err);
-      CACHE = false; //turn it off if its not working
     });
-
-    //initialize historical metrics and associated cron jobs
-    //require('./library/history').init();
   }
 }
 
