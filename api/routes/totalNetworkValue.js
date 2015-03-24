@@ -99,7 +99,7 @@ function totalNetworkValue(params, callback) {
   hbase.getRow('agg_metrics', rowkey, function(err, row) {
 
     var options = {
-      start    : moment.utc(time),
+      end      : moment.utc(time),
       ex       : ex
     };
 
@@ -125,7 +125,7 @@ function totalNetworkValue(params, callback) {
     }
 
     row.exchange = options.ex;
-
+/*
     //check for final rate within row first
     for(var i=0; i<row.components.length; i++) {
       if (row.components[i].currency === options.ex.currency &&
@@ -136,40 +136,20 @@ function totalNetworkValue(params, callback) {
         return;
       }
     }
+*/
 
-    params = {
-      base    : {currency:"XRP"},
-      counter : {currency:options.ex.currency,issuer:options.ex.issuer},
-      start   : options.start,
-      end     : moment.utc(options.start).add(1, options.interval || 'day'),
-      descending : false
-    }
-
-    if (options.interval) {
-      params.interval = '1' + options.interval;
-    } else {
-      params.reduce = true
-    }
-
-    //get the exchange rate
-    hbase.getExchanges(params, function(err, resp) {
-      var rate;
-
+    utils.getConversion({
+      currency : options.ex.currency,
+      issuer   : options.ex.issuer,
+      start    : moment.utc(options.end).subtract(1, 'day'),
+      end      : options.end,
+      interval : '1day'
+    }, function (err, rate) {
       if (err) {
-        callback(error);
-        return;
+        return callback(err);
       }
 
-      if (params.interval) {
-        resp = resp[0];
-      }
-
-      if (!resp) {
-        callback("cannot determine exchange rate");
-        return;
-      }
-
-      normalize(resp.vwap, row, callback);
+      normalize(rate, row, callback);
     });
 
     function normalize (rate, row, callback) {

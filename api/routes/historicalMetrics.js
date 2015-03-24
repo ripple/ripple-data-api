@@ -40,6 +40,8 @@ var getMetric = function (params, callback) {
   var start     = moment.utc(result.start).startOf(increment);
   var keyBase;
 
+  console.log(result.start, increment);
+
   if (params.metric) params.metric = params.metric.toLowerCase();
   else return callback('metric parameter is required');
 
@@ -81,14 +83,14 @@ var getMetric = function (params, callback) {
 
     if (params.exchange && rows.length) {
       var options = {
-        base      : {currency:'XRP'},
-        counter   : params.exchange,
-        start     : moment.utc(result.start).subtract(1, increment).startOf(increment),
-        end       : moment.utc(result.end).add(1, increment).startOf(increment),
-        increment : increment
+        base     : {currency:'XRP'},
+        counter  : params.exchange,
+        start    : moment.utc(result.start).startOf(increment),
+        end      : moment.utc(result.end).add(1, increment),
+        interval : increment
       };
 
-      getConversion(options, function(err, rates) {
+      getRates(options, function(err, rates) {
         if (err) {
           return callback ("unable to determine exchange rate");
         }
@@ -105,17 +107,17 @@ var getMetric = function (params, callback) {
    * get XRP to specified currency conversion
    *
    */
-  function getConversion (params, callback) {
+  function getRates (params, callback) {
 
     hbase.getExchanges( {
       base     : params.base,
       counter  : params.counter,
       start    : params.start,
       end      : params.end,
-      interval : '1' + params.increment
-
+      interval : params.interval === 'week' ? '7day' : '1' + params.interval
 
     }, function(err, resp) {
+
       if (err) {
         callback(error);
         return;

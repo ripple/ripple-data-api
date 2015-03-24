@@ -41,11 +41,9 @@ currencies.forEach(function(currency) {
 function totalNetworkValue (params, callback) {
 
   var rowkey;
-  var ex;
 
   if (!params) params = {};
 
-  ex     = params.ex || {currency:'XRP'};
   rowkey = 'network_value';
 
   if (!params.time) {
@@ -60,7 +58,7 @@ function totalNetworkValue (params, callback) {
   //prepare results to send back
   var response = {
     time         : params.time.format(),
-    exchange     : ex,
+    exchange     : {currency:'XRP'},
     exchangeRate : 1,
     total        : 0
   };
@@ -76,23 +74,16 @@ function totalNetworkValue (params, callback) {
 
     if (err) return callback(err);
 
-    getExchangeRates(function(error, rates) {
+    getExchangeRates(params.time, function(error, rates) {
       if (error) return callback(error);
-
-      var finalRate = ex.currency == "XRP" ? 1 : null;
 
       rates.forEach(function(pair, i){
         data[i].rate            = pair.rate;
         data[i].convertedAmount = pair.rate ? data[i].amount / pair.rate : 0;
-
-        //check to see if the pair happens to be the
-        //final conversion currency we are looking for
-        if (pair.counter.currency == ex.currency &&
-            pair.counter.issuer   == ex.issuer) finalRate = pair.rate;
       });
 
       //include XRP balance
-      getXRPbalance(function(error, balance){
+      getXRPbalance(params.time, function(error, balance){
         if (error) return callback(error);
 
         data.push({
@@ -110,87 +101,37 @@ function totalNetworkValue (params, callback) {
 
         //cache XRP normalized version
         cacheResponse (rowkey, response);
-
-        var options = {
-          rate  : finalRate,
-          start : moment.utc(params.time).subtract(1, 'day'),
-          end   : params.time
-        };
-
-        //finalize the response
-        handleResponse(options, response, callback);
+        callback (null, response);
       });
     });
   });
-
-  function handleResponse(options, resp, callback) {
-
-    //normalized to XRP, nothing to do
-    if (options.rate === 1) {
-      callback (null, resp);
-
-    //already have the final rate,
-    //just apply it
-    } else if (options.rate) {
-      finalize(rate);
-
-    //get the final rate
-    } else {
-      getConversion({
-        startTime : options.start,
-        endTime   : options.end,
-        currency  : resp.exchange.currency,
-        issuer    : resp.exchange.issuer
-
-      }, function(error, finalRate) {
-        if (error) {
-          callback (error);
-          return;
-        }
-
-        finalize(finalRate);
-      });
-    }
-
-    function finalize (rate) {
-      resp.total = 0;
-      resp.components.forEach(function(c, index) {
-
-        c.convertedAmount *= rate;
-        c.rate      = c.rate ? rate / c.rate : 0;
-        resp.total += c.convertedAmount;
-      });
-
-      resp.exchangeRate = rate;
-
-      if (callback) {
-        callback(null, resp);
-      }
-    }
-  }
 
   /*
    * get exchange rates for the listed currencies
    *
    */
 
-  function getExchangeRates (callback) {
+  function getExchangeRates (time, callback) {
 
     // Mimic calling offersExercised for each asset pair
     async.map(conversionPairs, function(assetPair, asyncCallbackPair){
 
       hbase.getExchanges( {
-        base    : assetPair.base,
-        counter : assetPair.counter,
-        start   : moment.utc(params.time).subtract(1, 'day'),
-        end     : params.time,
-        descending : false,
-        reduce  : true
+        base       : assetPair.base,
+        counter    : assetPair.counter,
+        start      : moment.utc(time).subtract(1, 'day'),
+        end        : time,
+        interval   : '1day',
+        descending : false
       }, function(err, resp) {
 
         if (err) {
           asyncCallbackPair(err);
           return;
+        }
+
+        if (resp.length) {
+          resp = resp[0];
         }
 
         assetPair.rate =  resp ? resp.vwap : 0;
@@ -207,8 +148,9 @@ function totalNetworkValue (params, callback) {
   *  getLatestLedgerSaved gets the ledger with the highest
   *  index saved in CouchDB
   */
-  function getXRPbalance(callback) {
-    hbase.getLedger({}, function (err, ledger) {
+  function getXRPbalance(time, callback) {
+    hbase.getLedger({closeTime: time || moment.utc()}, function (err, ledger) {
+
       if (err) {
         callback('Hbase - ' + err);
         return;

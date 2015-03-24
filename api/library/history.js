@@ -8,7 +8,7 @@ var schedule = require('node-schedule');
 
 function saveHistory (metric, interval, update, done) {
   var start = moment.utc("2013-01-01");
-  var end   = moment.utc().startOf(interval); //now
+  var end   = moment.utc().startOf(interval === 'week' ? 'isoWeek' : interval);
   var time  = moment.utc(end).subtract(1, interval);
   var check;
   var load;
@@ -35,8 +35,9 @@ function saveHistory (metric, interval, update, done) {
   next(); //start
 
   function getStat(callback) {
+
     if (metric == 'networkValue') params = {
-      time    : time,
+      time : time,
     }
 
     else params = {
@@ -109,7 +110,7 @@ module.exports.init = function (reload) {
     });
   };
 
-  var saveWeeklyHistory = function (udapte, done) {
+  var saveWeeklyHistory = function (update, done) {
     saveHistory('tradeVolume', "week", update, function() {
       saveHistory('transactionVolume', "week", update, function() {
         saveHistory('networkValue', "week", update, function() {

@@ -109,7 +109,7 @@ function topMarkets(params, callback) {
     return callback('invalid time: ' + params.startTime);
 
   } else {
-    startTime.startOf(interval);
+    startTime.startOf(interval === 'week' ? 'isoWeek' : interval);
     rowkey += '|' + interval + '|' + utils.formatTime(startTime);
   }
 
@@ -137,7 +137,6 @@ function topMarkets(params, callback) {
 
 
   function handleResponse (options, row, callback) {
-    var params;
 
     if (options.ex.currency === 'XRP') {
       callback(null, row);
@@ -157,39 +156,18 @@ function topMarkets(params, callback) {
       }
     }
 
-    params = {
-      base    : {currency:"XRP"},
-      counter : {currency:options.ex.currency,issuer:options.ex.issuer},
-      start   : options.start,
-      end     : moment.utc(options.start).add(1, options.interval || 'day'),
-      descending : false
-    }
-
-    if (options.interval) {
-      params.interval = '1' + options.interval;
-    } else {
-      params.reduce = true
-    }
-
-    //get the exchange rate
-    hbase.getExchanges(params, function(err, resp) {
-      var rate;
-
+    utils.getConversion({
+      currency : options.ex.currency,
+      issuer   : options.ex.issuer,
+      start    : options.start,
+      end      : moment.utc(options.start).add(1, options.interval || 'day'),
+      interval : options.interval
+    }, function (err, rate) {
       if (err) {
-        callback(error);
-        return;
+        return callback(err);
       }
 
-      if (params.interval) {
-        resp = resp[0];
-      }
-
-      if (!resp) {
-        callback("cannot determine exchange rate");
-        return;
-      }
-
-      normalize(resp.vwap, row, callback);
+      normalize(rate, row, callback);
     });
 
     function normalize (rate, row, callback) {

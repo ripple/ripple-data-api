@@ -137,12 +137,10 @@ var intervals = [
 function tradeVolume(params, callback) {
 
   var rowkey;
-  var ex;
   var startTime;
   var endTime;
 
   if (!params) params = {};
-  ex        = params.ex || {currency:'XRP'};
   interval  = (params.interval || '').toLowerCase();
   startTime = params.startTime;
 
@@ -159,7 +157,7 @@ function tradeVolume(params, callback) {
     return;
 
   } else {
-    startTime.startOf(interval);
+    startTime.startOf(interval === 'week' ? 'isoWeek' : interval);
     rowkey += '|' + interval + '|' + utils.formatTime(startTime);
     endTime = moment.utc(startTime).add(1, interval);
   }
@@ -170,8 +168,7 @@ function tradeVolume(params, callback) {
       counter    : assetPair.counter,
       start      : startTime,
       end        : endTime,
-      descending : false,
-      reduce     : true
+      descending : false
     }
 
     var pair = {
@@ -179,17 +176,17 @@ function tradeVolume(params, callback) {
       counter : assetPair.counter
     };
 
-    //the section below will use
-    //the previously calculated
-    //vwap from the aggregated row
-
-    /*
-    if (interval) {
+    if (interval === 'week') {
+      options.interval = '7day';
+    } else if (interval) {
       options.interval = '1' + interval;
     } else {
       options.reduce   = true;
     }
-    */
+
+    //the section below will use
+    //the previously calculated
+    //vwap from the aggregated row
 
     hbase.getExchanges(options, function(err, resp) {
       if (err) {
@@ -221,12 +218,11 @@ function tradeVolume(params, callback) {
       return;
     }
 
-    var finalRate;
     var rates = { };
     var response = {
       startTime    : startTime.format(),
       endTime      : endTime.format(),
-      exchange     : ex,
+      exchange     : {currency:'XRP'},
       exchangeRate : 1,
       total        : 0,
       count        : 0
@@ -255,94 +251,8 @@ function tradeVolume(params, callback) {
 
     //cache XRP normalized version
     cacheResponse (rowkey, response);
-
-    if (ex.currency == 'XRP') {
-      finalRate = 1;
-    } else if (rates[ex.currency + '.' + ex.issuer]) {
-      finalRate = 1 / rates[ex.currency + '.' + ex.issuer];
-    }
-
-    var options = {
-      rate  : finalRate,
-      start : startTime,
-      end   : endTime
-    };
-
-    //finalize the response
-    handleResponse(options, response, callback);
+    callback (null, response);
   });
-
-  function handleResponse(options, resp, callback) {
-
-    //normalized to XRP, nothing to do
-    if (options.rate === 1) {
-      callback (null, resp);
-
-    //already have the final rate,
-    //just apply it
-    } else if (options.rate) {
-      finalize(rate);
-
-    //get the final rate
-    } else {
-      getConversion({
-        startTime : options.start,
-        endTime   : options.end,
-        currency  : resp.exchange.currency,
-        issuer    : resp.exchange.issuer
-
-      }, function(error, finalRate) {
-        if (error) {
-          callback (error);
-          return;
-        }
-
-        finalize(finalRate);
-      });
-    }
-
-    function finalize (rate) {
-      resp.total = 0;
-      resp.components.forEach(function(c, index) {
-
-        c.convertedAmount *= rate;
-        c.rate      = c.rate ? rate / c.rate : 0;
-        resp.total += c.convertedAmount;
-      });
-
-      resp.exchangeRate = rate;
-
-      if (callback) {
-        callback(null, resp);
-      }
-    }
-  }
-
-  /*
-   * get XRP to specified currency conversion
-   */
-
-  function getConversion (params, callback) {
-
-    hbase.getExchanges( {
-      base    : {currency:"XRP"},
-      counter : {currency:params.currency,issuer:params.issuer},
-      start   : startTime,
-      end     : endTime,
-      reduce  : true
-    }, function(err, resp) {
-      if (err) {
-        callback(error);
-        return;
-      }
-
-      if (resp) {
-        callback(null, resp.vwap); // vwavPrice
-      } else {
-        callback("cannot determine exchange rate");
-      }
-    });
-  }
 
   function cacheResponse (rowkey, response) {
     var table = 'agg_metrics';

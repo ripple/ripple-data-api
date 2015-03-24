@@ -27,7 +27,7 @@ module.exports.unformatTime = function(time) {
     parseInt(time.slice(10, 12), 10),   //minute
     parseInt(time.slice(12, 14), 10),   //second
   ]
-    
+
   return moment.utc(t);
 };
 
@@ -64,53 +64,53 @@ module.exports.toHex = function (input) {
  * getAlignedTime - uses the interval and multiple
  * to align the time to a consistent series, such as 9:00, 9:05, 9:10...
  * rather than 9:03, 9:08, 9:13...
- */ 
+ */
 
 module.exports.getAlignedTime = function (original, interval, multiple) {
   var time = moment.utc(original); //clone the original
   if (!multiple) multiple = 1;
-  
+
   interval = interval ? interval.slice(0,3) : null;
-  
+
   if (interval === 'day' && multiple === 7) {
     interval = 'wee';
     multiple = 1;
   }
-  
+
   if (interval === 'sec') {
     time.startOf('second');
     if (multiple > 1) {
-      time.subtract(time.seconds()%multiple, 'seconds');       
+      time.subtract(time.seconds()%multiple, 'seconds');
     }
-    
+
   } else if (interval === 'min') {
     time.startOf('minute');
     if (multiple > 1) {
-      time.subtract(time.minutes()%multiple, 'minutes');       
+      time.subtract(time.minutes()%multiple, 'minutes');
     }
-          
+
   } else if (interval === 'hou') {
     time.startOf('hour');
     if (multiple > 1) {
-      time.subtract(time.hours()%multiple, 'hours');       
+      time.subtract(time.hours()%multiple, 'hours');
     }
-           
+
   } else if (interval === 'day') {
     var days;
     var diff;
-    
+
     if (multiple === 1) {
       days = 0;
-      
-    } else { 
+
+    } else {
       diff = time.diff(moment.utc([2013,0,1]), 'hours')/24;
       if (diff<0) days = multiple - (0 - Math.floor(diff))%multiple;
       else days = Math.floor(diff)%multiple;
     }
-    
+
     time.startOf('day');
     if (days) {
-      time.subtract(days, 'days');     
+      time.subtract(days, 'days');
     }
 
   } else if (interval === 'wee') {
@@ -118,11 +118,11 @@ module.exports.getAlignedTime = function (original, interval, multiple) {
     if (multiple > 1) {
       time.subtract(time.weeks()%multiple, 'weeks');
     }
-    
+
   } else if (interval === 'mon') {
     time.startOf('month');
     if (multiple > 1) {
-      time.subtract(time.months()%multiple, 'months'); 
+      time.subtract(time.months()%multiple, 'months');
     }
   } else if (interval === 'yea') {
     time.startOf('year')
@@ -130,6 +130,44 @@ module.exports.getAlignedTime = function (original, interval, multiple) {
       time.subtract(time.years()%multiple, 'years');
     }
   }
-  
-  return time;    
+
+  return time;
+}
+
+/*
+ * get XRP to specified currency conversion
+ */
+
+exports.getConversion = function (params, callback) {
+  var options = {
+    base       : {currency:"XRP"},
+    counter    : {currency:params.currency,issuer:params.issuer},
+    start      : params.start,
+    endTime    : params.end,
+    descending : false
+  };
+
+
+  if (params.interval) {
+    options.interval = params.interval;
+  } else {
+    options.reduce = true
+  }
+
+  hbase.getExchanges(options, function(err, resp) {
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    if (params.interval) {
+      resp = resp[0];
+    }
+
+    if (resp) {
+      callback(null, resp.vwap); // vwavPrice
+    } else {
+      callback("cannot determine exchange rate");
+    }
+  });
 }

@@ -46,13 +46,11 @@ currencies.forEach(function(currency) {
 function totalValueSent(params, callback) {
 
   var rowkey;
-  var ex;
   var startTime;
   var endTime;
   var interval;
 
   if (!params) params = {};
-  ex        = params.ex || {currency:'XRP'};
   interval  = (params.interval || '').toLowerCase();
   startTime = params.startTime;
   rowkey    = 'transaction_volume';
@@ -67,7 +65,7 @@ function totalValueSent(params, callback) {
     return;
 
   } else {
-    startTime.startOf(interval);
+    startTime.startOf(interval === 'week' ? 'isoWeek' : interval);
     rowkey += '|' + interval + '|' + utils.formatTime(startTime);
     endTime = moment.utc(startTime).add(1, interval);
   }
@@ -76,13 +74,12 @@ function totalValueSent(params, callback) {
   var response = {
     startTime    : startTime.format(),
     endTime      : endTime.format(),
-    exchange     : ex,
+    exchange     : {currency:'XRP'},
     exchangeRate : 1,
     total        : 0,
     count        : 0
   };
 
-  var finalRate;
 
   //call valueSent for each asset pair
   async.map(currencies, function(c, asyncCallbackPair){
@@ -122,22 +119,22 @@ function totalValueSent(params, callback) {
     }
 
     var currencies = resp;
+    var options = {
+      start    : startTime,
+      end      : endTime,
+      interval : interval
+    };
 
-    getExchangeRates(function(error, rates){
-      if (error) return callback(error);
-
-      var finalRate = ex.currency == "XRP" ? 1 : null;
+    getExchangeRates(options, function(err, rates){
+      if (err) {
+        callback(err);
+        return;
+      }
 
       rates.forEach(function(pair, index){
         currencies[index].rate            = pair.rate || 0;
         currencies[index].convertedAmount = pair.rate ? currencies[index].amount / pair.rate : 0;
-
-        //check to see if the pair happens to be the
-        //final conversion currency we are looking for
-        if (pair.counter.currency == ex.currency &&
-            pair.counter.issuer   == ex.issuer) finalRate = pair.rate;
       });
-
 
       currencies.forEach(function(currency, index) {
 
@@ -154,85 +151,43 @@ function totalValueSent(params, callback) {
 
       //cache XRP normalized version
       cacheResponse (rowkey, response);
-
-      var options = {
-        rate  : finalRate,
-        start : startTime,
-        end   : endTime
-      };
-
-      //finalize the response
-      handleResponse(options, response, callback);
+      callback (null, response);
     });
   });
 
-  function handleResponse(options, resp, callback) {
-
-    //normalized to XRP, nothing to do
-    if (options.rate === 1) {
-      callback (null, resp);
-
-    //already have the final rate,
-    //just apply it
-    } else if (options.rate) {
-      finalize(rate);
-
-    //get the final rate
-    } else {
-      getConversion({
-        startTime : options.start,
-        endTime   : options.end,
-        currency  : resp.exchange.currency,
-        issuer    : resp.exchange.issuer
-
-      }, function(error, finalRate) {
-        if (error) {
-          callback (error);
-          return;
-        }
-
-        finalize(finalRate);
-      });
-    }
-
-    function finalize (rate) {
-      resp.total = 0;
-      resp.components.forEach(function(c, index) {
-
-        c.convertedAmount *= rate;
-        c.rate      = c.rate ? rate / c.rate : 0;
-        resp.total += c.convertedAmount;
-      });
-
-      response.exchangeRate = rate;
-
-      if (callback) {
-        callback(null, response);
-      }
-    }
-  }
-
   /*
    * get exchange rates for the listed currencies
-   *
    */
-  function getExchangeRates (callback) {
+
+  function getExchangeRates (params, callback) {
 
     // Mimic calling offersExercised for each asset pair
     async.map(conversionPairs, function(assetPair, asyncCallbackPair){
+      var options = {
+        base      : assetPair.base,
+        counter   : assetPair.counter,
+        start     : params.start,
+        end       : params.end,
+        desending : false
+      };
 
-      hbase.getExchanges( {
-        base    : assetPair.base,
-        counter : assetPair.counter,
-        start   : startTime,
-        end     : endTime,
-        decending : false,
-        reduce  : true
-      }, function(err, resp) {
+      if (params.interval === 'week') {
+        options.interval = '7day';
+      } else if (params.interval) {
+        options.interval = '1' + params.interval;
+      } else {
+        options.reduce   = true;
+      }
+
+      hbase.getExchanges(options, function(err, resp) {
 
         if (err) {
           asyncCallbackPair(err);
           return;
+        }
+
+        if (resp.length) {
+          resp = resp[0];
         }
 
         assetPair.rate =  resp ? resp.vwap : 0;
@@ -242,35 +197,6 @@ function totalValueSent(params, callback) {
     }, function(error, results){
       if (error) return callback(error);
       return callback(null, results);
-    });
-  }
-
-
-  /*
-   * get XRP to specified currency conversion
-   *
-   */
-
-  function getConversion (params, callback) {
-
-    hbase.getExchanges( {
-      base    : {currency:"XRP"},
-      counter : {currency:params.currency,issuer:params.issuer},
-      start   : startTime,
-      end     : endTime,
-      descending : false,
-      reduce  : true
-    }, function(err, resp) {
-      if (err) {
-        callback(error);
-        return;
-      }
-
-      if (resp) {
-        callback(null, resp.vwap); // vwavPrice
-      } else {
-        callback("cannot determine exchange rate");
-      }
     });
   }
 
