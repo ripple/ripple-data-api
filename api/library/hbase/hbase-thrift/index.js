@@ -14,8 +14,7 @@ var HbaseClient = function (options) {
 
   this.max_sockets = options.max_sockets || 1000;
   this._prefix     = options.prefix || '';
-  this._host       = options.host;
-  this._port       = options.port;
+  this._servers    = options.servers || null;
   this._timeout    = options.timeout || 30000; //also acts as keepalive
   this._connection = null;
   this.hbase       = null;
@@ -26,6 +25,13 @@ var HbaseClient = function (options) {
   });
 
   this.pool = [ ];
+
+  if (!this._servers) {
+    this._servers = [{
+      host : options.host,
+      port : options.port
+    }];
+  }
 };
 
 HbaseClient.prototype._getConnection = function(cb) {
@@ -49,7 +55,7 @@ HbaseClient.prototype._getConnection = function(cb) {
 
   //open a new socket if there is room in the pool
   if (self.pool.length < self.max_sockets) {
-    openNewSocket();
+    openNewSocket(self.pool.length % self._servers.length);
   }
 
   //recheck for connected socket
@@ -63,11 +69,11 @@ HbaseClient.prototype._getConnection = function(cb) {
    * openNewSocket
    */
 
-  function openNewSocket() {
-    var index;
+  function openNewSocket(i) {
+    var server = self._servers[i || 0];
 
     //create new connection
-    connection = thrift.createConnection(self._host, self._port, {
+    connection = thrift.createConnection(server.host, server.port, {
       transport : thrift.TFramedTransport,
       protocol  : thrift.TBinaryProtocol,
       timeout   : self._timeout
