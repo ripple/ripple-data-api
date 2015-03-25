@@ -34,6 +34,11 @@ var HbaseClient = function (options) {
   }
 };
 
+/**
+ * _getConnection
+ * get an hbase connection from the pool
+ */
+
 HbaseClient.prototype._getConnection = function(cb) {
   var self = this;
   var connection;
@@ -47,10 +52,19 @@ HbaseClient.prototype._getConnection = function(cb) {
         !Object.keys(self.pool[i].client._reqs).length &&
         !self.pool[i].keep) {
 
-      //console.log(self.pool.length, i);
       cb(null, self.pool[i]);
+      self.log.debug("# connections", self.pool.length);
       return;
     }
+    /*
+    console.log(!!self.pool[i].client,
+                !!self.pool[i].connected,
+                !!self.pool[i].keep)
+
+    if (self.pool[i].client && Object.keys(self.pool[i].client._reqs).length) {
+      count++;
+    }
+    */
   }
 
   //open a new socket if there is room in the pool
@@ -83,9 +97,8 @@ HbaseClient.prototype._getConnection = function(cb) {
     //handle errors
     connection.error = function (err) {
       this.connected = false;
-      delete self.pool[this.pool_index];
-      self.pool.splice(this.pool_index, 1);
 
+      //execute any callbacks, then delete
       if (this.client) {
         for (var key in this.client._reqs) {
           this.client._reqs[key](err);
@@ -93,10 +106,20 @@ HbaseClient.prototype._getConnection = function(cb) {
         }
       }
 
+      //destroy the connection
       this.connection.destroy();
+
+      //remove from pool
+      for (var i=0; i<self.pool.length; i++) {
+        if (self.pool[i] === this) {
+          delete self.pool[i];
+          self.pool.splice(i, 1);
+          break;
+        }
+      }
     };
 
-    connection.pool_index = self.pool.push(connection) - 1;
+    self.pool.push(connection);
 
     connection.on('timeout', function() {
       this.error('thrift connection timeout');

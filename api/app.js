@@ -43,6 +43,18 @@ statsd = new StatsD({
   cacheDns : true
 });
 
+//set up global debug and cache variables
+DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
+CACHE = config.redis && config.redis.enabled    ? true : false;
+
+if (process.argv.indexOf('debug')    !== -1) DEBUG  = true;
+if (process.argv.indexOf('no-cache') !== -1) CACHE  = false;
+if (process.argv.indexOf('reload')   !== -1) reload = true;
+
+if (DEBUG) {
+  config.hbase.logLevel = 4;
+}
+
 //global hbase client
 hbase = new HBase(config.hbase);
 db    = require('./library/couchClient')({
@@ -61,14 +73,6 @@ db    = require('./library/couchClient')({
   },
   //request_defaults : {timeout:60 *1000}
 });
-
-//set up global debug and cache variables
-DEBUG = (process.argv.indexOf('debug')  !== -1) ? true : false;
-CACHE = config.redis && config.redis.enabled    ? true : false;
-
-if (process.argv.indexOf('debug')    !== -1) DEBUG  = true;
-if (process.argv.indexOf('no-cache') !== -1) CACHE  = false;
-if (process.argv.indexOf('reload')   !== -1) reload = true;
 
 gatewayList = require('./gateways.json');
   // TODO find permanent location for gateways list
