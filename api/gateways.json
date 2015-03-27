@@ -393,6 +393,7 @@
     "featured" : true
   }, {
     "name": "Rippex",
+    "startDate": "2014-09-13",
     "accounts": [{
       "address": "rfNZPxoZ5Uaamdp339U9dCLWz2T73nZJZH",
       "currencies": {"BRL" : { "featured" : true }}
