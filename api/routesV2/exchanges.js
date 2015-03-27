@@ -1,6 +1,7 @@
 var moment = require('moment');
 var tools  = require('../utils');
 var ripple = require('ripple-lib');
+var _      = require('underscore');
 
 var intervals = {
   minute : [1,5,15,30],
@@ -73,6 +74,9 @@ module.exports = function (params, callback) {
     callback("startTime and endTime are required.");
     return;
   }
+
+  //set format
+  options.format = params.format || null;
 
   //unaggregated results from couchdb
   if (params.reduce === false) {
@@ -233,10 +237,11 @@ function handleResponse (rows, options, callback) {
 
   //JSON output
   } else if (options.format === 'json') {
+
     apiRes.startTime     = moment.utc(options.startTime).format();
     apiRes.endTime       = moment.utc(options.endTime).format();
-    apiRes.base          = params.base;
-    apiRes.counter       = params.counter;
+    apiRes.base          = options.base;
+    apiRes.counter       = options.counter;
     apiRes.timeIncrement = options.increment || "all";
     if (options.multiple && options.multiple>1) apiRes.timeMultiple = options.multiple;
 
