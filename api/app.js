@@ -151,7 +151,7 @@ function requestHandler(req, res) {
 
   if (path.indexOf('/') > 0) path = path.slice(0, path.indexOf('/'));
 
-  winston.info(ip, "POST", path, "["+(new Date())+"]");
+  if (DEBUG) winston.info(ip, "POST", path, "["+(new Date())+"]");
   apiRoute = path.replace(/_/g, "").toLowerCase();
 
   if (apiRoutes[apiRoute]) {
@@ -161,10 +161,15 @@ function requestHandler(req, res) {
     if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
 
     makeRequest(apiRoute, req.body, function(err, response){
+      var date  = "["+(moment.utc().format())+"]";
+      var rowcount;
+
+      //calculate the duration
+      time = (Date.now()-time)/1000;
 
       //dont send headers if they were already sent
       if(res._header) {
-        console.log("header allready set!", err || null);
+        winston.warn("header allready set!", err || null);
         return;
       }
 
@@ -177,15 +182,31 @@ function requestHandler(req, res) {
           code = 500;
         }
 
-        winston.error(err, " - "+path, "(Server Error) " + code);
         res.send(code, { error: err });
+        winston.error(date,
+          'RESPONSE',
+          'ip:' + ip,
+          'route:' + path,
+          'code:' + code,
+          'time:' + time + "s",
+          'ERROR:' + err);
         return;
       }
 
       res.send(200, response);
-      time = Date.now()-time;
-      winston.info(ip, path, 200, "["+(new Date())+"]", (time/1000)+"s");
-      monitor.logResponseTime(time, apiRoute);
+
+      //log the response
+      if (response.length)       rowcount = response.length;
+      else if (response.results) rowcount = response.results.length;
+
+      winston.info(date,
+        'RESPONSE',
+        'ip:' + ip,
+        'route:' + path,
+        'code:' + 200,
+        'time:' + time + "s",
+        rowcount ? 'rowcount:' + rowcount : null);
+      //monitor.logResponseTime(time, apiRoute);
     });
 
   } else {
