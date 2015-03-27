@@ -43,11 +43,12 @@ exports.getGatewaysByCurrency = function () {
         }
 
         var g = {
-          name     : gateway.name,
-          account  : acct.address,
-          featured : acct.currencies[currency].featured,
-          label    : acct.currencies[currency].label,
-          assets   : gateway.assets
+          name      : gateway.name,
+          account   : acct.address,
+          featured  : acct.currencies[currency].featured,
+          label     : acct.currencies[currency].label,
+          assets    : gateway.assets,
+          startDate : gateway.startDate
         }
 
         results[currency].push(g);
