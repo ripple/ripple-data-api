@@ -41,7 +41,13 @@ var Assets = function (req, res, next) {
   var identifier;
 
   if (address) {
-    gateway    = utils.getGateway(address);
+    gateway = utils.getGateway(address);
+
+    if (!gateway) {
+      res.status(400).send('invalid gateway name or address');
+      return;
+    }
+
     identifier = gateway.name.toLowerCase().replace(/\W/g, '');
 
     res.sendfile(assetPath + '/' + identifier + '.' + filename, null, function(err) {
