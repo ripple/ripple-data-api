@@ -168,9 +168,8 @@ function requestHandler(req, res) {
 
         res.send(code, { error: err });
         winston.error(date,
-          'RESPONSE',
-          'ip:' + ip,
-          'route:' + path,
+          ip,
+          'route:' + apiRoute,
           'code:' + code,
           'time:' + time + "s",
           'ERROR:' + err);
@@ -184,8 +183,7 @@ function requestHandler(req, res) {
       else if (response.results) rowcount = response.results.length;
 
       winston.info(date,
-        'RESPONSE',
-        'ip:' + ip,
+        ip,
         'route:' + path,
         'code:' + 200,
         'time:' + time + "s",
