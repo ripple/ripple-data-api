@@ -7,6 +7,16 @@ var currencies = path.resolve(__dirname + '/../currencyAssets/');
 //they will not change until restart
 var gatewaysByCurrency = utils.getGatewaysByCurrency();
 
+for (var key in gatewaysByCurrency) {
+  gatewaysByCurrency[key].sort(sortIssuers);
+}
+
+function sortIssuers (a, b) {
+  var first  = (a.assets.length ? '0' : '1') + (a.featured ? '0' : '1') + a.name;
+  var second = (b.assets.length ? '0' : '1') + (b.featured ? '0' : '1') + b.name;
+  return (first >= second ? 1 : -1);
+}
+
 /**
  * gateways
  * return information for all gatways
