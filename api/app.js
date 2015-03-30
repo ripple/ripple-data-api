@@ -160,7 +160,7 @@ function requestHandler(req, res) {
 
     if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
 
-    makeRequest(apiRoute, req.body, function(err, response){
+    makeRequest(apiRoute, req.body, function(err, response, cached){
       var date  = "["+(moment.utc().format())+"]";
       var rowcount;
 
@@ -205,7 +205,8 @@ function requestHandler(req, res) {
         'route:' + path,
         'code:' + 200,
         'time:' + time + "s",
-        rowcount ? 'rowcount:' + rowcount : null);
+        rowcount ? 'rowcount:' + rowcount : '',
+        cached? 'cached:true' : '');
       //monitor.logResponseTime(time, apiRoute);
     });
 
@@ -239,8 +240,7 @@ function makeRequest(route, params, callback) {
 
       //if we have it cached, serve it
       } else if (resp) {
-        winston.info('HIT CACHE:', route);
-        callback(null, JSON.parse(resp));
+        callback(null, JSON.parse(resp), true);
         return;
       }
 
