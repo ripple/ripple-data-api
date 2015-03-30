@@ -56,8 +56,9 @@
     "accounts": [{
       "address": "rNPRNzBB92BVpAhhZr4iXDTveCgV5Pofm9",
       "currencies": {
-        "BTC" : { "featured" : true },
-        "ILS" : { "featured" : false }
+        "BTC" : { "featured" : false },
+        "ILS" : { "featured" : false },
+        "LTC" : { "featured" : false }
       }
     }],
     "hotwallets": [
@@ -113,7 +114,8 @@
         "currencies": {
           "BTC" : { "featured" : true },
           "EUR" : { "featured" : true },
-          "USD" : { "featured" : true }
+          "USD" : { "featured" : true },
+          "LTC" : { "featured" : false }
         }
       }],
     "hotwallets": [
@@ -121,24 +123,6 @@
     ],
     "domain": "therocktrading.com",
     "status": "active"
-  }, {
-    "name": "WeExchange",
-    "accounts": [{
-      "address": "r47RkFi1Ew3LvCNKT6ufw3ZCyj5AJiLHi9",
-      "currencies": {"CAD" : { "featured" : false }}
-      }, {
-      "address": "rBcYpuDT1aXNo4jnqczWJTytKGdBGufsre",
-      "currencies": {"AUD" : { "featured" : false }}
-      }, {
-      "address": "rpvfJ4mR6QQAeogpXEKnuyGBx8mYCSnYZi",
-      "currencies": {"BTC" : { "featured" : false }}
-      }, {
-      "address": "r9vbV3EHvXWjSkeQ6CAcYVPGeq7TuiXY2X",
-      "currencies": {"USD" : { "featured" : false }}
-    }],
-    "hotwallets": [],
-    "domain": "weexchange.co",
-    "status": "inactive"
   }, {
     "name": "WisePass",
     "startDate": "2013-04-28",
@@ -164,23 +148,12 @@
     "accounts": [{
       "address": "rfYv1TXnwgDDK4WQNbFALykYuEBnrR4pDX",
       "currencies": {
-        "BTC" : { "featured" : false },
-        "LTC" : { "featured" : false },
-        "NMC" : { "featured" : false },
-        "TRC" : { "featured" : false }
+        "BTC" : { "featured" : false }
       }
     }],
     "hotwallets": [],
     "domain": "dividendrippler.com",
     "status": "active"
-  }, {
-      "name": "TTBit",
-      "accounts": [{
-        "address": "rGwUWgN5BEg3QGNY3RX2HfYowjUTZdid3E",
-        "currencies": {"DYM" : { "featured" : false }}
-      }],
-      "hotwallets": [],
-      "status" : "active"
   }, {
     "name": "RippleUnion",
     "startDate": "2013-03-22",
@@ -194,30 +167,13 @@
     "domain": "rippleunion.com",
     "status": "active"
   },{
-    "name": "chriswen",
-    "accounts": [{
-      "address": "rDihBcUrrfDwUBZWBcuP2z5n47KVLQFNQH",
-      "currencies": {"LTC" : { "featured" : false }}
-    }],
-    "hotwallets": [],
-    "status": "inactive"
-  },{
-    "name": "Ripple Money",
-    "accounts": [{
-      "address": "rkH1aQbL2ajA7HUsx8VQRuL3VaEByHELm",
-      "currencies": {"GBP" : { "featured" : false }}
-    }],
-    "hotwallets": [],
-    "domain": "ripplemoney.co.uk",
-    "status": "inactive"
-  },{
     "name": "Justcoin",
     "startDate": "2013-07-29",
     "accounts": [{
       "address": "rJHygWcTLVpSXkowott6kzgZU6viQSVYM1",
       "currencies": {
         "LTC" : { "featured" : false },
-        "BTC" : { "featured" : true },
+        "BTC" : { "featured" : false },
         "STR" : { "featured" : false },
         "EUR" : { "featured" : false },
         "NOK" : { "featured" : false }
@@ -238,20 +194,6 @@
     ],
     "domain": "xrpchina.net",
     "status": "active"
-  }, {
-    "name": "Peercover",
-    "accounts": [{
-      "address": "ra9eZxMbJrUcgV8ui7aPc161FgrqWScQxV",
-      "currencies": {
-        "USD" : { "featured" : false },
-        "DOG" : { "featured" : false },
-        "BTC" : { "featured" : false },
-        "NXT" : { "featured" : false }
-      }
-    }],
-    "hotwallets": [],
-    "domain": "peercover.com",
-    "status": "inactive"
   }, {
     "name": "Ripple Singapore",
     "startDate": "2014-01-25",
@@ -274,7 +216,7 @@
     "startDate": "2014-02-21",
     "accounts": [{
       "address": "rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6",
-      "currencies": {"JPY" : { "featured" : true }}
+      "currencies": {"JPY" : { "featured" : false }}
     }],
     "hotwallets": [
       "r3bStftDydy4dKEUBc9YMabTTk98uZzMpF"
@@ -288,7 +230,7 @@
       "address": "rG6FZ31hDHN1K5Dkbma3PSB5uVCuVVRzfn",
       "currencies": {
         "MXN" : { "featured" : true },
-        "BTC" : { "featured" : false }
+        "BTC" : { "featured" : true }
       }
     }],
     "hotwallets": [
@@ -303,9 +245,10 @@
       "address": "rsP3mgGb2tcYUrxiLFiHJiQXhsziegtwBc",
       "currencies": {
         "NZD" : { "featured" : true },
-        "BTC" : { "featured" : false },
+        "BTC" : { "featured" : true },
         "USD" : { "featured" : false },
-        "AUD" : { "featured" : false }
+        "AUD" : { "featured" : false },
+        "STR" : { "featured" : false }
       }
     }],
     "hotwallets": [
@@ -359,7 +302,8 @@
     "accounts": [{
       "address": "rrh7rf1gV2pXAoqA8oYbpHd8TKv5ZQeo67",
       "currencies": {
-        "0158415500000000C1F76FF6ECB0BAC600000000" : { "featured" : true, "label" : "XAU (-0.5pa)"}
+        "XAU" : { "featured" : true },
+        "0158415500000000C1F76FF6ECB0BAC600000000" : { "featured" : false, "label" : "XAU (-0.5pa)"}
       }
     }],
     "hotwallets": [],
@@ -371,7 +315,6 @@
     "accounts": [{
       "address": "rpDMez6pm6dBve2TJsmDpv7Yae6V5Pyvy2",
       "currencies": {
-        "CNY" : { "featured" : false },
         "USD" : { "featured" : false }
       }
     }],
@@ -416,7 +359,10 @@
     "startDate": "2014-09-06",
     "accounts": [{
       "address": "rUkMKjQitpgAM5WTGk79xpjT38DEJY283d",
-      "currencies": {"KRW" : { "featured" : true }}
+      "currencies": {
+        "KRW" : { "featured" : true },
+        "BTC" : { "featured" : true }
+      }
     }],
     "hotwallets": [
       "rhLSigWL4J9JBBW1JFMBvaduDkVghG7cc2"
@@ -450,10 +396,28 @@
     "startDate":"2014-10-5",
     "accounts": [{
       "address": "rB3gZey7VWHYRqJHLoHDEJXJ2pEPNieKiS",
-      "currencies": {"JPY" : { "featured" : true }}
+      "currencies": {
+        "JPY" : { "featured" : true },
+        "BTC" : { "featured" : false },
+        "LTC" : { "featured" : false },
+        "STR" : { "featured" : false }
+      }
     }],
     "hotwallets": [],
     "domain" : "mr-ripple.com",
+    "status" : "active"
+  }, {
+    "name": "Gatehub",
+    "startDate":"2015-2-15",
+    "accounts": [{
+        "address": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
+        "currencies": {
+          "EUR" : { "featured" : true },
+          "USD" : { "featured" : false }
+        }
+    }],
+    "hotwallets": ["rhotcWYdfn6qxhVMbPKGDF3XCKqwXar5J4"],
+    "domain": "gatehub.net",
     "status" : "active"
   }
 ]
