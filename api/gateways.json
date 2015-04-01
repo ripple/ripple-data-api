@@ -244,8 +244,8 @@
     "accounts": [{
       "address": "rsP3mgGb2tcYUrxiLFiHJiQXhsziegtwBc",
       "currencies": {
-        "NZD" : { "featured" : true },
-        "BTC" : { "featured" : true },
+        "NZD" : { "featured" : false },
+        "BTC" : { "featured" : false },
         "USD" : { "featured" : false },
         "AUD" : { "featured" : false },
         "STR" : { "featured" : false }
