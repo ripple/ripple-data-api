@@ -320,6 +320,7 @@ HbaseClient.prototype.getScan = function (options, callback) {
 
     if (options.batchSize) scanOpts.batchSize = options.batchSize;
     if (options.caching)   scanOpts.caching   = options.caching;
+    if (options.columns)   scanOpts.columns   = options.columns;
 
     scan = new HBaseTypes.TScan(scanOpts);
 
