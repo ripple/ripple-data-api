@@ -1,8 +1,9 @@
 var Promise    = require('bluebird');
 var ripple     = require('ripple-lib');
+var moment     = require('moment');
 var utils      = require('../utils');
 var Hbase      = require('./hbase-thrift');
-var moment     = require('moment');
+//var Parser   = require('../ledgerParser');
 
 var SerializedObject = ripple.SerializedObject;
 var binformat        = ripple.binformat;
@@ -63,18 +64,18 @@ HbaseClient.prototype.getStats = function (options) {
         return;
       }
 
-      connection.client.getRow(self._prefix + 'agg_stats', rowkey, null, function (err, rows) {
+      connection.client.getRow(self._prefix + 'agg_stats', rowkey, null, function(err, rows) {
         var stats = {
-          time     : time.format(),
-          interval : interval,
-          type     : { },
-          result   : { },
-          metric   : {
-            accounts_created  : 0,
-            transaction_count : 0,
-            ledger_count      : 0,
-            tx_per_ledger     : 0.0,
-            ledger_interval   : 0.0,
+          time: time.format(),
+          interval: interval,
+          type: { },
+          result: { },
+          metric: {
+            accounts_created: 0,
+            transaction_count: 0,
+            ledger_count: 0,
+            tx_per_ledger: 0.0,
+            ledger_interval: 0.0
           }
         };
 
@@ -125,7 +126,10 @@ HbaseClient.prototype.getAggregateAccountPayments = function(options) {
           return;
         }
 
-        self.getRows('agg_account_payments', keys, function (err, rows) {
+        self.getRows({
+          table: 'agg_account_payments',
+          rowkeys: keys
+        }, function(err, rows) {
           if (err) {
             reject(err);
             return;
@@ -244,14 +248,36 @@ HbaseClient.prototype.getAccountPayments = function (options, callback) {
   var startRow = options.account + '|' + utils.formatTime(options.start);
   var endRow   = options.account + '|' + utils.formatTime(options.end);
 
-  this.getScan({
-    table      : table,
-    startRow   : startRow,
-    stopRow    : endRow,
-    limit      : options.limit,
-    descending : options.descending
-  }, function (err, rows) {
-    callback(err, formatPayments(rows || []));
+  if(options.currency) {
+    options.currency= options.currency.toUpperCase();
+  }
+
+  if(options.type) {
+    if(options.type == 'sent') {
+      options.type= 'source'
+    } else if(options.type == 'received') {
+      options.type= 'destination'
+    }
+  }
+
+  var maybeFilters =
+  [{ qualifier: 'currency', value: options.currency, family: 'f', comparator: '=' },
+   { qualifier: options.type, value: options.account, family: 'f', comparator: '=' }];
+
+  var filterString= this.buildSingleColumnValueFilters(maybeFilters);
+
+  this.getScanWithMarker(this, {
+    table        : table,
+    startRow     : startRow,
+    stopRow      : endRow,
+    limit        : options.limit,
+    descending   : options.descending,
+    marker       : options.marker,
+    filterString : filterString,
+
+  }, function (err, res) {
+    res.rows = formatPayments(res.rows || []);
+    callback(err, res);
   });
 
   function formatPayments(rows) {
@@ -272,39 +298,30 @@ HbaseClient.prototype.getAccountPayments = function (options, callback) {
 
 HbaseClient.prototype.getAccountBalanceChanges = function (options, callback) {
   var keyBase = options.account;
-  var table = 'lu_account_balance_changes';
-  var startRow;
-  var endRow;
+  var table = 'account_balance_changes';
+  var startRow = options.account + '|' + utils.formatTime(options.start);
+  var endRow   = options.account + '|' + utils.formatTime(options.end);
 
-  if (!options.currency) callback({error:"must provide a currency", code:400});
-  else {
-    startRow = keyBase + '|';
-    endRow = keyBase + '|';
-
-    if (options.currency === "XRP") {
-      startRow += 'XRP||';
-      endRow = startRow + '9';
-    }
-    else if (options.currency) {
-      startRow += options.currency + '|';
-      if (options.issuer) {
-        startRow += options.issuer + '|';
-        endRow = startRow;
-        if (options.start) startRow += utils.formatTime(options.start) + '|';
-        if (options.end) endRow = startRow + utils.formatTime(options.end) + '|';
-        else endRow += '9';
-      } else endRow = startRow + 'z';
-    }
-
-    this.getScan({
-      table    : table,
-      startRow : startRow,
-      stopRow  : endRow,
-      limit    : options.limit
-    }, function (err, rows) {
-      callback(err, formatChanges(rows || []));
-    });
+  if(options.currency) {
+    options.currency= options.currency.toUpperCase();
   }
+
+  var maybeFilters =
+  [{ qualifier: 'currency', value: options.currency, family: 'f', comparator: '=' }]
+
+  var filterString= this.buildSingleColumnValueFilters(maybeFilters);
+
+  this.getScanWithMarker(this, {
+    table        : table,
+    startRow     : startRow,
+    stopRow      : endRow,
+    limit        : options.limit,
+    marker       : options.marker,
+    filterString : filterString
+  }, function (err, res) {
+    res.rows= formatChanges(res.rows || []);
+    callback(err, res);
+  });
 
   function formatChanges(rows) {
     rows.forEach(function(row, i) {
@@ -319,6 +336,7 @@ HbaseClient.prototype.getAccountBalanceChanges = function (options, callback) {
     return rows;
   }
 }
+
 
 /**
  * getExchanges
@@ -349,7 +367,7 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
     descending = options.descending === false ? false : true; //default true
     options.unreduced = true;
 
-    // only need certain columns
+    //only need certain columns
     if (options.reduce) {
       columns = [
         'd:base_amount',
@@ -629,18 +647,31 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
 };
 
 HbaseClient.prototype.getAccountExchanges = function (options, callback) {
-  this.getScan({
-    table      : 'account_exchanges',
-    startRow   : options.account + '|' + utils.formatTime(options.start),
-    stopRow    : options.account + '|' + utils.formatTime(options.end),
-    descending : options.descending,
-    limit      : options.limit
 
-  }, function(err, rows) {
+  var maybeFilters =
+  [{ qualifier: 'base_currency', value: options.base.currency, family: 'f', comparator: '=' },
+   { qualifier: 'base_issuer' , value: options.base.issuer, family: 'f', comparator: '=' },
+   { qualifier: 'counter_currency', value: options.counter.currency, family: 'f', comparator: '=' },
+   { qualifier: 'counter_issuer' , value: options.counter.issuer, family: 'f', comparator: '=' }];
 
-      if (!rows) rows = [];
+  var filterString= this.buildSingleColumnValueFilters(maybeFilters);
 
-      rows.forEach(function(row) {
+  this.getScanWithMarker(this, {
+    table          : 'account_exchanges',
+    startRow       : options.account + '|' + utils.formatTime(options.start),
+    stopRow        : options.account + '|' + utils.formatTime(options.end),
+    descending     : options.descending,
+    limit          : options.limit,
+    filterString   : filterString,
+    marker         : options.marker
+
+  }, function(err, res) {
+
+      if(!res) res= {};
+
+      if (!res.rows) res.rows = [];
+
+      res.rows.forEach(function(row) {
 
         row.base_amount    = parseFloat(row.base_amount);
         row.counter_amount = parseFloat(row.counter_amount);
@@ -650,7 +681,7 @@ HbaseClient.prototype.getAccountExchanges = function (options, callback) {
         row.node_index     = parseInt(row.node_index || 0);
       });
 
-      callback(err, rows);
+      callback(err, res);
   });
 };
 
@@ -735,12 +766,17 @@ HbaseClient.prototype.getLedger = function (options, callback) {
       startIndex : options.ledger_index || 0,
       stopIndex  : options.ledger_index || 999999999999,
       descending : true,
-      limit      : 1
+      limit      : 2
 
     }, function (err, resp) {
 
       if (err || !resp || !resp.length) {
         callback(err, null);
+        return;
+
+      //submit error on duplicate ledger index
+      } else if (resp.length > 1 && options.ledger_index) {
+        callback('duplicate ledger index: ' + options.ledger_index, null);
         return;
       }
 
@@ -751,10 +787,13 @@ HbaseClient.prototype.getLedger = function (options, callback) {
   }
 
 
-  function getLedgerByHash (options) {
+  function getLedgerByHash(options) {
     var transactions = [];
 
-    self.getRow('ledgers', options.ledger_hash, function(err, ledger) {
+    self.getRow({
+      table: 'ledgers',
+      rowkey: options.ledger_hash
+    }, function(err, ledger) {
 
       if (err || !ledger) {
         callback(err, null);
@@ -762,20 +801,20 @@ HbaseClient.prototype.getLedger = function (options, callback) {
       }
 
       ledger.ledger_index = parseInt(ledger.ledger_index, 10);
-      ledger.close_time   = parseInt(ledger.close_time, 10);
+      ledger.close_time = parseInt(ledger.close_time, 10);
       ledger.transactions = JSON.parse(ledger.transactions);
 
-      //get transactions
+      // get transactions
       if (ledger.transactions.length && options.transactions) {
-        transactions        = ledger.transactions;
+        transactions = ledger.transactions;
         ledger.transactions = [];
 
-        Promise.map(transactions, function (tx_hash) {
+        Promise.map(transactions, function(tx_hash) {
           return new Promise(function(resolve, reject) {
             self.getTransaction(tx_hash, function(err, tx) {
               if (err) {
                 reject(err);
-              } else if (!tx) {
+              } else if (!tx && !options.invalid) {
                 reject('missing transaction');
               } else {
                 resolve(tx);
@@ -789,7 +828,7 @@ HbaseClient.prototype.getLedger = function (options, callback) {
             return;
           }
 
-          //order by transaction index
+          // order by transaction index
           resp.sort(compare);
           ledger.transactions = resp;
           callback(err, ledger);
@@ -815,11 +854,21 @@ HbaseClient.prototype.getLedger = function (options, callback) {
  * getTransaction
  */
 
-HbaseClient.prototype.getTransaction = function (tx_hash, callback) {
+HbaseClient.prototype.getTransaction = function(tx_hash, callback) {
   var self = this;
   var transaction = { };
 
-  self.getRow('transactions', tx_hash, function(err, tx) {
+  self.getRow({
+    table: 'transactions',
+    rowkey: tx_hash,
+    columns: [
+      'f:executed_time',
+      'f:ledger_index',
+      'f:ledger_hash',
+      'd:raw',
+      'd:meta'
+    ]
+  }, function(err, tx) {
 
     if (err) {
       callback(err);
@@ -832,12 +881,12 @@ HbaseClient.prototype.getTransaction = function (tx_hash, callback) {
     }
 
     try {
-      transaction.hash         = tx_hash;
-      transaction.date         = moment.unix(tx.executed_time).utc().format();
+      transaction.hash = tx_hash;
+      transaction.date = moment.unix(tx.executed_time).utc().format();
       transaction.ledger_index = parseInt(tx.ledger_index, 10);
-      transaction.ledger_hash  = tx.ledger_hash;
+      transaction.ledger_hash = tx.ledger_hash;
 
-      transaction.tx   = new SerializedObject(tx.raw).to_json();
+      transaction.tx = new SerializedObject(tx.raw).to_json();
       transaction.meta = new SerializedObject(tx.meta).to_json();
 
     } catch (e) {
@@ -856,36 +905,7 @@ HbaseClient.prototype.getTransaction = function (tx_hash, callback) {
 HbaseClient.prototype.saveLedger = function (ledger, callback) {
   var self       = this;
   var tableNames = [];
-  var tables     = {
-    ledgers             : { },
-    lu_ledgers_by_index : { },
-    lu_ledgers_by_time  : { }
-  };
-
-  var ledgerIndexKey = utils.padNumber(ledger.ledger_index, LI_PAD) +
-      '|' + ledger.ledger_hash;
-
-  var ledgerTimeKey  = utils.formatTime(ledger.close_time) +
-      '|' + utils.padNumber(ledger.ledger_index, LI_PAD);
-
-  //add formated ledger
-  tables.ledgers[ledger.ledger_hash] = ledger;
-
-  //add ledger index lookup
-  tables.lu_ledgers_by_index[ledgerIndexKey] = {
-    ledger_hash      : ledger.ledger_hash,
-    parent_hash      : ledger.parent_hash,
-    'f:ledger_index' : ledger.ledger_index,
-    'f:close_time'   : ledger.close_time
-  }
-
-  //add ledger by time lookup
-  tables.lu_ledgers_by_time[ledgerTimeKey] = {
-    ledger_hash      : ledger.ledger_hash,
-    parent_hash      : ledger.parent_hash,
-    'f:ledger_index' : ledger.ledger_index,
-    'f:close_time'   : ledger.close_time
-  }
+  var tables     = self.prepareLedgerTables(ledger);
 
   tableNames = Object.keys(tables);
 
@@ -938,6 +958,45 @@ HbaseClient.prototype.saveTransactions = function (transactions, callback) {
     }
   });
 };
+
+/**
+ * prepareLedgerTables
+ */
+
+HbaseClient.prototype.prepareLedgerTables = function (ledger) {
+  var tables = {
+    ledgers             : { },
+    lu_ledgers_by_index : { },
+    lu_ledgers_by_time  : { }
+  };
+
+  var ledgerIndexKey = utils.padNumber(ledger.ledger_index, LI_PAD) +
+      '|' + ledger.ledger_hash;
+
+  var ledgerTimeKey  = utils.formatTime(ledger.close_time) +
+      '|' + utils.padNumber(ledger.ledger_index, LI_PAD);
+
+  //add formated ledger
+  tables.ledgers[ledger.ledger_hash] = ledger;
+
+  //add ledger index lookup
+  tables.lu_ledgers_by_index[ledgerIndexKey] = {
+    ledger_hash      : ledger.ledger_hash,
+    parent_hash      : ledger.parent_hash,
+    'f:ledger_index' : ledger.ledger_index,
+    'f:close_time'   : ledger.close_time
+  }
+
+  //add ledger by time lookup
+  tables.lu_ledgers_by_time[ledgerTimeKey] = {
+    ledger_hash      : ledger.ledger_hash,
+    parent_hash      : ledger.parent_hash,
+    'f:ledger_index' : ledger.ledger_index,
+    'f:close_time'   : ledger.close_time
+  }
+
+  return tables;
+}
 
 /*
  * prepareTransactions
@@ -1008,13 +1067,10 @@ HbaseClient.prototype.prepareTransactions = function (transactions) {
 };
 
 /**
- * SaveParsedData
+ * prepareParsedData
  */
-
-HbaseClient.prototype.saveParsedData = function (params, callback) {
-  var self       = this;
-  var tableNames = [];
-  var tables     = {
+HbaseClient.prototype.prepareParsedData = function (data) {
+  var tables = {
     exchanges            : { },
     account_offers       : { },
     account_exchanges    : { },
@@ -1029,7 +1085,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   };
 
   //add exchanges
-  params.data.exchanges.forEach(function(ex) {
+  data.exchanges.forEach(function(ex) {
     var suffix = utils.formatTime(ex.time) +
       '|' + utils.padNumber(ex.ledger_index, LI_PAD) +
       '|' + utils.padNumber(ex.tx_index, I_PAD) +
@@ -1071,9 +1127,10 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   });
 
   //add offers
-  params.data.offers.forEach(function(o) {
+  data.offers.forEach(function(o) {
+
     var key = o.account +
-      '|' + utils.formatTime(o.time) +
+      '|' + utils.formatTime(o.executed_time) +
       '|' + utils.padNumber(o.ledger_index, LI_PAD) +
       '|' + utils.padNumber(o.tx_index, I_PAD) +
       '|' + utils.padNumber(o.node_index, I_PAD);
@@ -1091,7 +1148,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:expiration'    : o.expiration,
       'f:new_offer'     : o.new_offer,
       'f:old_offer'     : o.old_offer,
-      'f:executed_time' : o.time,
+      'f:executed_time' : o.executed_time,
       'f:ledger_index'  : o.ledger_index,
       'f:client'        : o.client,
       tx_index          : o.tx_index,
@@ -1109,7 +1166,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
        'f:account'      : o.account,
       'f:sequence'      : o.sequence,
       'f:type'          : o.type,
-      'f:executed_time' : o.time,
+      'f:executed_time' : o.executed_time,
       'f:ledger_index'  : o.ledger_index,
       tx_index          : o.tx_index,
       node_index        : o.node_index,
@@ -1118,7 +1175,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   });
 
   //add balance changes
-  params.data.balanceChanges.forEach(function(c) {
+  data.balanceChanges.forEach(function(c) {
     var suffix = '|' + utils.formatTime(c.time) +
       '|' + utils.padNumber(c.ledger_index, LI_PAD) +
       '|' + utils.padNumber(c.tx_index, I_PAD) +
@@ -1150,7 +1207,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
     }
   });
 
-  params.data.payments.forEach(function(p) {
+  data.payments.forEach(function(p) {
     var key = utils.formatTime(p.time) +
       '|' + utils.padNumber(p.ledger_index, LI_PAD) +
       '|' + utils.padNumber(p.tx_index, I_PAD);
@@ -1190,7 +1247,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   });
 
   //add accounts created
-  params.data.accountsCreated.forEach(function(a) {
+  data.accountsCreated.forEach(function(a) {
     var key = utils.formatTime(a.time) +
       '|' + utils.padNumber(a.ledger_index, LI_PAD) +
       '|' + utils.padNumber(a.tx_index, I_PAD);
@@ -1208,7 +1265,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   });
 
   //add memos
-  params.data.memos.forEach(function(m) {
+  data.memos.forEach(function(m) {
     var key = utils.formatTime(m.executed_time) +
       '|' + utils.padNumber(m.ledger_index, LI_PAD) +
       '|' + utils.padNumber(m.tx_index, I_PAD) +
@@ -1261,7 +1318,7 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
   });
 
   //add affected accounts
-  params.data.affectedAccounts.forEach(function(a) {
+  data.affectedAccounts.forEach(function(a) {
     var key = a.account +
       '|' + utils.formatTime(a.time) +
       '|' + utils.padNumber(a.ledger_index, LI_PAD) +
@@ -1277,6 +1334,18 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       'f:client'        : a.client
     }
   });
+
+  return tables;
+};
+
+/**
+ * SaveParsedData
+ */
+
+HbaseClient.prototype.saveParsedData = function (params, callback) {
+  var self       = this;
+  var tableNames = [];
+  var tables     = self.prepareParsedData(params.data);
 
   tableNames = Object.keys(tables);
 
@@ -1301,7 +1370,89 @@ HbaseClient.prototype.saveParsedData = function (params, callback) {
       callback(err, total);
     }
   });
+};
 
+/**
+ * removeLedger
+ */
+
+HbaseClient.prototype.removeLedger = function (hash, callback) {
+  var self = this;
+
+  self.getLedger({
+    ledger_hash  : hash,
+    transactions : true,
+    invalid      : true
+
+  }, function(err, ledger) {
+    var parsed;
+    var primary;
+    var secondary;
+    var transactions;
+    var tables;
+    var table;
+
+    if (err) {
+      self.log.error('error fetching ledger:', hash, err);
+      callback(err);
+      return;
+    }
+
+    if (!ledger) {
+      callback('ledger not found');
+      return;
+    }
+
+    //parser expects ripple epoch
+    ledger.close_time  -= EPOCH_OFFSET;
+    transactions        = ledger.transactions;
+    ledger.transactions = [];
+
+    //ledgers must be formatted according to the output from
+    //rippled's ledger command
+    transactions.forEach(function(tx, i) {
+      if (!tx) return;
+
+      var transaction      = tx.tx;
+      transaction.metaData = tx.meta,
+      transaction.hash     = tx.hash,
+      ledger.transactions.push(transaction);
+    });
+
+    parsed       = Parser.parseLedger(ledger);
+    primary      = self.prepareLedgerTables(ledger);
+    secondary    = self.prepareParsedData(parsed);
+    transactions = self.prepareTransactions(parsed.transactions);
+    tables       = [ ];
+
+    for (table in primary) {
+      tables.push({
+        table : table,
+        keys  : Object.keys(primary[table])
+      });
+    }
+
+    for (table in transactions) {
+      tables.push({
+        table : table,
+        keys  : Object.keys(transactions[table])
+      });
+    }
+
+    for (table in secondary) {
+      tables.push({
+        table : table,
+        keys  : Object.keys(secondary[table])
+      });
+    }
+
+    Promise.map(tables, function(t) {
+      return self.deleteRows(t.table, t.keys);
+    }).nodeify(function(err, resp) {
+      self.log.info('ledger removed:', ledger.ledger_index, hash);
+      callback(err, resp);
+    });
+  });
 };
 
 module.exports = HbaseClient;

@@ -96,7 +96,10 @@ function totalNetworkValue(params, callback) {
     rowkey += '|' + utils.formatTime(time);
   }
 
-  hbase.getRow('agg_metrics', rowkey, function(err, row) {
+  hbase.getRow({
+    table: 'agg_metrics',
+    rowkey: rowkey
+  }, function(err, row) {
 
     var options = {
       end      : moment.utc(time),

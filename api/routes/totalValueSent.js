@@ -117,7 +117,10 @@ function totalValueSent(params, callback) {
   }
 
   //get the row from hbase
-  hbase.getRow('agg_metrics', rowkey, function(err, row) {
+  hbase.getRow({
+    table: 'agg_metrics',
+    rowkey: rowkey
+  }, function(err, row) {
     var options = {
       start    : moment.utc(startTime),
       interval : interval,

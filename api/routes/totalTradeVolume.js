@@ -113,7 +113,10 @@ function topMarkets(params, callback) {
     rowkey += '|' + interval + '|' + utils.formatTime(startTime);
   }
 
-  hbase.getRow('agg_metrics', rowkey, function(err, row) {
+  hbase.getRow({
+    table: 'agg_metrics',
+    rowkey: rowkey
+  }, function(err, row) {
 
     var options = {
       start    : moment.utc(startTime),

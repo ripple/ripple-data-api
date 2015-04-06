@@ -21,26 +21,25 @@ var HbaseClient = function (options) {
   this.hbase       = null;
   this.logStats    = (!options.logLevel || options.logLevel > 2) ? true : false;
   this.log         = new Logger({
-    scope : 'hbase-thrift',
-    level : options.logLevel || 0,
-    file  : options.logFile
+    scope: 'hbase-thrift',
+    level: options.logLevel || 0,
+    file: options.logFile
   });
 
   this.pool = [ ];
 
   if (!this._servers) {
     this._servers = [{
-      host : options.host,
-      port : options.port
+      host: options.host,
+      port: options.port
     }];
   }
 
-  //report the number of connections
-  //every 60 seconds
+  // report the number of connections
+  // every 60 seconds
   if (this.logStats) {
-    var interval = setInterval(function() {
-      var date  = '['+(moment.utc().format())+']';
-      self.log.info(date, 'connections:' + self.pool.length);
+    setInterval(function() {
+      self.log.info('connections:' + self.pool.length);
     }, 60 * 1000);
   }
 };
@@ -53,7 +52,7 @@ var HbaseClient = function (options) {
 HbaseClient.prototype._getConnection = function(cb) {
   var self = this;
   var connection;
-  var hbase;
+
   var i = self.pool.length;
 
   //look for a free socket
@@ -199,6 +198,7 @@ HbaseClient.prototype.iterator = function (options) {
 
     if (options.batchSize) scanOpts.batchSize = options.batchSize;
     if (options.caching)   scanOpts.caching   = options.caching;
+    if (options.columns)   scanOpts.columns = options.columns;
 
     scan = new HBaseTypes.TScan(scanOpts);
 
@@ -271,9 +271,96 @@ HbaseClient.prototype.iterator = function (options) {
   return this;
 };
 
+/*
+ * buildSingleColumnValueFilters
+ * helper to build column value filters
+ */
+
+HbaseClient.prototype.buildSingleColumnValueFilters = function (maybeFilters) {
+  var filterString= maybeFilters.map( function(o) {
+      if(o.value && o.qualifier) {
+        return ["SingleColumnValueFilter ('",o.family, "', '",
+                o.qualifier, "', ", o.comparator, ", 'binary:",
+                o.value, "')"].join('');
+      }
+  }).filter(function(n){ return n!=undefined }).join(' AND ');
+  return filterString;
+}
+
+/*
+ * markerWrapper
+ * wrapper to add pagination logic (using the marker parameter)
+ * marker may be encrypted at some point as exposing hbase keys to end-user may lead to DOS style attacks on our API
+ */
+
+/*
+// How encryption could work
+var crypto = require('crypto'),
+  algorithm = 'aes-256-ecb',
+  password = 'ripplepass';
+
+function encrypt(text) {
+  var cipher = crypto.createCipher(algorithm,password)
+  var crypted = cipher.update(text,'utf8','hex')
+  crypted += cipher.final('hex');
+  return crypted;
+}
+
+function decrypt(text) {
+  var decipher = crypto.createDecipher(algorithm,password)
+  var dec = decipher.update(text,'hex','utf8')
+  dec += decipher.final('utf8');
+  return dec;
+}
+*/
+
+// No encryption for now
+function encrypt(text) {
+  return text;
+}
+
+function decrypt(text) {
+  return text;
+}
+
+function markerWrapper(f) {
+  return function (scope, options, callback) {
+    if(options.marker) {
+      options.stopRow= decrypt(options.marker);
+    }
+    var limit= options.limit || 200;
+    options.limit= +limit + 1;
+
+    function callback1(err, res) {
+      if(res) {
+        var res1= res.slice(0, res.length-1);
+        var marker= res && res[+limit] ? encrypt(res[+limit].rowkey) : undefined;
+        if(marker) {
+          if(options.descending === false) {
+            options.stopRow= marker;
+          } else {
+            options.startRow= marker;
+          }
+        }
+        var fullres= { rows: res1, marker: marker };
+        if(res1.length== +limit) {
+          fullres= { rows: res1, marker: marker };
+        } else {
+          fullres= { rows: res };
+        }
+        callback(err, fullres);
+      } else {
+        callback(err, res);
+      }
+    }
+    return f.apply(scope, [options, callback1]);
+  };
+}
+
 /**
  * getScan
  */
+
 
 HbaseClient.prototype.getScan = function (options, callback) {
   var self     = this;
@@ -320,7 +407,11 @@ HbaseClient.prototype.getScan = function (options, callback) {
 
     if (options.batchSize) scanOpts.batchSize = options.batchSize;
     if (options.caching)   scanOpts.caching   = options.caching;
-    if (options.columns)   scanOpts.columns   = options.columns;
+    if (options.columns)   scanOpts.columns = options.columns;
+
+    if (options.filterString && options.filterString !== '') {
+      scanOpts.filterString = options.filterString;
+    }
 
     scan = new HBaseTypes.TScan(scanOpts);
 
@@ -334,14 +425,11 @@ HbaseClient.prototype.getScan = function (options, callback) {
       }
 
       getResults(id, options.limit, 1, function (err, rows) {
-
         callback(err, rows);
 
         if (self.logStats) {
-          var date = '['+(moment.utc().format())+']';
           d = (Date.now() - d)/1000;
-          self.log.info(date,
-          'table:' + table + '.scan',
+          self.log.info('table:' + table + '.scan',
           'time:'+ d + 's',
           rows ? 'rowcount:' + rows.length : '');
         }
@@ -357,14 +445,20 @@ HbaseClient.prototype.getScan = function (options, callback) {
       });
     });
 
-    function getResults (id, limit, page, callback) {
-      var count = limit && limit < 1000 ? limit : 1000;
 
-      connection.client.scannerGetList(id, count, function (err, rows) {
+    function getResults(id, limit, page, callback) {
+      var batchSize = 5000;
+      var count;
+
+      if (limit) {
+        count = Math.min(batchSize, limit - (page - 1) * batchSize);
+      } else {
+        limit = Infinity;
+        count = batchSize;
+      }
+
+      connection.client.scannerGetList(id, count, function(err, rows) {
         var results = [];
-        var key;
-        var parts;
-        var r;
 
         if (err) {
           callback(err);
@@ -373,30 +467,40 @@ HbaseClient.prototype.getScan = function (options, callback) {
 
         if (rows.length) {
 
-          //format as json
+          // format as json
           results = formatRows(rows);
 
-          //stop if we are at the limit
-          if (limit && page * count >= limit) {
-            callback (null, results);
+          // recursively get more
+          // results if we hit the
+          // count and are under the limit
+          if (rows.length === count &&
+              page * batchSize < limit) {
 
-          } else {
-
-            //recursively get more results
             getResults(id, limit, ++page, function(err, rows) {
+              if (err) {
+                callback(err);
+                return;
+              }
+
               results.push.apply(results, rows);
               callback(null, results);
             });
+
+          // all done
+          } else {
+            callback(null, results);
           }
 
         } else {
-          callback (null, []);
+          callback(null, []);
         }
       });
     }
 
   });
 };
+
+HbaseClient.prototype.getScanWithMarker = markerWrapper(HbaseClient.prototype.getScan);
 
 /**
  * putRows
@@ -549,9 +653,21 @@ HbaseClient.prototype.deleteRows = function (table, keys) {
  * getRow
  */
 
-HbaseClient.prototype.getRow = function (table, rowkey, callback) {
+HbaseClient.prototype.getRow = function(options, callback) {
   var self = this;
-  var d    = Date.now();
+  var d = Date.now();
+
+  function handleResponse(err, rows) {
+
+    if (self.logStats) {
+      d = (Date.now() - d) / 1000;
+      self.log.info('table:' + self._prefix + options.table,
+        'time:' + d + 's',
+        rows ? 'rowcount:' + rows.length : '');
+    }
+
+    callback(err, rows ? formatRows(rows)[0] : undefined);
+  }
 
   self._getConnection(function(err, connection) {
 
@@ -560,31 +676,35 @@ HbaseClient.prototype.getRow = function (table, rowkey, callback) {
       return;
     }
 
-    connection.client.getRow(self._prefix + table, rowkey, null, function (err, rows) {
-      var row = null;
-
-      if (rows) {
-        rows = formatRows(rows);
-        row  = rows[0];
-      }
-
-      callback(err, row);
-
-      if (self.logStats) {
-        var date = '['+(moment.utc().format())+']';
-        d = (Date.now() - d)/1000;
-        self.log.info(date,
-        'table:' + self._prefix + table,
-        'time:'+ d + 's',
-        rows ? 'rowcount:' + rows.length : '');
-      }
-    });
+    if (options.columns) {
+      connection.client.getRowWithColumns(self._prefix + options.table,
+                                          options.rowkey,
+                                          options.columns,
+                                          null,
+                                          handleResponse);
+    } else {
+      connection.client.getRow(self._prefix + options.table,
+                               options.rowkey,
+                               null,
+                               handleResponse);
+    }
   });
 };
 
-HbaseClient.prototype.getRows = function (table, rowkeys, callback) {
+HbaseClient.prototype.getRows = function(options, callback) {
   var self = this;
-  var d    = Date.now();
+  var d = Date.now();
+
+  function handleResponse(err, rows) {
+    if (self.logStats) {
+      d = (Date.now() - d) / 1000;
+      self.log.info('table:' + self._prefix + options.table,
+      'time:' + d + 's',
+      rows ? 'rowcount:' + rows.length : '');
+    }
+
+    callback(err, rows ? formatRows(rows) : []);
+  }
 
   self._getConnection(function(err, connection) {
 
@@ -593,18 +713,18 @@ HbaseClient.prototype.getRows = function (table, rowkeys, callback) {
       return;
     }
 
-    connection.client.getRows(self._prefix + table, rowkeys, null, function (err, rows) {
-      callback(err, rows ? formatRows(rows) : []);
-
-      if (self.logStats) {
-        var date = '['+(moment.utc().format())+']';
-        d = (Date.now() - d)/1000;
-        self.log.info(date,
-        'table:' + self._prefix + table,
-        'time:'+ d + 's',
-        rows ? 'rowcount:' + rows.length : '');
-      }
-    });
+    if (options.columns) {
+      connection.client.getRowsWithColumns(self._prefix + options.table,
+                                           options.rowkeys,
+                                           options.columns,
+                                           null,
+                                           handleResponse);
+    } else {
+      connection.client.getRows(self._prefix + options.table,
+                                options.rowkeys,
+                                null,
+                                handleResponse);
+    }
   });
 };
 
