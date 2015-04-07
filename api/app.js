@@ -94,8 +94,8 @@ var apiRoutes = {
 };
 
 //set content type to application/json
-var  setContentType = function (req, res, next) {
-  req.headers['content-type'] = 'application/json';
+var defaultContentType = function (req, res, next) {
+  req.headers['content-type'] = req.headers['content-type'] || 'application/json';
   next();
 };
 
@@ -111,8 +111,9 @@ var allowCrossDomain = function(req, res, next) {
 };
 
 app.use(allowCrossDomain);
-app.use(setContentType);
+app.use(defaultContentType);
 app.use(express.json());
+app.use(express.urlencoded({extended: true}));
 
 app.get('/api/gateways/:gateway?', gateways);
 app.get('/api/gateways/:gateway/assets/:filename?', assets);
