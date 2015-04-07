@@ -206,13 +206,14 @@ function exchangeRates (params, callback) {
       }
 
       hbase.getExchanges(options, function(err, data) {
+
         if (err) {
           asyncCallbackPair(err);
           return;
         }
 
         if (params.last) {
-            pair.last = data && data.length > 1 ? data[1].rate : 0;
+            pair.last = data && data.length ? data[0].rate : 0;
 
         } else {
           if (data) {
