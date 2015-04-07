@@ -80,22 +80,22 @@ function saveHistory (metric, interval, update, done) {
   }
 }
 
-module.exports.init = function (reload) {
+module.exports.init = function(reload) {
   var offset      = Math.ceil(new Date().getTimezoneOffset()/60);
   var dailyRule   = new schedule.RecurrenceRule(null, null, null, null, offset, 15, 0);
   var weeklyRule  = new schedule.RecurrenceRule(null, null, null, 1, offset, 10, 0);
   var monthlyRule = new schedule.RecurrenceRule(null, null, 1, null, offset, 5, 0);
 
 
-  schedule.scheduleJob(dailyRule, function(){
-    saveDailyHistory(false);
+  schedule.scheduleJob(dailyRule, function() {
+    saveDailyHistory(true);
   });
 
-  schedule.scheduleJob(weeklyRule, function(){
+  schedule.scheduleJob(weeklyRule, function() {
     saveWeeklyHistory(true);
   });
 
-  schedule.scheduleJob(monthlyRule, function(){
+  schedule.scheduleJob(monthlyRule, function() {
     saveDailyHistory(true);
   });
 

@@ -40,8 +40,6 @@ var getMetric = function (params, callback) {
   var start     = moment.utc(result.start).startOf(increment);
   var keyBase;
 
-  console.log(result.start, increment);
-
   if (params.metric) params.metric = params.metric.toLowerCase();
   else return callback('metric parameter is required');
 
