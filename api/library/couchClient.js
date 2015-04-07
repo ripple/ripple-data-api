@@ -25,7 +25,7 @@ function init (params) {
     statsd.increment('couchDB.request.' + suffix, null);
 
     client.parentView(doc, view, options, function(error, response){
-      var date  = "["+(moment.utc().format())+"]";
+      var date = '[' + moment.utc().format('YYYY-MM-DD HH:mm:ss.SSS') + ']';
 
       if (error) {
         if (error.code === 'EMFILE' || error.code === 'EADDRINFO' || error.code === 'ENOTFOUND') {
