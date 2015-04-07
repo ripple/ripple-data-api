@@ -162,7 +162,7 @@ function requestHandler(req, res) {
     if (nSockets >= maxSockets) return res.send(503, { error: "Service Unavailable"});
 
     makeRequest(apiRoute, req.body, function(err, response, cached){
-      var date  = "["+(moment.utc().format())+"]";
+      var date = '[' + moment.utc().format('YYYY-MM-DD HH:mm:ss.SSS') + ']';
       var rowcount;
 
       //calculate the duration
