@@ -42,21 +42,106 @@ Object.keys(binformat.ter).forEach(function(key) {
 
 function HbaseClient() {
   Hbase.apply(this, arguments);
-};
+}
 
 HbaseClient.prototype = Object.create(Hbase.prototype);
 HbaseClient.prototype.constructor = HbaseClient;
 
-HbaseClient.prototype.getStats = function (options) {
+/**
+ * getStats
+ */
 
-  if (!options) options = { };
-
-  var self     = this;
-  var time     = options.time || moment.utc();
+HbaseClient.prototype.getStats = function(options, callback) {
   var interval = options.interval || 'day';
-  var rowkey   = interval + '|' + utils.formatTime(time.startOf(interval));
+  var startRow = interval + '|' + utils.formatTime(options.start);
+  var endRow = interval + '|' + utils.formatTime(options.end);
+  var includeFamilies = options.metrics || options.family ? false : true;
+  var filterString;
 
-  return new Promise (function(resolve, reject) {
+  if (options.family) {
+    filterString = 'FamilyFilter (=, \'binary:' + options.family + '\')';
+  }
+
+  this.getScanWithMarker(this, {
+    table: 'agg_stats',
+    startRow: startRow,
+    stopRow: endRow,
+    limit: options.limit || Infinity,
+    descending: options.descending,
+    marker: options.marker,
+    filterString: filterString,
+    columns: options.metrics,
+    includeFamilies : includeFamilies
+  }, function(err, res) {
+
+    if (res) {
+      res.interval = interval;
+
+      results = {
+        rows: [ ],
+        marker: res.marker,
+        interval: interval
+      };
+
+      // group by family
+      if (includeFamilies) {
+        res.rows.forEach(function(row, i) {
+          var parts = row.rowkey.split('|');
+          var stats = {
+            date: utils.unformatTime(parts[1]).format(),
+            type: { },
+            result: { },
+            metric: { }
+          };
+
+          for (var key in row) {
+            if (key === 'rowkey') {
+              continue;
+            }
+
+            parts = key.split(':');
+            stats[parts[0]][parts[1]] = Number(row[key]);
+          }
+
+          res.rows[i] = stats;
+        });
+
+      } else {
+        res.rows.forEach(function(row, i) {
+          var parts = row.rowkey.split('|');
+          delete row.rowkey;
+
+          for (var key in row) {
+            row[key] = Number(row[key]);
+          }
+
+          row.date = utils.unformatTime(parts[1]).format();
+        });
+      }
+    }
+    callback(err, res);
+  });
+}
+
+/**
+ * getStatsRow
+ */
+
+HbaseClient.prototype.getStatsRow = function(options) {
+
+  if (!options) {
+    options = { };
+  }
+
+  var self = this;
+  var time = options.time || moment.utc();
+  var interval = options.interval || 'day';
+  var rowkey;
+
+  time.startOf(interval === 'week' ? 'isoWeek' : interval);
+  rowkey = interval + '|' + utils.formatTime(time);
+
+  return new Promise(function(resolve, reject) {
     self._getConnection(function(err, connection) {
 
       if (err) {
@@ -64,7 +149,11 @@ HbaseClient.prototype.getStats = function (options) {
         return;
       }
 
-      connection.client.getRow(self._prefix + 'agg_stats', rowkey, null, function(err, rows) {
+      connection.client.getRow(self._prefix + 'agg_stats',
+                               rowkey,
+                               null,
+                               function(err, rows) {
+        var parts;
         var stats = {
           time: time.format(),
           interval: interval,
@@ -97,6 +186,72 @@ HbaseClient.prototype.getStats = function (options) {
     });
   });
 };
+
+/**
+ * getPayments
+ */
+
+HbaseClient.prototype.getPayments = function(options, callback) {
+  var table = 'payments';
+  var startRow = utils.formatTime(options.start);
+  var endRow = utils.formatTime(options.end);
+  var filters = [];
+  var filterString;
+
+  if (options.currency) {
+    filters.push({
+      qualifier: 'currency',
+      value: options.currency,
+      family: 'f', comparator: '='
+    });
+  }
+
+  if (options.issuer) {
+    filters.push({
+      qualifier: 'issuer',
+      value: options.issuer,
+      family: 'f', comparator: '='
+    });
+  }
+
+  filterString = this.buildSingleColumnValueFilters(filters);
+
+  this.getScanWithMarker(this, {
+    table: table,
+    startRow: startRow,
+    stopRow: endRow,
+    limit: options.limit || Infinity,
+    descending: options.descending,
+    marker: options.marker,
+    filterString: filterString,
+    columns: options.columns
+  }, function(err, res) {
+    res.rows = formatPayments(res.rows || []);
+    callback(err, res);
+  });
+
+  function formatPayments(rows) {
+    rows.forEach(function(row) {
+
+      row.executed_time = parseInt(row.executed_time, 10);
+      row.ledger_index = parseInt(row.ledger_index, 10);
+      row.tx_index = parseInt(row.tx_index, 10);
+
+      if (row.destination_balance_changes) {
+        row.destination_balance_changes = JSON.parse(row.destination_balance_changes);
+      }
+      if (row.source_balance_changes) {
+        row.source_balance_changes = JSON.parse(row.source_balance_changes);
+      }
+    });
+
+    return rows;
+  }
+};
+
+/**
+ * getAggregateAccountPayments
+ */
 
 HbaseClient.prototype.getAggregateAccountPayments = function(options) {
   var self = this;
@@ -239,14 +394,15 @@ HbaseClient.prototype.getAggregateAccountPayments = function(options) {
 }
 
 /**
- * getPayments
- * query payments
-*/
+ * getAccountPayments
+ * query account payments
+ */
 
 HbaseClient.prototype.getAccountPayments = function (options, callback) {
-  var table   = 'account_payments';
+  var table    = 'account_payments';
   var startRow = options.account + '|' + utils.formatTime(options.start);
   var endRow   = options.account + '|' + utils.formatTime(options.end);
+  var type;
 
   if(options.currency) {
     options.currency= options.currency.toUpperCase();
@@ -254,15 +410,15 @@ HbaseClient.prototype.getAccountPayments = function (options, callback) {
 
   if(options.type) {
     if(options.type == 'sent') {
-      options.type= 'source'
+      type = 'source'
     } else if(options.type == 'received') {
-      options.type= 'destination'
+      type = 'destination'
     }
   }
 
   var maybeFilters =
   [{ qualifier: 'currency', value: options.currency, family: 'f', comparator: '=' },
-   { qualifier: options.type, value: options.account, family: 'f', comparator: '=' }];
+   { qualifier: type, value: options.account, family: 'f', comparator: '=' }];
 
   var filterString= this.buildSingleColumnValueFilters(maybeFilters);
 
@@ -929,6 +1085,8 @@ HbaseClient.prototype.getAccounts = function(options, callback) {
       } else {
         delete resp[i].rowkey;
         delete resp[i].tx_index;
+        delete resp[i].client;
+
         resp[i].ledger_index = Number(resp[i].ledger_index);
         resp[i].executed_time = moment.unix(resp[i].executed_time)
           .utc()
@@ -1241,6 +1399,7 @@ HbaseClient.prototype.prepareTransactions = function (transactions) {
     tx['f:executed_time']   = tx.executed_time;
     tx['f:ledger_index']    = tx.ledger_index;
     tx['f:ledger_hash']     = tx.ledger_hash;
+    tx['f:client']          = tx.client;
 
     delete tx.Account;
     delete tx.Sequence;
@@ -1249,6 +1408,7 @@ HbaseClient.prototype.prepareTransactions = function (transactions) {
     delete tx.executed_time;
     delete tx.ledger_index;
     delete tx.ledger_hash;
+    delete tx.client;
 
     //add transaction
     data.transactions[tx.hash] = tx
@@ -1409,6 +1569,7 @@ HbaseClient.prototype.prepareParsedData = function (data) {
       amount              : p.amount,
       delivered_amount    : p.delivered_amount,
       'f:currency'        : p.currency,
+      'f:issuer'          : p.issuer,
       'f:source_currency' : p.source_currency,
       fee                 : p.fee,
       source_balance_changes      : p.source_balance_changes,
