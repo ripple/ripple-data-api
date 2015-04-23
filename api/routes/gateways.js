@@ -27,6 +27,7 @@ var Gateways = function (req, res, next) {
   var currency = req.query.currency;
   var address  = req.params.gateway;
 
+
   if (address) {
     gateway = utils.getGateway(address);
     if (gateway) {
@@ -69,7 +70,6 @@ var Assets = function (req, res, next) {
     return;
   }
 
-
   res.status(404).send('Not found');
 };
 
@@ -97,11 +97,8 @@ var Currencies = function (req, res, next) {
     return;
   }
 
-
   res.status(404).send('Not found');
 };
-
-
 
 module.exports.Assets     = Assets;
 module.exports.Gateways   = Gateways;

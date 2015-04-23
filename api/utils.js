@@ -295,8 +295,8 @@ exports.parseTimeIncrement = function (inc) {
  * getAlignedTime - uses the interval and multiple
  * to align the time to a consistent series, such as 9:00, 9:05, 9:10...
  * rather than 9:03, 9:08, 9:13...
- *
  */
+
 exports.getAlignedTime = function (original, increment, multiple) {
   var time = moment.utc(original); //clone the original
   if (!multiple) multiple = 1;
@@ -325,6 +325,7 @@ exports.getAlignedTime = function (original, increment, multiple) {
     });
 
   } else if (increment === 'day') {
+
     var days;
     var diff;
 
@@ -368,3 +369,25 @@ exports.getAlignedTime = function (original, increment, multiple) {
 
   return time;
 }
+
+exports.formatTime = function(time) {
+  if (typeof time === 'number') {
+    t = moment.unix(time).utc();
+  } else {
+    t = moment.utc(time);
+  }
+  return t.format('YYYYMMDDHHmmss');
+};
+
+exports.unformatTime = function(time) {
+  var t = [
+    parseInt(time.slice(0, 4), 10),     //year
+    parseInt(time.slice(4, 6), 10) - 1, //month
+    parseInt(time.slice(6, 8), 10),     //day
+    parseInt(time.slice(8, 10), 10),    //hour
+    parseInt(time.slice(10, 12), 10),   //minute
+    parseInt(time.slice(12, 14), 10),   //second
+  ]
+
+  return moment.utc(t);
+};

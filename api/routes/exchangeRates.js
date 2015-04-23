@@ -24,13 +24,13 @@ var moment   = require('moment'),
  *      }
  *    ],
  *    live: false
- *  
+ *
  *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
  *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
  *    range   : "hour", "day", "week", "month", year",  //time range to average the price over, defaults to "day"
  *    last    : (boolean) retreive the last traded price only (faster query)
  *  }
- * 
+ *
  *  response :
  *  {
  *    pairs : [
@@ -41,11 +41,11 @@ var moment   = require('moment'),
  *        last    : //last trade price
  *        range   : "hour", "day", "month", year" - from request
  *      },
- * 
+ *
  *      ....
- *    ] 
+ *    ]
  *  }
- *  
+ *
  *  expects params to have with live = true:
  *  if depth is not given but live == true, the midpoint of the best bid and ask will be returned
  *  {
@@ -62,11 +62,11 @@ var moment   = require('moment'),
  *      }
  *    ],
  *    live: true
- *  
+ *
  *    base    : {currency:"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"}, //required if "pairs" not present, for a single currency pair exchange rate
  *    counter : {currency:"XRP"}, //require if "pairs" not present, for a single currency pair exchange rate
  *  }
- * 
+ *
  *  response :
  *  {
  *    pairs : [
@@ -76,9 +76,9 @@ var moment   = require('moment'),
  *        rate    : //midpoint weighted average price of bid and ask
  *        depth   : //amount of currency the exchange rate is being checked for
  *      },
- * 
+ *
  *      ....
- *    ] 
+ *    ]
  *  }
 
   Call with live = true:
@@ -104,9 +104,9 @@ var moment   = require('moment'),
       "counter":{"currency":"XRP"},
       "depth":100
     }],
-    "live":true 
+    "live":true
   }' http://localhost:5993/api/exchangerates
-  
+
   Calls with live = false:
 
   curl -H "Content-Type: application/json" -X POST -d '{
@@ -115,79 +115,70 @@ var moment   = require('moment'),
       "counter":{"currency":"XRP"}
     },
     {
-      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "base":{"currency":"USD","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
+      "counter":{"currency":"XRP"}
+    },
+    {
+      "base":{"currency":"CNY","issuer":"rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK"},
       "counter":{"currency":"XRP"}
     },
     {
       "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
       "counter":{"currency":"XRP"}
-    },
-    {
-      "base":{"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
-      "counter":{"currency":"XRP"}
-    }] 
+    }]
   }' http://localhost:5993/api/exchangerates
 
   curl -H "Content-Type: application/json" -X POST -d '{
     "base"    : {"currency":"BTC","issuer":"rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B"},
     "counter" : {"currency":"XRP"},
     "last"    : true
- 
+
   }' http://localhost:5993/api/exchangerates
-    
+
  */
 
 function exchangeRates (params, callback) {
-  var range   = params.range || 'day',
-      endTime = moment.utc(),
-      live    = params.live,
-      list    = [],
-      pairs, 
-      startTime;
-  
-  if (params.last)         startTime = moment.utc('Jan 1 2013 z');
-  else if (range == 'hour')  startTime = moment.utc().subtract('hours', 1);
-  else if (range == 'day')   startTime = moment.utc().subtract('days', 1);
-  else if (range == 'week')  startTime = moment.utc().subtract('weeks', 1);
-  else if (range == 'month') startTime = moment.utc().subtract('months', 1);
-  else if (range == 'year')  startTime = moment.utc().subtract('years', 1);
-  else { 
-    //invalid range
-    return callback('invalid time range'); 
-  }
-  
-  if (params.pairs && Array.isArray(params.pairs)) 
+  var startTime = moment.utc(0);
+  var endTime   = moment.utc(params.time);
+  var live      = params.live;
+  var list      = [];
+  var pairs;
+  var currencyPair;
+
+  if (params.pairs && Array.isArray(params.pairs))
     pairs = params.pairs;
-  else if (params.base && params.counter) 
+  else if (params.base && params.counter)
     pairs = [{base:params.base,counter:params.counter, depth:params.depth}];
-  else 
+  else
     return callback('please specify a list of currency pairs or a base and counter currency');
 
   //invalid number of pairs
-  if (list.length > 50) return callback('cannot retrieve more than 50 pairs');
+  if (pairs.length > 50) return callback('cannot retrieve more than 50 pairs');
 
-  pairs.forEach(function(pair) {
-    var currencyPair = parseCurrencyPair(pair),
-        depth;
+  for (var i=0; i<pairs.length; i++) {
+    currencyPair = parseCurrencyPair(pairs[i]);
 
     if (currencyPair) {
-      if (live) {
-        if (pair.depth) {
-          depth = pair.depth;
-          //invalid depth
-          if (depth <= 0) return callback('invalid depth');
-          currencyPair.depth = depth;
+      if (live && pairs[i].depth) {
+        if (pairs[i].depth <= 0) {
+          callback('invalid depth: ' + JSON.stringify(pair));
+          return;
         }
+
+        currencyPair.depth = pairs[i].depth;
       }
+
       list.push(currencyPair);
+
+    } else {
+      callback('invalid currency pair: ' + JSON.stringify(pair));
+      return;
     }
-    else { 
-      //invalid currency pair
-      return callback('invalid currency pair: ' + JSON.stringify(pair));
-    }
-  });
+  }
 
   async.mapLimit(list, 50, function(pair, asyncCallbackPair) {
+
+    //live request must go to rippled
     if (live) {
       midpoint_rate(pair, pair.depth, function(error, avg) {
         if (error) return asyncCallbackPair(error);
@@ -196,34 +187,39 @@ function exchangeRates (params, callback) {
           asyncCallbackPair(null, pair);
         }
       });
-    }
-    else{
-      var options = {
-      base      : pair.base,
-      counter   : pair.counter,
-      startTime : startTime,
-      endTime   : endTime,      
-      };
-    
-      if (params.last) {
-        options.reduce     = false;
-        options.limit      = 1,
-        options.descending = true;
-      } else {
-        options.timeIncrement = 'all';  
-      }
-      
-      require('./offersExercised')(options, function(error, data) {
 
-        if (error) return asyncCallbackPair(error);
+    //otherwise go to hbase
+    } else {
+      var options = {
+        start      : startTime,
+        end        : endTime,
+        base       : pair.base,
+        counter    : pair.counter,
+        descending : true
+      };
+
+      if (params.last) {
+        options.limit  = 1;
+      } else {
+        options.limit  = 50;
+        options.reduce = true;
+      }
+
+      hbase.getExchanges(options, function(err, data) {
+
+        if (err) {
+          asyncCallbackPair(err);
+          return;
+        }
 
         if (params.last) {
-            pair.last = data && data.length > 1 ? data[1][1] : 0;
-          
+            pair.last = data && data.length ? data[0].rate : 0;
+
         } else {
-          if (data && data.length > 1) {
-            pair.rate = data[1][8]; // volume weighted average price
-            pair.last = data[1][7]; // close price
+          if (data) {
+            pair.rate = data.vwap;
+            pair.last = data.close;
+
           } else {
             pair.rate = 0;
           }
@@ -238,10 +234,10 @@ function exchangeRates (params, callback) {
   });
 }
 
-function midpoint_rate(pair, depth, mpCallback) {  
+function midpoint_rate(pair, depth, mpCallback) {
   var bid = call_builder('bid', pair),
       ask = call_builder('ask', pair);
-  
+
   //Make both bid and ask api calls in parallel and process the results
   async.parallel({
       bid_avg: function(callback) {
@@ -291,12 +287,12 @@ function process_offers(json, ba, depth, callback) {
 function weighted_average(offers, ba, depth, callback) {
   var waverage = 0,
       total    = 0,
-      taker_gets, 
+      taker_gets,
       taker_pays;
   //Iterate through offers until depth is reached.
   for (var index in offers) {
     var offer = offers[index],
-        exchange, 
+        exchange,
         value;
     //Check whether TakerGets.value and TakerPays.value exist.
     if (offer.TakerGets.value) taker_gets = offer.TakerGets.value;
@@ -346,8 +342,8 @@ function weighted_average(offers, ba, depth, callback) {
 //Builds API call based on currencies provided and (xrp has no issuer).
 function call_builder(ba, pair) {
   var currencyPair = parseCurrencyPair(pair),
-      tg, 
-      tp, 
+      tg,
+      tp,
       call;
   if (ba === 'ask') {
     tg = currencyPair.base;
@@ -359,7 +355,7 @@ function call_builder(ba, pair) {
   }
   call = {
     'method': 'book_offers',
-    'params': 
+    'params':
     [
       {
         'taker_gets': tg,
@@ -372,14 +368,14 @@ function call_builder(ba, pair) {
 
 //format valid currency pairs, reject invalid
 function parseCurrencyPair (pair) {
-  var base, 
+  var base,
       counter;
-  
+
   if (!pair.base|| !pair.counter) return;
-  
+
   base  = parseCurrency(pair.base);
-  counter = parseCurrency(pair.counter); 
-  
+  counter = parseCurrency(pair.counter);
+
   if (!base || !counter) return;
   return {base:base,counter:counter};
 }
@@ -389,31 +385,31 @@ function parseCurrency (c) {
   var currency,
       name,
       issuer;
-    
+
   if (!c.currency) return;
   else {
     currency = c.currency.toUpperCase();
-    
+
     if (currency == 'XRP') {
       if (c.issuer) return null;   //XRP should not have an issuer
       return {currency:'XRP'};
     }
-    
+
     else if (currency != 'XRP' && !c.issuer) return null;  //IOUs must have an issuer
     else if (ripple.UInt160.is_valid(c.issuer)) {
-    
+
       issuer = c.issuer;
       name   = utils.getGatewayName(issuer);
-      
-    } else {  
-      
+
+    } else {
+
       name   = c.issuer;
       issuer = utils.gatewayNameToAddress(name, currency);
       if (!issuer) return null; //invalid issuer name or address
-    } 
-  } 
-  
-  return {currency:currency, issuer:issuer, name:name}; 
+    }
+  }
+
+  return {currency:currency, issuer:issuer, name:name};
 }
 
 module.exports = exchangeRates;

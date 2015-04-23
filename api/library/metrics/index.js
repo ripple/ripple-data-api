@@ -4,10 +4,10 @@ var cacheTransactionVolume = require('./transactionVolume');
 var cacheNetworkValue      = require('./networkValue');
 
 module.exports.init = function () {
-  
+
   //cache metrics now
   cacheMetrics();
-  
+
   //reset every 4 minutes
   setInterval(cacheMetrics, 4 * 60 * 1000);
 }
