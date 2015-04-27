@@ -6,7 +6,6 @@ var tradeVolume = require('../library/metrics/tradeVolume');
 var utils       = require('../library/utils');
 
 var intervals = [
-  'hour',
   'day',
   'week',
   'month'

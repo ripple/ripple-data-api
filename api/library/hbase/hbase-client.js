@@ -48,6 +48,49 @@ HbaseClient.prototype = Object.create(Hbase.prototype);
 HbaseClient.prototype.constructor = HbaseClient;
 
 /**
+ * getCapitalization
+ */
+
+HbaseClient.prototype.getCapitalization = function (options, callback) {
+  var base = options.currency + '|' + options.issuer;
+  var startRow = base + '|' + utils.formatTime(options.start);
+  var endRow = base + '|' + utils.formatTime(options.end);
+  var column;
+
+  if (options.adjustedChanges) {
+    column = 'hotwallet_adj_balancesowed';
+  } else if (options.changes) {
+    column = 'issuer_balance_changes';
+  } else if (options.adjusted) {
+    column = 'cummulative_hotwallet_adj_balancesowed';
+  } else {
+    column = 'cummulative_issuer_balance_changes';
+  }
+
+  this.getScanWithMarker(this, {
+    table: 'issuer_balance_snapshot',
+    startRow: startRow,
+    stopRow: endRow,
+    limit: options.limit || Infinity,
+    descending: options.descending,
+    marker: options.marker,
+    columns : ['d:'+column]
+  }, function(err, resp) {
+    if (resp && resp.rows) {
+      resp.rows.forEach(function(row, i) {
+        var parts = row.rowkey.split('|');
+        resp.rows[i] = {
+          date: utils.unformatTime(parts[2]).format(),
+          amount: 0 - Number(row[column])
+        };
+      });
+
+      callback(err, resp);
+    }
+  });
+}
+
+/**
  * getStats
  */
 
@@ -192,26 +235,51 @@ HbaseClient.prototype.getStatsRow = function(options) {
  */
 
 HbaseClient.prototype.getPayments = function(options, callback) {
-  var table = 'payments';
-  var startRow = utils.formatTime(options.start);
-  var endRow = utils.formatTime(options.end);
   var filters = [];
   var filterString;
+  var table;
+  var startRow;
+  var endRow;
 
-  if (options.currency) {
-    filters.push({
-      qualifier: 'currency',
-      value: options.currency,
-      family: 'f', comparator: '='
-    });
-  }
+  if (options.interval) {
+    table = 'agg_payments';
+    startRow = options.interval +
+      '|' + options.currency +
+      '|' + (options.issuer || '') +
+      '|' + utils.formatTime(options.start);
+    endRow = options.interval +
+      '|' + options.currency +
+      '|' + (options.issuer || '') +
+      '|' + utils.formatTime(options.end);
 
-  if (options.issuer) {
-    filters.push({
-      qualifier: 'issuer',
-      value: options.issuer,
-      family: 'f', comparator: '='
-    });
+  } else {
+    table = 'payments';
+    startRow = utils.formatTime(options.start);
+    endRow = utils.formatTime(options.end);
+
+    if (options.currency) {
+      filters.push({
+        qualifier: 'currency',
+        value: options.currency,
+        family: 'f', comparator: '='
+      });
+    }
+
+    if (options.issuer) {
+      filters.push({
+        qualifier: 'issuer',
+        value: options.issuer,
+        family: 'f', comparator: '='
+      });
+    }
+
+    if (options.reduce) {
+      options.columns = [
+        'd:delivered_amount',
+        'f:currency',
+        'f:issuer'
+      ];
+    }
   }
 
   filterString = this.buildSingleColumnValueFilters(filters);
@@ -226,7 +294,40 @@ HbaseClient.prototype.getPayments = function(options, callback) {
     filterString: filterString,
     columns: options.columns
   }, function(err, res) {
-    res.rows = formatPayments(res.rows || []);
+    var amount;
+
+    if (options.interval) {
+      if (res && res.rows) {
+        res.rows.forEach(function(row) {
+          row.count = Number(row.count);
+          row.amount = Number(row.amount);
+          row.average = Number(row.average);
+        });
+      }
+
+    } else if (options.reduce) {
+      amount = 0;
+
+      if (res && res.rows) {
+        res.rows.forEach(function(row) {
+          amount += Number(row.delivered_amount);
+        });
+
+        res = {
+          amount: amount,
+          count: res.rows.length
+        };
+
+      } else {
+        res = {
+          amount: 0,
+          count: 0
+        };
+      }
+
+    } else {
+      res.rows = formatPayments(res.rows || []);
+    }
     callback(err, res);
   });
 
@@ -474,6 +575,7 @@ HbaseClient.prototype.getAccountBalanceChanges = function (options, callback) {
     stopRow      : endRow,
     limit        : options.limit,
     marker       : options.marker,
+    descending   : options.descending,
     filterString : filterString
   }, function (err, res) {
     res.rows= formatChanges(res.rows || []);

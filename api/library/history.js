@@ -18,15 +18,15 @@ function saveHistory (metric, interval, update, done) {
     check = require("../routes/totalTradeVolume");
     load  = require("./metrics/tradeVolume");
 
-  } else if (metric === 'transactionVolume') {
-    check = require("../routes/totalValueSent");
-    load  = require("./metrics/transactionVolume");
+  } else if (metric === 'paymentVolume') {
+    check = require("../routesV2/totalPaymentVolume");
+    load  = require("./metrics/paymentVolume");
 
   } else if (metric === 'networkValue') {
     check = require("../routes/totalNetworkValue");
     load  = require("./metrics/networkValue");
 
-  } else return winston.error("invalid metric");
+  } else return winston.error("invalid metric: " + metric);
 
   if (interval != 'month' &&
       interval != 'week' &&
@@ -101,7 +101,7 @@ module.exports.init = function(reload) {
 
   var saveMonthlyHistory = function (update, done) {
     saveHistory('tradeVolume', "month", update, function() {
-      saveHistory('transactionVolume', "month", update, function() {
+      saveHistory('paymentVolume', "month", update, function() {
         saveHistory('networkValue', "month", update, function() {
           winston.info("finished cacheing monthly historical metrics");
           if(done) done();
@@ -112,7 +112,7 @@ module.exports.init = function(reload) {
 
   var saveWeeklyHistory = function (update, done) {
     saveHistory('tradeVolume', "week", update, function() {
-      saveHistory('transactionVolume', "week", update, function() {
+      saveHistory('paymentVolume', "week", update, function() {
         saveHistory('networkValue', "week", update, function() {
           winston.info("finished cacheing daily historical metrics");
           if (done) done();
@@ -123,7 +123,7 @@ module.exports.init = function(reload) {
 
   var saveDailyHistory = function (update, done) {
     saveHistory('tradeVolume', "day", update, function() {
-      saveHistory('transactionVolume', "day", update, function() {
+      saveHistory('paymentVolume', "day", update, function() {
         saveHistory('networkValue', "day", update, function() {
           winston.info("finished cacheing daily historical metrics");
           if (done) done();

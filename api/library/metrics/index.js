@@ -1,7 +1,7 @@
-var async                  = require('async');
-var cacheTradeVolume       = require('./tradeVolume');
-var cacheTransactionVolume = require('./transactionVolume');
-var cacheNetworkValue      = require('./networkValue');
+var async = require('async');
+var cacheTradeVolume = require('./tradeVolume');
+var cachePaymentVolume = require('./paymentVolume');
+var cacheNetworkValue = require('./networkValue');
 
 module.exports.init = function () {
 
@@ -14,8 +14,8 @@ module.exports.init = function () {
 
 function cacheMetrics () {
   async.series([
-    function (callback) {cacheTradeVolume(null, callback)},
-    function (callback) {cacheTransactionVolume(null, callback)},
-    function (callback) {cacheNetworkValue(null, callback)},
+    //function (callback) {cacheTradeVolume(null, callback)},
+    function (callback) {cachePaymentVolume(null, callback)},
+    //function (callback) {cacheNetworkValue(null, callback)},
   ]);
 }

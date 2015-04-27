@@ -85,6 +85,8 @@ var apiRoutes = {
   'offers'                  : require("./routes/offers"),
   //'offersexercised'         : require("./routes/offersExercised"),
   'offersexercised'         : require("./routesV2/exchanges"),
+  'payments'                : require("./routesV2/payments"),
+  'totalpaymentvolume'      : require("./routesV2/totalPaymentVolume"),
   'topmarkets'              : require("./routes/totalTradeVolume"),
   'totaltradevolume'        : require("./routes/totalTradeVolume"),
   'markettraders'           : require("./routes/marketTraders"),
@@ -196,8 +198,11 @@ function requestHandler(req, res) {
       res.send(200, response);
 
       //log the response
-      if (response.length)       rowcount = response.length;
-      else if (response.results) rowcount = response.results.length;
+      if (response && response.length) {
+        rowcount = response.length;
+      } else if (response && response.results) {
+        rowcount = response.results.length;
+      }
 
       winston.info(date,
         ip,
@@ -294,9 +299,6 @@ function makeKey(route, params) {
 
   return cacheKey;
 }
-
-//initialize ledger monitor
-monitor.ledgerMonitor();
 
 //cache initialization
 if (CACHE) {

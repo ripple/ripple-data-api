@@ -6,7 +6,6 @@ var utils   = require('../library/utils');
 var transactionVolume = require('../library/metrics/transactionVolume');
 
 var intervals = [
-  'hour',
   'day',
   'week',
   'month'

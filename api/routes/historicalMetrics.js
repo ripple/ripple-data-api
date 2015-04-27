@@ -43,9 +43,10 @@ var getMetric = function (params, callback) {
   if (params.metric) params.metric = params.metric.toLowerCase();
   else return callback('metric parameter is required');
 
-  if      (params.metric === 'topmarkets')        keyBase = 'trade_volume|';
-  else if (params.metric === 'totalvaluesent')    keyBase = 'transaction_volume|';
-  else if (params.metric === 'totalnetworkvalue') keyBase = 'network_value|';
+  if      (params.metric === 'topmarkets')         keyBase = 'trade_volume|';
+  else if (params.metric === 'totalvaluesent')     keyBase = 'transaction_volume|';
+  else if (params.metric === 'totalpaymentvolume') keyBase = 'payment_volume|';
+  else if (params.metric === 'totalnetworkvalue')  keyBase = 'network_value|';
   else return callback("invalid metric");
 
   if (result.error) {
