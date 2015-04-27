@@ -330,7 +330,9 @@
     "address": "r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN",
     "currencies": {"JPY" : { "featured" : true }}
     }],
-    "hotwallets": [],
+    "hotwallets": [
+      "rHENTPe3nMDLGJd59e5a3tYH9BXz1nFhvA"
+    ],
     "domain": "tokyojpy.com",
     "status": "active",
     "featured" : true
