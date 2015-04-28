@@ -87,6 +87,8 @@ module.exports = function (params, callback) {
 
   //set format
   options.format = params.format || null;
+  options.base = params.base;
+  options.counter = params.counter;
 
   //unaggregated results from couchdb
   if (params.reduce === false) {
