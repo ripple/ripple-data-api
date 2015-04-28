@@ -92,7 +92,7 @@ function totalNetworkValue(params, callback) {
     rowkey += '|live';
 
   } else {
-    time.startOf('hour');
+    time.startOf('day');
     rowkey += '|' + utils.formatTime(time);
   }
 

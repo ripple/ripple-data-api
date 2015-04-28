@@ -83,8 +83,11 @@ function issuedValue (params, callback) {
 
   }, function(err, data) {
 
-    console.log(err);
-    if (err) return callback(err);
+    if (err) {
+      console.log(err);
+      callback(err);
+      return;
+    }
 
     getExchangeRates(params.time, function(error, rates) {
       if (error) return callback(error);

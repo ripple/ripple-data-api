@@ -91,11 +91,9 @@ function totalIssued(params, callback) {
     rowkey += '|live';
 
   } else {
-    time.startOf('hour');
+    time.startOf('day');
     rowkey += '|' + utils.formatTime(time);
   }
-
-  console.log(rowkey);
 
   hbase.getRow({
     table: 'agg_metrics',
