@@ -84,7 +84,7 @@ function issuerCapitalization(params, callback) {
 
   } else return callback('please specify at least one issuer-currency pair');
 
-  if (currencies.length>15) return callback("Cannot retrieve more than 20 currencies");
+  if (currencies.length>25) return callback("Cannot retrieve more than 25 currencies");
   if (!params.startTime) params.startTime = "Jan 1 2013 12:00+0:00";
 
   //Parse start and end times

@@ -255,7 +255,7 @@ function handleResponse (rows, options, callback) {
     apiRes.endTime       = moment.utc(options.endTime).format();
     apiRes.base          = options.base;
     apiRes.counter       = options.counter;
-    apiRes.timeIncrement = options.increment || "all";
+    apiRes.timeIncrement = options.increment;
     if (options.multiple && options.multiple>1) apiRes.timeMultiple = options.multiple;
 
     rows.shift();//get rid of header

@@ -26,6 +26,10 @@ function saveHistory (metric, interval, update, done) {
     check = require("../routes/totalNetworkValue");
     load  = require("./metrics/networkValue");
 
+  } else if (metric === 'issuedValue') {
+    check = require("../routesV2/totalIssued");
+    load  = require("./metrics/issuedValue");
+
   } else return winston.error("invalid metric: " + metric);
 
   if (interval != 'month' &&
@@ -36,16 +40,22 @@ function saveHistory (metric, interval, update, done) {
 
   function getStat(callback) {
 
-    if (metric == 'networkValue') params = {
-      time : time,
+    if (metric === 'networkValue' ||
+        metric === 'issuedValue') {
+      params = {
+        time: time
+      };
+
+    } else {
+      params = {
+        startTime: time,
+        interval: interval
+      };
     }
 
-    else params = {
-      startTime : time,
-      interval  : interval
+    if (DEBUG) {
+      winston.info("cacheing metric: ", metric, interval, time.format());
     }
-
-    if (DEBUG) winston.info("cacheing metric: ", metric, interval, time.format());
 
     //check for existing data if this is an update
     if (update) {
@@ -102,7 +112,7 @@ module.exports.init = function(reload) {
   var saveMonthlyHistory = function (update, done) {
     saveHistory('tradeVolume', "month", update, function() {
       saveHistory('paymentVolume', "month", update, function() {
-        saveHistory('networkValue', "month", update, function() {
+        saveHistory('issuedValue', "month", update, function() {
           winston.info("finished cacheing monthly historical metrics");
           if(done) done();
         });
@@ -113,7 +123,7 @@ module.exports.init = function(reload) {
   var saveWeeklyHistory = function (update, done) {
     saveHistory('tradeVolume', "week", update, function() {
       saveHistory('paymentVolume', "week", update, function() {
-        saveHistory('networkValue', "week", update, function() {
+        saveHistory('issuedValue', "week", update, function() {
           winston.info("finished cacheing daily historical metrics");
           if (done) done();
         });
@@ -124,7 +134,7 @@ module.exports.init = function(reload) {
   var saveDailyHistory = function (update, done) {
     saveHistory('tradeVolume', "day", update, function() {
       saveHistory('paymentVolume', "day", update, function() {
-        saveHistory('networkValue', "day", update, function() {
+        saveHistory('issuedValue', "day", update, function() {
           winston.info("finished cacheing daily historical metrics");
           if (done) done();
         });

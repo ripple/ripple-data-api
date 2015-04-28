@@ -83,10 +83,10 @@ DATEFORMAT = DATEARRAY.join('');
 
 var apiRoutes = {
   'offers'                  : require("./routes/offers"),
-  //'offersexercised'         : require("./routes/offersExercised"),
   'offersexercised'         : require("./routesV2/exchanges"),
   'payments'                : require("./routesV2/payments"),
   'totalpaymentvolume'      : require("./routesV2/totalPaymentVolume"),
+  'totalissued'             : require("./routesV2/totalIssued"),
   'topmarkets'              : require("./routes/totalTradeVolume"),
   'totaltradevolume'        : require("./routes/totalTradeVolume"),
   'markettraders'           : require("./routes/marketTraders"),
