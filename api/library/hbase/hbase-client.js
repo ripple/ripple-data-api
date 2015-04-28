@@ -79,9 +79,16 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
     if (resp && resp.rows) {
       resp.rows.forEach(function(row, i) {
         var parts = row.rowkey.split('|');
+        var amount = Number(row[column]);
+
+        //don't allow less than 0
+        if (amount < 0) {
+          amount = 0;
+        }
+
         resp.rows[i] = {
           date: utils.unformatTime(parts[2]).format(),
-          amount: 0 - Number(row[column])
+          amount: amount
         };
       });
 

@@ -109,7 +109,7 @@ function issuerCapitalization(params, callback) {
       start: startTime,
       end: endTime,
       descending: false,
-      adjusted: false,
+      adjusted: true,
     };
 
     if (!params.timeIncrement) {

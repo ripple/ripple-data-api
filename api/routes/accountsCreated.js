@@ -113,7 +113,7 @@ function accountsCreated(params, callback) {
   };
 
   hbase.getAccounts(options, function(err, resp) {
-    handleResponse(resp);
+    handleResponse(resp || {});
   });
 
   /**
@@ -122,7 +122,7 @@ function accountsCreated(params, callback) {
    *
    */
   function handleResponse (resp) {
-    var rows = resp.rows;
+    var rows = resp.rows || [];
 
     if (params.format === 'json') {
       var response = {
