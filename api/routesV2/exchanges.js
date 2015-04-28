@@ -90,6 +90,7 @@ module.exports = function (params, callback) {
 
   //unaggregated results from couchdb
   if (params.reduce === false) {
+    options.unreduced = true;
     getUnreduced(options, params, callback);
 
   //sum total aggregation from couchdb
