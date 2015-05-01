@@ -36,7 +36,7 @@ var marketPairs = [
     counter: {currency: 'XRP'}
   },
   {
-    // SnapSwap USD market
+    // SnapSwap EUR market
     base: {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'},
     counter: {currency: 'XRP'}
   },
@@ -46,28 +46,43 @@ var marketPairs = [
     counter: {currency:'XRP'}
   },
   {
-    // Justcoin BTC market
-    base: {currency:'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'},
-    counter: {currency:'XRP'}
-  },
-  {
-    // Ripple Trade Japan JPY
-    base: {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-    counter: {currency:'XRP'}
-  },
-  {
     // TokyoJPY JPY
     base: {currency:'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
     counter: {currency:'XRP'}
   },
   {
-    // Ripple Market Japan JPY
+    // Digital Gate Japan JPY
     base: {currency:'JPY', issuer: 'rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg'},
+    counter: {currency:'XRP'}
+  },
+  {
+    // Ripple Exchange Tokyo JPY
+    base: {currency:'JPY', issuer: 'r9ZFPSb1TFdnJwbTMYHvVwFK1bQPUCVNfJ'},
     counter: {currency:'XRP'}
   },
   {
     // Pax Moneta KRW
     base: {currency:'KRW', issuer: 'rUkMKjQitpgAM5WTGk79xpjT38DEJY283d'},
+    counter: {currency:'XRP'}
+  },
+  {
+    // Ripple Fox STR
+    base: {currency:'STR', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    counter: {currency:'XRP'}
+  },
+  {
+    // Ripple Fox FMM
+    base: {currency:'FMM', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    counter: {currency:'XRP'}
+  },
+  {
+    // Bitso MXN
+    base: {currency:'MXN', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    counter: {currency:'XRP'}
+  },
+  {
+    // Bitso BTC
+    base: {currency:'BTC', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
     counter: {currency:'XRP'}
   },
   {
@@ -106,24 +121,44 @@ var marketPairs = [
     counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
   },
   {
-    //ripple trade japan JPY/ Bitstamp USD
-    base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
+    // Bitstamp USD/ rippleFox CNY
+    base    : {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
     counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
   },
   {
-    //ripple trade japan JPY/ Snapswap USD/
-    base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
+    // Snapswap USD/ rippleFox CNY
+    base    : {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
     counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
   },
   {
-    //ripple trade japan JPY/ RippleCN CNY/
-    base    : {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-    counter : {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}
+    // Snapswap USD/ rippleFox CNY
+    base    : {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    counter : {currency: 'FMM', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}
   },
   {
-    // Ripple Trade Japan JPY/TokyoJPY JPY
-    base    : {currency:'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'},
-    counter : {currency:'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'}
+    // TokyoJPY JPY/ rippleFox CNY
+    base    : {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
+    counter : {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}
+  },
+  {
+    // TokyoJPY JPY/ Snapswap BTC
+    base    : {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
+    counter : {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
+  },
+  {
+    // TokyoJPY JPY/ Snapswap USD
+    base    : {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
+    counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
+  },
+  {
+    // TokyoJPY JPY/ Bitstamp USD
+    base    : {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'},
+    counter : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'}
+  },
+  {
+    // Bitso MXN / Snapswap USD
+    base    : {currency: 'MXN', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
   }
 ];
 
