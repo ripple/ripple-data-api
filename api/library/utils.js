@@ -5,13 +5,19 @@ var SerializedObject = require('ripple-lib').SerializedObject;
  * formatTime
  */
 
-module.exports.formatTime = function(time) {
+module.exports.formatTime = function(time, interval) {
+  var format = 'YYYYMMDD';
+
+  if (interval !== 'day') {
+    format += 'HHmmss';
+  }
+
   if (typeof time === 'number') {
     t = moment.unix(time).utc();
   } else {
     t = moment.utc(time);
   }
-  return t.format('YYYYMMDDHHmmss');
+  return t.format(format);
 };
 
 /**

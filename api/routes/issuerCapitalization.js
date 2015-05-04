@@ -116,6 +116,7 @@ function issuerCapitalization(params, callback) {
       options.limit = 1;
       options.descending = true;
     } else {
+      options.interval = params.timeIncrement;
       options.descending = false;
     }
 

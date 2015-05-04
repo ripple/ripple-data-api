@@ -55,7 +55,11 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
   var base = options.currency + '|' + options.issuer;
   var startRow = base + '|' + utils.formatTime(options.start);
   var endRow = base + '|' + utils.formatTime(options.end);
+  var interval = options.interval || 'day';
+  var keys = [];
   var column;
+  var start;
+  var end;
 
   if (options.adjustedChanges) {
     column = 'hotwallet_adj_balancesowed';
@@ -67,15 +71,49 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
     column = 'cummulative_issuer_balance_changes';
   }
 
-  this.getScanWithMarker(this, {
-    table: 'issuer_balance_snapshot',
-    startRow: startRow,
-    stopRow: endRow,
-    limit: options.limit || Infinity,
-    descending: options.descending,
-    marker: options.marker,
-    columns : ['d:'+column]
-  }, function(err, resp) {
+  if (options.interval && options.interval !== 'day') {
+    if (options.interval === 'week') {
+      start = moment.utc(options.start).startOf('isoWeek');
+
+      while (start.diff(options.end) <= 0) {
+        keys.push(base + '|' + utils.formatTime(start, 'day'));
+        start.add(1, 'week');
+      }
+
+    } else if (options.interval === 'month') {
+       start = moment.utc(options.start).startOf('month');
+
+      while (start.diff(options.end) <= 0) {
+        keys.push(base + '|' + utils.formatTime(start, 'day'));
+        start.add(1, 'month');
+      }
+
+    } else {
+      callback('invalid interval - use: day, week, month');
+      return;
+    }
+
+    this.getRows({
+      table: 'issuer_balance_snapshot',
+      rowkeys: keys,
+      columns : ['d:'+column]
+    }, function(err, resp) {
+      handleResponse(err, {rows:resp || []});
+    });
+
+  } else {
+    this.getScanWithMarker(this, {
+      table: 'issuer_balance_snapshot',
+      startRow: startRow,
+      stopRow: endRow,
+      limit: options.limit || Infinity,
+      descending: options.descending,
+      marker: options.marker,
+      columns : ['d:'+column]
+    }, handleResponse);
+  }
+
+  function handleResponse(err, resp) {
     if (resp && resp.rows) {
       resp.rows.forEach(function(row, i) {
         var parts = row.rowkey.split('|');
@@ -91,10 +129,10 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
           amount: amount
         };
       });
-
-      callback(err, resp);
     }
-  });
+
+    callback(err, resp);
+  }
 }
 
 /**
