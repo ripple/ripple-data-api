@@ -48,7 +48,7 @@ currencies.forEach(function(currency) {
 
 
 function totalNetworkValue (params, callback) {
-
+  var live;
   var rowkey;
 
   if (!params) params = {};
@@ -58,6 +58,7 @@ function totalNetworkValue (params, callback) {
   if (!params.time) {
     params.time = moment.utc();
     rowkey   += '|live';
+    live = true;
 
   } else {
     params.time = moment.utc(params.time).startOf('hour');
@@ -121,18 +122,34 @@ function totalNetworkValue (params, callback) {
    */
 
   function getExchangeRates (time, callback) {
+    var options;
+
+    //use last 50 trades for live
+    if (live) {
+      options = {
+        start: moment.utc(0),
+        end: moment.utc(),
+        limit: 50,
+        descending: true,
+        reduce: true
+      }
+    //use daily rate
+    } else {
+      options = {
+        start: moment.utc(time).subtract(1, 'day'),
+        end: time,
+        interval: '1day',
+        descending: false
+      };
+    }
 
     // Mimic calling offersExercised for each asset pair
     async.map(conversionPairs, function(assetPair, asyncCallbackPair){
 
-      hbase.getExchanges( {
-        base       : assetPair.base,
-        counter    : assetPair.counter,
-        start      : moment.utc(time).subtract(1, 'day'),
-        end        : time,
-        interval   : '1day',
-        descending : false
-      }, function(err, resp) {
+      options.base = assetPair.base;
+      options.counter = assetPair.counter;
+
+      hbase.getExchanges(options, function(err, resp) {
 
         if (err) {
           asyncCallbackPair(err);

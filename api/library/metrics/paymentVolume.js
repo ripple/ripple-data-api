@@ -14,18 +14,23 @@ var intervals = [
 var conversionPairs = [];
 var currencies      = [
   {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp USD
-  {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
-  {currency: 'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}, //Justcoin BTC
   {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap USD
+  {currency: 'BTC', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},  //Bitstamp BTC
   {currency: 'BTC', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap BTC
+  {currency: 'BTC', issuer: 'rJHygWcTLVpSXkowott6kzgZU6viQSVYM1'}, //Justcoin BTC
   {currency: 'EUR', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}, //Snapswap EUR
   {currency: 'CNY', issuer: 'rnuF96W4SZoCJmbHYBFoJZpR8eCaxNvekK'}, //RippleCN CNY
   {currency: 'CNY', issuer: 'razqQKzJRdB4UxFPWf5NEpEG3WMkmwgcXA'}, //RippleChina CNY
   {currency: 'CNY', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}, //RippleFox CNY
-  {currency: 'JPY', issuer: 'rMAz5ZnK73nyNUL4foAvaxdreczCkG3vA6'}, //RippleTradeJapan JPY
-  {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'}, //Tokyo JPY
-  {currency: 'JPY', issuer: 'rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg'}, //Ripple Market Japan JPY
+  {currency: 'CNY', issuer: 'rM8199qFwspxiWNZRChZdZbGN5WrCepVP1'}, //DotPayco CNY
+  {currency: 'JPY', issuer: 'r94s8px6kSw1uZ1MV98dhSRTvc6VMPoPcN'}, //TokyoJPY JPY
+  {currency: 'JPY', issuer: 'rJRi8WW24gt9X85PHAxfWNPCizMMhqUQwg'}, //Digital Gate Japan JPY
+  {currency: 'JPY', issuer: 'r9ZFPSb1TFdnJwbTMYHvVwFK1bQPUCVNfJ'}, //Ripple Exchange Tokyo JPY
+  {currency: 'JPY', issuer: 'rB3gZey7VWHYRqJHLoHDEJXJ2pEPNieKiS'}, //Mr Ripple JPY
   {currency: 'KRW', issuer: 'rUkMKjQitpgAM5WTGk79xpjT38DEJY283d'}, //Pax Moneta KRW
+  {currency: 'STR', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}, //Ripple Fox STR
+  {currency: 'FMM', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'}, //Ripple Fox FMM
+  {currency: 'MXN', issuer: 'rG6FZ31hDHN1K5Dkbma3PSB5uVCuVVRzfn'}, //Bitso MXN
   {currency: 'XRP'}
 ];
 
@@ -48,16 +53,18 @@ function totalPayments(params, callback) {
   var startTime;
   var endTime;
   var interval;
+  var live;
 
   if (!params) params = {};
-  interval  = (params.interval || '').toLowerCase();
+  interval = (params.interval || '').toLowerCase();
   startTime = params.startTime;
-  rowkey    = 'payment_volume';
+  rowkey = 'payment_volume';
 
   if (!startTime) {
     startTime = moment.utc().subtract(24, 'hours');
-    endTime   = moment.utc();
-    rowkey   += '|live';
+    endTime = moment.utc();
+    rowkey += '|live';
+    live = true;
 
   } else if (!interval || intervals.indexOf(interval) === -1) {
     callback('invalid interval');
@@ -170,14 +177,23 @@ function totalPayments(params, callback) {
 
   function getExchangeRates (params, callback) {
 
-    // Mimic calling offersExercised for each asset pair
-    async.map(conversionPairs, function(assetPair, asyncCallbackPair){
-      var options = {
-        base      : assetPair.base,
-        counter   : assetPair.counter,
-        start     : params.start,
-        end       : params.end,
-        desending : false
+    var options;
+
+    //use last 50 trades for live
+    if (live) {
+      options = {
+        start: moment.utc(0),
+        end: moment.utc(),
+        limit: 50,
+        descending: true,
+        reduce: true
+      }
+    //use daily rate
+    } else {
+      options = {
+        start: params.start,
+        end: params.end,
+        descending: false
       };
 
       if (params.interval === 'week') {
@@ -185,8 +201,14 @@ function totalPayments(params, callback) {
       } else if (params.interval) {
         options.interval = '1' + params.interval;
       } else {
-        options.reduce   = true;
+        options.reduce = true;
       }
+    }
+    // Mimic calling offersExercised for each asset pair
+    async.map(conversionPairs, function(assetPair, asyncCallbackPair) {
+
+      options.base = assetPair.base;
+      options.counter = assetPair.counter;
 
       hbase.getExchanges(options, function(err, resp) {
 
