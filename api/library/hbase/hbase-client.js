@@ -658,7 +658,7 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
   var descending;
   var columns;
 
-  if (base < counter) {
+  if (counter.toLowerCase() > base.toLowerCase()) {
     keyBase = base + '|' + counter;
 
   } else {
