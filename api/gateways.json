@@ -360,8 +360,8 @@
     "accounts": [{
       "address": "rUkMKjQitpgAM5WTGk79xpjT38DEJY283d",
       "currencies": {
-        "KRW" : { "featured" : true },
-        "BTC" : { "featured" : true }
+        "KRW" : { "featured" : false },
+        "BTC" : { "featured" : false }
       }
     }],
     "hotwallets": [

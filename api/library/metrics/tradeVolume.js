@@ -61,11 +61,6 @@ var marketPairs = [
     counter: {currency:'XRP'}
   },
   {
-    // Pax Moneta KRW
-    base: {currency:'KRW', issuer: 'rUkMKjQitpgAM5WTGk79xpjT38DEJY283d'},
-    counter: {currency:'XRP'}
-  },
-  {
     // Ripple Fox STR
     base: {currency:'STR', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
     counter: {currency:'XRP'}
