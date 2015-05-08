@@ -1,6 +1,6 @@
-var env    = process.env.NODE_ENV || "production",
-  DBconfig = require('../db.config.json')[env],
-  config   = require('../deployment.environments.json')[env];
+var env    = process.env.NODE_ENV || "production";
+var HBase  = require('../api/library/hbase/hbase-client');
+var config = require('../deployment.environments.json')[env];
 
 var fs   = require('fs'),
   _      = require('lodash'),
@@ -21,30 +21,23 @@ fs.mkdir("./metrics/results",function(e){
     }
 });
 
+//global hbase client
+hbase = new HBase(config.hbase);
 DEBUG = true;
 CACHE = false;
-
-db = require('../api/library/couchClient')({
-  url : DBconfig.protocol+
-    '://' + DBconfig.username + 
-    ':'   + DBconfig.password + 
-    '@'   + DBconfig.host + 
-    ':'   + DBconfig.port + 
-    '/'   + DBconfig.database,
-});
 
 var tvs  = require("../api/library/metrics/transactionVolume");
 var rows = [];
 
 var end    = moment.utc().startOf("day");
-var start  = moment.utc(end).subtract(3, "day"); 
+var start  = moment.utc(end).subtract(3, "day");
 var time   = moment.utc(end).subtract(1, "day");
-var length = 0; 
+var length = 0;
 while(time.diff(start)>=0) {
   var fn = get(time, end, length);
   console.log(time.format(), end.format());
-  setTimeout(fn, length*500); 
-  
+  setTimeout(fn, length*500);
+
   time.subtract(1, "day");
   end.subtract(1, "day");
   length++;
@@ -53,26 +46,27 @@ while(time.diff(start)>=0) {
 function get (start, end, index) {
   var s = moment.utc(start);
   var e = moment.utc(end);
-  var i = index;  
+  var i = index;
   return function () {
     getStats (s, e, i);
   }
 }
 
 
-function getStats (start, end, index) { 
-  
+function getStats (start, end, index) {
+
   tvs({
     exchange : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
     startTime : start,
     endTime   : end,
-    
+    interval  : 'day'
+
   }, function (err, res){
     if (err) {
       console.log(err, length, rows.length);
       length--;
-      
-    } else { 
+
+    } else {
       if (!rows[0]) {
         var header = ["startTime", "totalVolume", "count", "XRPrate"];
         res.components.forEach(function(c){
@@ -83,37 +77,37 @@ function getStats (start, end, index) {
           } else {
             header.push(c.currency+"-volume");
             header.push(c.currency+"-count");
-            header.push(c.currency+"-rate");          
+            header.push(c.currency+"-rate");
           }
         });
         rows[0] = header;
       }
-      
+
       var row = [
         res.startTime,
         res.total,
         res.count,
         res.exchangeRate
       ];
-      
+
       res.components.forEach(function(c){
         row.push(c.convertedAmount || 0);
         row.push(c.count || 0);
         row.push(c.rate || 0);
       });
-      
+
       rows.push(row);
     }
-    
+
     if (rows.length==length+1) {
       var csvStr = _.map(rows, function(row){
         return row.join(', ');
       }).join('\n');
-      
+
       fs.writeFile("./metrics/results/sendVolume.csv", csvStr, function(err) {
         if (err) console.log(err);
         else console.log(length);
-      });       
+      });
     }
   });
 }
