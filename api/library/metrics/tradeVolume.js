@@ -280,7 +280,9 @@ function tradeVolume(params, callback) {
     response.components = pairs;
 
     //cache XRP normalized version
-    cacheResponse (rowkey, response);
+    if (!params.no_cache) {
+      cacheResponse (rowkey, response);
+    }
     callback (null, response);
   });
 

@@ -5,6 +5,10 @@ var fs     = require('fs');
 var _      = require('lodash');
 var moment = require('moment');
 var tools  = require('../api/utils');
+var utils  = require('../api/library/utils');
+
+var interval = 'week';
+var count = 3;
 
 statsd = {
   increment : function(){},
@@ -29,9 +33,9 @@ CACHE = false;
 var tradeVolume = require("../api/library/metrics/tradeVolume");
 var rows = [];
 
-var end    = moment.utc().startOf("month");
-var start  = moment.utc(end).subtract(3, "month");
-var time   = moment.utc(end).subtract(1, "month");
+var end    = moment.utc().startOf(interval).add(1, interval);
+var start  = moment.utc(end).subtract(count, interval);
+var time   = moment.utc(end).subtract(1, interval);
 
 var length = 0;
 while(time.diff(start)>=0) {
@@ -39,8 +43,8 @@ while(time.diff(start)>=0) {
   console.log(time.format(), end.format());
   setTimeout(fn, length*500);
 
-  time.subtract(1, "month");
-  end.subtract(1, "month");
+  time.subtract(1, interval);
+  end.subtract(1, interval);
   length++;
 }
 
@@ -55,60 +59,87 @@ function get (start, end, index) {
 
 function getStats (start, end, index) {
   tradeVolume({
-    ex : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
-    interval: 'month',
-    startTime : moment.utc(start),
-    endTime   : moment.utc(end),
+    interval: interval,
+    startTime: moment.utc(start),
+    endTime: moment.utc(end),
+    no_cache: true,
 
-  }, function (err, res){
-    //console.log(res);
-
+  }, function (err, res) {
     if (err) {
       console.log(err, length, rows.length);
       length--;
+      return;
+    }
 
-    } else {
-      console.log(index);
-      if (!rows[0]) {
-        var header = ["startTime", "totalVolume", "count", "XRPrate"];
-        res.components.forEach(function(c){
-          var prefix = getHeaderPrefix(c);
-          header.push(prefix + "-volume");
-          header.push(prefix + "-count");
-          header.push(prefix + "-rate");
-        });
-        rows[0] = header;
+    utils.getConversion({
+      currency : 'USD',
+      issuer   : 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B',
+      start    : moment.utc(start),
+      end      : moment.utc(end),
+      interval : interval === 'week' ? '7day' : '1' + interval
+    }, function (err, rate) {
+      if (err) {
+        console.log(err, length, rows.length);
+        length--;
+        return;
       }
 
-      var row = [
-        res.startTime,
-        res.total,
-        res.count,
-        res.exchangeRate
-      ];
-
-      res.components.forEach(function(c){
-        row.push(c.convertedAmount || 0);
-        row.push(c.count || 0);
-        row.push(c.rate || 0);
-      });
-
-      rows.push(row);
-    }
-
-    if (rows.length===length+1) {
-      var csvStr = _.map(rows, function(row){
-        return row.join(', ');
-      }).join('\n');
-
-      fs.writeFile("./metrics/results/tradeVolume.csv", csvStr, function(err) {
-        if (err) console.log(err);
-        else console.log(length);
-      });
-    }
+      finalize(rate, res, index);
+    });
   });
 }
 
+function finalize (rate, res, index) {
+  res.total = 0;
+  res.components.forEach(function(c) {
+
+    c.convertedAmount *= rate;
+    c.rate      = c.rate ? rate / c.rate : 0;
+    res.total += c.convertedAmount;
+  });
+
+  res.exchangeRate = rate;
+
+  console.log(index);
+  if (!rows[0]) {
+    var header = ["startTime", "totalVolume", "count", "XRPrate"];
+    res.components.forEach(function(c){
+      var prefix = getHeaderPrefix(c);
+      header.push(prefix + "-volume");
+      header.push(prefix + "-count");
+      header.push(prefix + "-rate");
+    });
+    rows[0] = header;
+  }
+
+  var row = [
+    res.startTime,
+    res.total,
+    res.count,
+    res.exchangeRate
+  ];
+
+  res.components.forEach(function(c){
+    row.push(c.convertedAmount || 0);
+    row.push(c.count || 0);
+    row.push(c.rate || 0);
+  });
+
+  rows.push(row);
+
+
+  if (rows.length===length+1) {
+    var csvStr = _.map(rows, function(row){
+      return row.join(', ');
+    }).join('\n');
+
+    fs.writeFile("./metrics/results/tradeVolume.csv", csvStr, function(err) {
+      if (err) console.log(err);
+      else console.log(length);
+      process.exit();
+    });
+  }
+}
 
 function getHeaderPrefix (c) {
   var baseIssuer    = tools.getGatewayName(c.base.issuer);

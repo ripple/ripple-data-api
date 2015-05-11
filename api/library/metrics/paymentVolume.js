@@ -165,7 +165,9 @@ function totalPayments(params, callback) {
       response.components = currencies;
 
       //cache XRP normalized version
-      cacheResponse (rowkey, response);
+      if (!params.no_cache) {
+        cacheResponse(rowkey, response);
+      }
       callback (null, response);
     });
   });
@@ -174,7 +176,7 @@ function totalPayments(params, callback) {
    * get exchange rates for the listed currencies
    */
 
-  function getExchangeRates (params, callback) {
+  function getExchangeRates(params, callback) {
 
     var options;
 
