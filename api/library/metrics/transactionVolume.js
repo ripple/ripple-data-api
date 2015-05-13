@@ -149,7 +149,10 @@ function totalValueSent(params, callback) {
       response.components = currencies;
 
       //cache XRP normalized version
-      cacheResponse (rowkey, response);
+      if (!params.no_cache) {
+        cacheResponse (rowkey, response);
+      }
+
       callback (null, response);
     });
   });
