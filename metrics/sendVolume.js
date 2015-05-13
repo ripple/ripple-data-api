@@ -2,6 +2,9 @@ var env    = process.env.NODE_ENV || "production";
 var HBase  = require('../api/library/hbase/hbase-client');
 var config = require('../deployment.environments.json')[env];
 
+var interval = 'week';
+var count = 3;
+
 var fs   = require('fs'),
   _      = require('lodash'),
   moment = require('moment');
@@ -26,20 +29,29 @@ hbase = new HBase(config.hbase);
 DEBUG = true;
 CACHE = false;
 
+db = require('../api/library/couchClient')({
+  url : DBconfig.protocol+
+    '://' + DBconfig.username +
+    ':'   + DBconfig.password +
+    '@'   + DBconfig.host +
+    ':'   + DBconfig.port +
+    '/'   + DBconfig.database,
+});
+
 var tvs  = require("../api/library/metrics/transactionVolume");
 var rows = [];
 
-var end    = moment.utc().startOf("day");
-var start  = moment.utc(end).subtract(3, "day");
-var time   = moment.utc(end).subtract(1, "day");
+var end    = moment.utc().startOf(interval).add(1, interval);
+var start  = moment.utc(end).subtract(count, interval);
+var time   = moment.utc(end).subtract(1, interval);
+
 var length = 0;
 while(time.diff(start)>=0) {
   var fn = get(time, end, length);
   console.log(time.format(), end.format());
   setTimeout(fn, length*500);
-
-  time.subtract(1, "day");
-  end.subtract(1, "day");
+  time.subtract(1, interval);
+  end.subtract(1, interval);
   length++;
 }
 
@@ -56,10 +68,10 @@ function get (start, end, index) {
 function getStats (start, end, index) {
 
   tvs({
-    exchange : {currency: 'USD', issuer: 'rvYAfWj5gh67oV6fW32ZzP3Aw4Eubs59B'},
     startTime : start,
     endTime   : end,
-    interval  : 'day'
+    interval  : interval,
+    no_cache  : true
 
   }, function (err, res){
     if (err) {

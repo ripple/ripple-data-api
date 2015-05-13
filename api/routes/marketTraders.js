@@ -103,7 +103,8 @@ function marketTraders (params, callback) {
       start: startTime,
       end: endTime,
       base: c.base || {currency: 'XRP'},
-      counter: c.counter || c
+      counter: c.counter || c,
+      descending: false
     }, function(err, data) {
 
       if (err) {
