@@ -65,7 +65,7 @@ module.exports = function (params, callback) {
   }
 
   //Parse start and end times
-  options.time = tools.parseTimeRange(params.startTime, params.endTime, params.descending);
+  options.time = tools.parseTimeRange(params.startTime, params.endTime);
 
   if (options.time.error) {
     callback(options.time.error);
@@ -75,14 +75,24 @@ module.exports = function (params, callback) {
     return;
   }
 
-  if (params.timeIncrement &&
-    params.timeIncrement[params.timeIncrement.length-1] === 's') {
-    params.timeIncrement = params.timeIncrement.slice(0, -1);
-  }
+  if (params.reduce !== false) {
+    if (params.interval) {
+      options.multiple = params.interval.replace(/(^\d+)(.+$)/i,'$1') || 1;
+      options.increment = params.interval.replace(/[0-9]/g, '');
 
-  if (params.timeIncrement === 'week') {
-    params.timeIncrement = 'day';
-    params.timeMultiple = 7;
+    } else {
+      options.multiple = params.timeMultiple || 1;
+      options.increment = params.timeIncrement || 'hour';
+    }
+
+    if (options.increment[options.increment.length-1] === 's') {
+      options.increment = options.increment.slice(0, -1);
+    }
+
+    if (options.increment === 'week') {
+      options.increment = 'day';
+      options.multiple *= 7;
+    }
   }
 
   //set format
@@ -101,6 +111,13 @@ module.exports = function (params, callback) {
 
   //aggregated intervals from hbase
   } else {
+    if (!params.timeIncrement) {
+      params.timeIncrement = 'hour';
+    }
+    if (!params.timeMultiple) {
+      params.timeMultiple = 1;
+    }
+
     getAggregated(options, params, callback);
   }
 }
@@ -193,12 +210,10 @@ function getReduced(options, params, callback) {
 
 function getAggregated (options, params, callback) {
 
-  if (!params.interval) {
-    params.interval = (params.timeMultiple || 1) + (params.timeIncrement || 'hour');
-  }
+  var interval = options.multiple + options.increment;
 
   hbase.getExchanges({
-    interval : params.interval,
+    interval : interval,
     start    : options.time.start,
     end      : options.time.end,
     base     : params.base,
@@ -251,12 +266,12 @@ function handleResponse (rows, options, callback) {
   //JSON output
   } else if (options.format === 'json') {
 
-    apiRes.startTime     = moment.utc(options.startTime).format();
-    apiRes.endTime       = moment.utc(options.endTime).format();
+    apiRes.startTime     = options.time.start.format();
+    apiRes.endTime       = options.time.end.format();
     apiRes.base          = options.base;
     apiRes.counter       = options.counter;
-    apiRes.timeIncrement = options.increment;
-    if (options.multiple && options.multiple>1) apiRes.timeMultiple = options.multiple;
+    apiRes.timeIncrement = options.increment || "none";
+    apiRes.timeMultiple  = options.multiple;
 
     rows.shift();//get rid of header
 

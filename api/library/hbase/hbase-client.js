@@ -756,13 +756,13 @@ HbaseClient.prototype.getExchanges = function (options, callback) {
       var key = row.rowkey.split('|');
       row.base_volume    = parseFloat(row.base_volume),
       row.counter_volume = parseFloat(row.counter_volume),
-      row.count          = parseInt(row.count, 10);
+      row.count          = Number(row.count);
       row.open           = parseFloat(row.open);
       row.high           = parseFloat(row.high);
       row.low            = parseFloat(row.low);
       row.close          = parseFloat(row.close);
-      row.close_time     = parseInt(row.open_time, 10);
-      row.open_time      = parseInt(row.close_time, 10);
+      row.close_time     = Number(row.close_time);
+      row.open_time      = Number(row.open_time);
     });
 
     if (options.invert) {
