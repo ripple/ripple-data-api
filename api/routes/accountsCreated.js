@@ -95,7 +95,10 @@ function accountsCreated(params, callback) {
 
   if (params.timeIncrement === 'all') {
     params.reduce = true;
+    params.timeIncrement = null;
+
   } else if (params.timeIncrement) {
+    params.reduce = false; //using a time increment will reduce already
     params.timeIncrement = params.timeIncrement.toLowerCase();
     if (intervals.indexOf(params.timeIncrement) === -1) {
       callback('invalid time increment - use: ' + intervals.join(', '));
