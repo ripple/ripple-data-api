@@ -113,8 +113,10 @@ module.exports.init = function(reload) {
     saveHistory('tradeVolume', "month", update, function() {
       saveHistory('paymentVolume', "month", update, function() {
         saveHistory('issuedValue', "month", update, function() {
-          winston.info("finished cacheing monthly historical metrics");
-          if(done) done();
+          saveHistory('networkValue', "month", update, function() {
+            winston.info("finished cacheing monthly historical metrics");
+            if(done) done();
+          });
         });
       });
     });
@@ -124,8 +126,10 @@ module.exports.init = function(reload) {
     saveHistory('tradeVolume', "week", update, function() {
       saveHistory('paymentVolume', "week", update, function() {
         saveHistory('issuedValue', "week", update, function() {
-          winston.info("finished cacheing weekly historical metrics");
-          if (done) done();
+          saveHistory('networkValue', "week", update, function() {
+            winston.info("finished cacheing weekly historical metrics");
+            if (done) done();
+          });
         });
       });
     });
@@ -135,8 +139,10 @@ module.exports.init = function(reload) {
     saveHistory('tradeVolume', "day", update, function() {
       saveHistory('paymentVolume', "day", update, function() {
         saveHistory('issuedValue', "day", update, function() {
-          winston.info("finished cacheing daily historical metrics");
-          if (done) done();
+          saveHistory('networkValue', "day", update, function() {
+            winston.info("finished cacheing daily historical metrics");
+            if (done) done();
+          });
         });
       });
     });

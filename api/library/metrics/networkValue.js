@@ -70,7 +70,8 @@ function totalNetworkValue (params, callback) {
     time         : params.time.format(),
     exchange     : {currency:'XRP'},
     exchangeRate : 1,
-    total        : 0
+    total        : 0,
+    components   : []
   };
 
   //call issuerCapitalization for
@@ -84,30 +85,37 @@ function totalNetworkValue (params, callback) {
 
     if (err) return callback(err);
 
+
     getExchangeRates(params.time, function(error, rates) {
+
       if (error) return callback(error);
 
       rates.forEach(function(pair, i){
-        data[i].rate            = pair.rate;
-        data[i].convertedAmount = pair.rate ? data[i].amount / pair.rate : 0;
+        var amount = data[i].results && data[i].results.length ? data[i].results[0][1] : 0;
+        var rate = pair.rate || 0;
+        response.components.push({
+          currency: data[i].currency,
+          issuer: data[i].issuer,
+          rate: rate,
+          amount: amount,
+          convertedAmount: rate && amount ? amount / rate : 0
+        });
       });
 
       //include XRP balance
       getXRPbalance(params.time, function(error, balance){
         if (error) return callback(error);
 
-        data.push({
+        response.components.push({
           currency : "XRP",
           rate     : 1,
           amount   : balance,
           convertedAmount : balance,
         });
 
-        data.forEach(function(currency, index) {
+        response.components.forEach(function(currency, index) {
           response.total += currency.convertedAmount;
         });
-
-        response.components = data;
 
         //cache XRP normalized version
         cacheResponse (rowkey, response);
@@ -127,7 +135,7 @@ function totalNetworkValue (params, callback) {
     //use last 50 trades for live
     if (live) {
       options = {
-        start: moment.utc(0),
+        start: moment.utc().subtract(14, 'days'),
         end: moment.utc(),
         limit: 50,
         descending: true,
@@ -165,6 +173,7 @@ function totalNetworkValue (params, callback) {
       });
 
     }, function(error, results){
+
       if (error) return callback(error);
       return callback(null, results);
     });
