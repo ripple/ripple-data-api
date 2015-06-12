@@ -15,9 +15,9 @@ module.exports.init = function () {
 
 function cacheMetrics () {
   async.series([
-    //function (callback) {cacheTradeVolume(null, callback)},
-    //function (callback) {cachePaymentVolume(null, callback)},
-    //function (callback) {cacheIssuedValue(null, callback)},
+    function (callback) {cacheTradeVolume(null, callback)},
+    function (callback) {cachePaymentVolume(null, callback)},
+    function (callback) {cacheIssuedValue(null, callback)},
     function (callback) {cacheNetworkValue(null, callback)}
   ]);
 }
