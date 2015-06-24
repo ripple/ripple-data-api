@@ -82,7 +82,7 @@ DATEARRAY  = ['YYYY', '-MM', '-DD', 'THH', ':mm', ':ssZZ'];
 DATEFORMAT = DATEARRAY.join('');
 
 var apiRoutes = {
-  'offers'                  : require("./routes/offers"),
+  //'offers'                  : require("./routes/offers"),
   'offersexercised'         : require("./routesV2/exchanges"),
   'payments'                : require("./routesV2/payments"),
   'totalpaymentvolume'      : require("./routesV2/totalPaymentVolume"),
@@ -92,18 +92,30 @@ var apiRoutes = {
   'markettraders'           : require("./routes/marketTraders"),
   'accountscreated'         : require("./routes/accountsCreated"),
   'issuercapitalization'    : require("./routes/issuerCapitalization"),
-  'currencybalances'        : require("./routes/currencyBalances"),
-  'totalnetworkvalue'       : require("./routes/totalNetworkValue"),
+  //'currencybalances'        : require("./routes/currencyBalances"),
+  //'totalnetworkvalue'       : require("./routes/totalNetworkValue"),
   'exchangerates'           : require("./routes/exchangeRates"),
-  'valuesent'               : require("./routes/valueSent"),
-  'totalvaluesent'          : require("./routes/totalValueSent"),
-  'accounttransactions'     : require("./routes/accountTransactions"),
-  'accounttransactionstats' : require("./routes/accountTransactionStats"),
-  'accountoffersexercised'  : require("./routes/accountOffersExercised"),
-  'accounttrust'            : require("./routes/accountTrust"),
-  'transactionstats'        : require("./routes/transactionStats"),
-  'ledgersclosed'           : require("./routes/ledgersClosed"),
+  //'valuesent'               : require("./routes/valueSent"),
+  //'totalvaluesent'          : require("./routes/totalValueSent"),
+  //'accounttransactions'     : require("./routes/accountTransactions"),
+  //'accounttransactionstats' : require("./routes/accountTransactionStats"),
+  //'accountoffersexercised'  : require("./routes/accountOffersExercised"),
+  //'accounttrust'            : require("./routes/accountTrust"),
+  //'transactionstats'        : require("./routes/transactionStats"),
+  //'ledgersclosed'           : require("./routes/ledgersClosed"),
   'historicalmetrics'       : require("./routes/historicalMetrics"),
+
+  'offers'                  : require("./routesv2/deprecated"),
+  'currencybalances'        : require("./routesv2/deprecated"),
+  'totalnetworkvalue'       : require("./routesv2/deprecated"),
+  'valuesent'               : require("./routesv2/deprecated"),
+  'totalvaluesent'          : require("./routesv2/deprecated"),
+  'accounttransactions'     : require("./routesv2/deprecated"),
+  'accounttransactionstats' : require("./routesv2/deprecated"),
+  'accountoffersexercised'  : require("./routesv2/deprecated"),
+  'accounttrust'            : require("./routesv2/deprecated"),
+  'transactionstats'        : require("./routesv2/deprecated"),
+  'ledgersclosed'           : require("./routesv2/deprecated"),
 };
 
 //set content type to application/json
@@ -179,6 +191,8 @@ function requestHandler(req, res) {
       if (err) {
         if (err === 'CouchDB - Service Unavailable' || err === 'CouchDB - Too Many Connections') {
           code = 503;
+        } else if (err === 'this API endpoint has been deprecated') {
+          code = 400
         } else if (err === 'CouchDB - Request Timeout') {
           code = 408;
         } else {
