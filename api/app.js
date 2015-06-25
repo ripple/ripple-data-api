@@ -105,17 +105,17 @@ var apiRoutes = {
   //'ledgersclosed'           : require("./routes/ledgersClosed"),
   'historicalmetrics'       : require("./routes/historicalMetrics"),
 
-  'offers'                  : require("./routesv2/deprecated"),
-  'currencybalances'        : require("./routesv2/deprecated"),
-  'totalnetworkvalue'       : require("./routesv2/deprecated"),
-  'valuesent'               : require("./routesv2/deprecated"),
-  'totalvaluesent'          : require("./routesv2/deprecated"),
-  'accounttransactions'     : require("./routesv2/deprecated"),
-  'accounttransactionstats' : require("./routesv2/deprecated"),
-  'accountoffersexercised'  : require("./routesv2/deprecated"),
-  'accounttrust'            : require("./routesv2/deprecated"),
-  'transactionstats'        : require("./routesv2/deprecated"),
-  'ledgersclosed'           : require("./routesv2/deprecated"),
+  'offers'                  : require("./routesV2/deprecated"),
+  'currencybalances'        : require("./routesV2/deprecated"),
+  'totalnetworkvalue'       : require("./routesV2/deprecated"),
+  'valuesent'               : require("./routesV2/deprecated"),
+  'totalvaluesent'          : require("./routesV2/deprecated"),
+  'accounttransactions'     : require("./routesV2/deprecated"),
+  'accounttransactionstats' : require("./routesV2/deprecated"),
+  'accountoffersexercised'  : require("./routesV2/deprecated"),
+  'accounttrust'            : require("./routesV2/deprecated"),
+  'transactionstats'        : require("./routesV2/deprecated"),
+  'ledgersclosed'           : require("./routesV2/deprecated"),
 };
 
 //set content type to application/json
