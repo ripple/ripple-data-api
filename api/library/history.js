@@ -91,7 +91,7 @@ function saveHistory (metric, interval, update, done) {
 }
 
 module.exports.init = function(reload) {
-  var offset      = Math.ceil(new Date().getTimezoneOffset()/60);
+  var offset      = Math.ceil(new Date().getTimezoneOffset()/60) + 4;
   var dailyRule   = new schedule.RecurrenceRule(null, null, null, null, offset, 15, 0);
   var weeklyRule  = new schedule.RecurrenceRule(null, null, null, 2, offset, 10, 0);
   var monthlyRule = new schedule.RecurrenceRule(null, null, 1, null, offset, 5, 0);
