@@ -72,12 +72,12 @@ var marketPairs = [
   },
   {
     // Bitso MXN
-    base: {currency:'MXN', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    base: {currency:'MXN', issuer: 'rG6FZ31hDHN1K5Dkbma3PSB5uVCuVVRzfn'},
     counter: {currency:'XRP'}
   },
   {
     // Bitso BTC
-    base: {currency:'BTC', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    base: {currency:'BTC', issuer: 'rG6FZ31hDHN1K5Dkbma3PSB5uVCuVVRzfn'},
     counter: {currency:'XRP'}
   },
   {
@@ -152,7 +152,7 @@ var marketPairs = [
   },
   {
     // Bitso MXN / Snapswap USD
-    base    : {currency: 'MXN', issuer: 'rKiCet8SdvWxPXnAgYarFUXMh1zCPz432Y'},
+    base    : {currency: 'MXN', issuer: 'rG6FZ31hDHN1K5Dkbma3PSB5uVCuVVRzfn'},
     counter : {currency: 'USD', issuer: 'rMwjYedjc7qqtKYVLiAccJSmCwih4LnE2q'}
   }
 ];
