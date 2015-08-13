@@ -190,7 +190,7 @@
       "currencies": {"CNY" : { "featured" : true }}
     }],
     "hotwallets": [
-      "rHTLdR8F4v9gJmLoW6Fk6zmBvCM2bqzqLP"
+      "rEXHeNZM52TUyoXkBqNqsteHoiZvy26GHS"
     ],
     "domain": "xrpchina.net",
     "status": "active"
@@ -206,9 +206,7 @@
         "SGD" : { "featured" : true }
       }
     }],
-    "hotwallets": [
-      "rL4A1qbTkrJXT644gyzmLVk6uudyMagJ9Q"
-    ],
+    "hotwallets": [],
     "domain": "ripplesingapore.com",
     "status": "active"
   }, {
