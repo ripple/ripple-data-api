@@ -36,7 +36,7 @@
     "node-persist": "0.0.2",
     "node-schedule": "^0.1.13",
     "node-statsd": "^0.1.0",
-    "posix": "^2.0.0",
+    "posix": "2.0.1",
     "q": "~1.0.0",
     "redis": "^0.10.1",
     "request": "^2.34.0",
