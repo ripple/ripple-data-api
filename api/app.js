@@ -152,10 +152,10 @@ app.listen(config.port);
 winston.info('Listening on port ' + config.port);
 
 //initialize metrics
-require('./library/metrics').init();
+//require('./library/metrics').init();
 
 //initialize historical metrics
-require('./library/history').init(reload);
+//require('./library/history').init(reload);
 
 //function to handle all incoming requests
 function requestHandler(req, res) {
