@@ -187,7 +187,7 @@
     "startDate": "2013-06-02",
     "accounts": [{
       "address": "rM8199qFwspxiWNZRChZdZbGN5WrCepVP1",
-      "currencies": {"CNY" : { "featured" : true }}
+      "currencies": {"CNY" : { "featured" : false }}
     }],
     "hotwallets": [
       "rEXHeNZM52TUyoXkBqNqsteHoiZvy26GHS"
@@ -413,7 +413,7 @@
         "address": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",
         "currencies": {
           "EUR" : { "featured" : true },
-          "USD" : { "featured" : false }
+          "USD" : { "featured" : true }
         }
     }],
     "hotwallets": ["rhotcWYdfn6qxhVMbPKGDF3XCKqwXar5J4"],
