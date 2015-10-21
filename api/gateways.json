@@ -419,5 +419,17 @@
     "hotwallets": ["rhotcWYdfn6qxhVMbPKGDF3XCKqwXar5J4"],
     "domain": "gatehub.net",
     "status" : "active"
+  }, {
+    "name": "EXRP",
+    "startDate":"2015-3-16",
+    "accounts": [{
+        "address": "rPxU6acYni7FcXzPCMeaPSwKcuS2GTtNVN",
+        "currencies": {
+          "KRW" : { "featured" : true }
+        }
+    }],
+    "hotwallets": [],
+    "domain": "exrp.co.kr",
+    "status" : "active"
   }
 ]
