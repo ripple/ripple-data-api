@@ -53,8 +53,6 @@ HbaseClient.prototype.constructor = HbaseClient;
 
 HbaseClient.prototype.getCapitalization = function (options, callback) {
   var base = options.currency + '|' + options.issuer;
-  var startRow = base + '|' + utils.formatTime(options.start);
-  var endRow = base + '|' + utils.formatTime(options.end);
   var interval = options.interval || 'day';
   var keys = [];
   var column;
@@ -73,7 +71,7 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
 
   if (options.interval && options.interval !== 'day') {
     if (options.interval === 'week') {
-      start = moment.utc(options.start).startOf('isoWeek');
+      start = moment.utc(options.start).startOf('week');
 
       while (start.diff(options.end) <= 0) {
         keys.push(base + '|' + utils.formatTime(start, 'day'));
@@ -84,8 +82,9 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
        start = moment.utc(options.start).startOf('month');
 
       while (start.diff(options.end) <= 0) {
+        start.subtract(1, 'day');
         keys.push(base + '|' + utils.formatTime(start, 'day'));
-        start.add(1, 'month');
+        start.add(1, 'day').add(1, 'month');
       }
 
     } else {
@@ -102,10 +101,15 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
     });
 
   } else {
+    start = moment.utc(options.start).subtract(1, 'day');
+    end   = moment.utc(options.end).subtract(1, 'day');
+    start = base + '|' + utils.formatTime(start);
+    end = base + '|' + utils.formatTime(end);
+
     this.getScanWithMarker(this, {
       table: 'issuer_balance_snapshot',
-      startRow: startRow,
-      stopRow: endRow,
+      startRow: start,
+      stopRow: end,
       limit: options.limit || Infinity,
       descending: options.descending,
       marker: options.marker,
@@ -125,7 +129,7 @@ HbaseClient.prototype.getCapitalization = function (options, callback) {
         }
 
         resp.rows[i] = {
-          date: utils.unformatTime(parts[2]).format(),
+          date: utils.unformatTime(parts[2]).add(1, 'day').format(),
           amount: amount
         };
       });
