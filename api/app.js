@@ -140,14 +140,14 @@ app.use(defaultContentType);
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 
-app.get('/api/gateways/:gateway?', gateways);
-app.get('/api/gateways/:gateway/assets/:filename?', assets);
-app.get('/api/currencies/:currencyAsset?', currencies);
+app.get('/api/gateways/:gateway?', deprecated);
+app.get('/api/gateways/:gateway/assets/:filename?', deprecated);
+app.get('/api/currencies/:currencyAsset?', deprecated);
 app.get('/health', function (req, res){
   res.send(200, '');
 });
 
-app.post('/api/*', requestHandler);
+app.post('/api/*', deprecated);
 app.listen(config.port);
 winston.info('Listening on port ' + config.port);
 
@@ -377,4 +377,24 @@ function countSockets () {
 
   if (DEBUG) winston.info("open sockets: ", count);
   return count;
+}
+
+function deprecated(req, res) {
+  var path
+  if (req.method === 'GET') {
+    res.send(410, 'This endpoint has been deprecated: ' + req.originalUrl);
+  } else {
+    path = req.path.slice(5);
+
+    if (path.indexOf('/') > 0) {
+      path = path.slice(0, path.indexOf('/'));
+    }
+
+    path = path.replace(/_/g, "").toLowerCase();
+    if (apiRoutes[path]) {
+      res.send(410, 'This endpoint has been deprecated: ' + req.originalUrl);
+    } else {
+      res.send(404, 'Sorry, that API route doesn\'t seem to exist.');
+    }
+  }
 }
